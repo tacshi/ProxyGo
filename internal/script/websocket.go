@@ -30,9 +30,10 @@ type WebSocketSession struct {
 }
 
 type wsVM struct {
-	vm   *goja.Runtime
-	fn   goja.Callable
-	args []goja.Value
+	vm    *goja.Runtime
+	lease *sharedLease
+	fn    goja.Callable
+	args  []goja.Value
 }
 
 func HasWebSocketHook(r *rules.ScriptRule) bool {
@@ -95,13 +96,11 @@ func (s *WebSocketSession) loop() {
 }
 
 func (s *WebSocketSession) run(r *rules.ScriptRule, m flow.WebSocketMessage) error {
-	e := s.e
-	e.runMu.Lock()
-	defer e.runMu.Unlock()
 	w, err := s.vm(r)
 	if err != nil || w == nil {
 		return err
 	}
+	defer w.lease.release()
 	timer := time.AfterFunc(30*time.Second, func() { w.vm.Interrupt("onWebsocket timed out after 30 s") })
 	defer timer.Stop()
 	msg := w.vm.NewObject()
@@ -137,7 +136,8 @@ func (s *WebSocketSession) vm(r *rules.ScriptRule) (*wsVM, error) {
 	}
 	vm := goja.New()
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
-	s.e.installRuntime(vm, r.Name)
+	lease := s.e.installRuntime(vm, r.Name)
+	defer lease.release()
 	timer := time.AfterFunc(30*time.Second, func() { vm.Interrupt("the script timed out after 30 s") })
 	_, err = vm.RunProgram(prog)
 	timer.Stop()
@@ -159,7 +159,7 @@ func (s *WebSocketSession) vm(r *rules.ScriptRule) (*wsVM, error) {
 	} else {
 		args = append(args, goja.Undefined())
 	}
-	w := &wsVM{vm: vm, fn: fn, args: args}
+	w := &wsVM{vm: vm, lease: lease, fn: fn, args: args}
 	s.vms[r.ID] = w
 	return w, nil
 }
