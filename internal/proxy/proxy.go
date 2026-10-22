@@ -153,6 +153,7 @@ func (s *Server) SetListen(addr, network string) error {
 	s.mu.Lock()
 	if s.httpSrv != nil {
 		_ = s.httpSrv.Close()
+		_ = s.listener.Close()
 		s.httpSrv, s.listener, s.addr = nil, nil, ""
 	}
 	s.opts.Addr, s.opts.Network = addr, network
@@ -175,7 +176,7 @@ func (s *Server) bindHost() (host, network string) {
 
 func (s *Server) Stop() {
 	s.mu.Lock()
-	srv := s.httpSrv
+	srv, ln := s.httpSrv, s.listener
 	s.httpSrv, s.listener, s.addr = nil, nil, ""
 	off := s.offRules
 	s.offRules = nil
@@ -188,6 +189,7 @@ func (s *Server) Stop() {
 		_ = srv.Shutdown(ctx)
 		cancel()
 		_ = srv.Close()
+		_ = ln.Close()
 	}
 	s.tunnels.close()
 	s.socks.stop()
