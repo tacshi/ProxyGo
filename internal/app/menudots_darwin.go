@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/egoist/mygo"
@@ -83,7 +82,7 @@ func (d *menuDots) dot(name string) objc.ID {
 	}
 	pdf := dotPDF(c)
 	sel := objc.RegisterName
-	data := objc.ID(objc.GetClass("NSData")).Send(sel("dataWithBytes:length:"), unsafe.Pointer(unsafe.SliceData(pdf)), uint64(len(pdf))) // #nosec G103 -- NSData copies the bytes during the call.
+	data := objc.ID(objc.GetClass("NSData")).Send(sel("dataWithBytes:length:"), pdf, uint64(len(pdf)))
 	img := objc.ID(objc.GetClass("NSImage")).Send(sel("alloc")).Send(sel("initWithData:"), data)
 	d.images[key] = img
 	return img
@@ -124,13 +123,5 @@ func goString(s objc.ID) string {
 	if s == 0 {
 		return ""
 	}
-	p := objc.Send[*byte](s, objc.RegisterName("UTF8String"))
-	if p == nil {
-		return ""
-	}
-	n := 0
-	for *(*byte)(unsafe.Add(unsafe.Pointer(p), n)) != 0 { // #nosec G103 -- reads a C string that Objective-C returned.
-		n++
-	}
-	return string(unsafe.Slice(p, n)) // #nosec G103 -- reads a C string that Objective-C returned.
+	return objc.Send[string](s, objc.RegisterName("UTF8String"))
 }

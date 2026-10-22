@@ -3,10 +3,7 @@ package app
 import (
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -209,16 +206,4 @@ func parseHeaderLines(s string) flow.Header {
 		h.Add(name, strings.TrimSpace(value))
 	}
 	return h
-}
-
-func residentMemory() int64 {
-	out, err := exec.Command("ps", "-o", "rss=", "-p", strconv.Itoa(os.Getpid())).Output() // #nosec G204 -- ps, asked about this process.
-	if err != nil {
-		return 0
-	}
-	kb, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-	if err != nil {
-		return 0
-	}
-	return kb << 10
 }

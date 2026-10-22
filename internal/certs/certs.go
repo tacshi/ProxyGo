@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 type Manager struct {
@@ -347,12 +349,13 @@ func (m *Manager) Export(format, path, password string) error {
 		}
 		return os.WriteFile(path, b, 0o600)
 	case FormatP12:
-		cmd := exec.Command("openssl", "pkcs12", "-export", "-in", m.certPath, "-inkey", m.keyPath, "-out", path, "-name", m.CommonName(), "-passout", "env:PROXYGO_P12_PASSWORD") // #nosec G204 -- openssl, given ProxyGo's own certificate and key.
-		cmd.Env = append(os.Environ(), "PROXYGO_P12_PASSWORD="+password)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("openssl: %s: %w", strings.TrimSpace(string(out)), err)
+		m.mu.RLock()
+		b, err := pkcs12.LegacyDES.Encode(m.rootKey, m.rootCert, nil, password)
+		m.mu.RUnlock()
+		if err != nil {
+			return err
 		}
-		return nil
+		return os.WriteFile(path, b, 0o600)
 	}
 	return fmt.Errorf("unknown format %q", format)
 }

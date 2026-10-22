@@ -63,12 +63,8 @@ func WriteOpenAPI(path, title string, flows []*flow.Flow) error {
 }
 
 func WriteOpenAPIHTML(path, title string, flows []*flow.Flow) error {
-	spec, err := json.Marshal(OpenAPI(title, flows).jsonValue())
-	if err != nil {
-		return err
-	}
 	var b strings.Builder
-	err = swaggerPage.Execute(&b, map[string]any{"Title": title, "Spec": template.JS(spec)}) // #nosec G203 -- json.Marshal escapes <, > and &, so the spec cannot close the script.
+	err := swaggerPage.Execute(&b, map[string]any{"Title": title, "Spec": OpenAPI(title, flows).jsonValue()})
 	if err != nil {
 		return err
 	}

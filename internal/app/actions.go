@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -687,9 +686,6 @@ func confirmDelete(parent *mygo.Window, message, detail string) (bool, error) {
 	})
 	return r.Button == 0, err
 }
-
-func revealInFinder(path string) { _ = exec.Command("open", "-R", path).Start() } // #nosec G204 -- open gets the path as an argument, not shell text.
-func openPath(path string)       { _ = exec.Command("open", path).Start() }       // #nosec G204 -- open gets the path as an argument, not shell text.
 
 func (a *App) installCertificate() {
 	if a.certs == nil {

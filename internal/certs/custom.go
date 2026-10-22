@@ -1,8 +1,6 @@
 package certs
 
 import (
-	"bytes"
-	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
@@ -10,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"time"
 
 	"software.sslmate.com/src/go-pkcs12"
@@ -135,36 +131,3 @@ var Keychain interface {
 	Get(ref string) (string, error)
 	Delete(ref string) error
 } = keychain{}
-
-type keychain struct{}
-
-func (keychain) Set(ref, secret string) error {
-	out, err := run("security", "add-generic-password", "-U", "-s", keychainService, "-a", ref, "-w", secret)
-	if err != nil {
-		return fmt.Errorf("keychain: %s", strings.TrimSpace(out))
-	}
-	return nil
-}
-
-func (keychain) Get(ref string) (string, error) {
-	out, err := run("security", "find-generic-password", "-s", keychainService, "-a", ref, "-w")
-	if err != nil {
-		return "", fmt.Errorf("keychain: no password for %s", ref)
-	}
-	return strings.TrimSuffix(out, "\n"), nil
-}
-
-func (keychain) Delete(ref string) error {
-	_, _ = run("security", "delete-generic-password", "-s", keychainService, "-a", ref)
-	return nil
-}
-
-func run(name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	var out bytes.Buffer
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- security, run with fixed subcommands.
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	return out.String(), err
-}

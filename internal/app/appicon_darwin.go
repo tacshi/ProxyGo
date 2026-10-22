@@ -3,8 +3,6 @@
 package app
 
 import (
-	"unsafe"
-
 	"github.com/ebitengine/purego/objc"
 	"github.com/egoist/mygo"
 )
@@ -15,7 +13,7 @@ func setBundleIcon(bundle string, icns []byte) bool {
 		sel := objc.RegisterName
 		var img objc.ID
 		if icns != nil {
-			data := objc.ID(objc.GetClass("NSData")).Send(sel("dataWithBytes:length:"), unsafe.Pointer(unsafe.SliceData(icns)), uint64(len(icns))) // #nosec G103 -- NSData copies the bytes during the call.
+			data := objc.ID(objc.GetClass("NSData")).Send(sel("dataWithBytes:length:"), icns, uint64(len(icns)))
 			img = objc.ID(objc.GetClass("NSImage")).Send(sel("alloc")).Send(sel("initWithData:"), data)
 			if img == 0 {
 				return

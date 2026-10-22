@@ -156,15 +156,9 @@ func describe(pid int) Info {
 	if pid <= 0 {
 		return systemInfo()
 	}
-	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "comm=").Output() // #nosec G204 -- ps, given a process ID.
-	path := ""
-	if err == nil {
-		path = strings.TrimSpace(string(out))
-	}
-	if !filepath.IsAbs(path) {
-		if full := executablePath(pid); filepath.IsAbs(full) {
-			path = full
-		}
+	path := executablePath(pid)
+	if path == "" {
+		path = processPath(pid)
 	}
 	name := appName(path)
 	if name == "" {
@@ -186,11 +180,7 @@ func BundleID(path string) string {
 	if v, ok := bundleIDs.Load(bundle); ok {
 		return v.(string)
 	}
-	id := ""
-	out, err := exec.Command("plutil", "-extract", "CFBundleIdentifier", "raw", "-o", "-", filepath.Join(bundle, "Contents", "Info.plist")).Output() // #nosec G204 -- plutil, given an app bundle's Info.plist.
-	if err == nil {
-		id = strings.TrimSpace(string(out))
-	}
+	id := bundleIdentifier(bundle)
 	bundleIDs.Store(bundle, id)
 	return id
 }
