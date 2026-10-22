@@ -40,7 +40,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 name="ProxyGo-debug"
-identifier="com.example.proxygo.debug"
+identifier="app.capyvibe.proxygo.debug"
 # ProxyGo keeps its data in ~/Library/Application Support/ProxyGo unless
 # PROXYGO_DATA_DIR names another folder, which macOS sets from the bundle's
 # LSEnvironment when it launches the app.

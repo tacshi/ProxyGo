@@ -20,7 +20,7 @@ func TestDaemonPlist(t *testing.T) {
 		t.Skip("plutil is macOS only")
 	}
 	path := filepath.Join(t.TempDir(), "helper.plist")
-	if err := os.WriteFile(path, []byte(daemonPlist("com.example.proxygo.helper", "/Library/PrivilegedHelperTools/com.example.proxygo.helper", 501)), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(daemonPlist("app.capyvibe.proxygo.helper", "/Library/PrivilegedHelperTools/app.capyvibe.proxygo.helper", 501)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if out, err := exec.Command("plutil", "-lint", path).CombinedOutput(); err != nil { // #nosec G204 -- plutil, given the plist the test wrote.
@@ -30,7 +30,7 @@ func TestDaemonPlist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.TrimSpace(string(out)), `["\/Library\/PrivilegedHelperTools\/com.example.proxygo.helper","privileged-helper","com.example.proxygo.helper","501"]`; got != want {
+	if got, want := strings.TrimSpace(string(out)), `["\/Library\/PrivilegedHelperTools\/app.capyvibe.proxygo.helper","privileged-helper","app.capyvibe.proxygo.helper","501"]`; got != want {
 		t.Fatalf("ProgramArguments = %s, want %s", got, want)
 	}
 }
@@ -166,13 +166,13 @@ func TestAppBundle(t *testing.T) {
 }
 
 func TestInstallCommandsCopyTheWholeApp(t *testing.T) {
-	label := "com.example.proxygo.helper"
+	label := "app.capyvibe.proxygo.helper"
 	script := strings.Join(installCommands(label, "/Applications/ProxyGo.app/Contents/MacOS/ProxyGo", 501), " && ")
-	program := "/Library/PrivilegedHelperTools/com.example.proxygo.helper.app/Contents/MacOS/ProxyGo"
+	program := "/Library/PrivilegedHelperTools/app.capyvibe.proxygo.helper.app/Contents/MacOS/ProxyGo"
 	for _, want := range []string{
-		"/usr/bin/ditto --noextattr --noqtn '/Applications/ProxyGo.app' '/Library/PrivilegedHelperTools/com.example.proxygo.helper.app.new'",
+		"/usr/bin/ditto --noextattr --noqtn '/Applications/ProxyGo.app' '/Library/PrivilegedHelperTools/app.capyvibe.proxygo.helper.app.new'",
 		"<string>" + program + "</string>",
-		"/bin/rm -f '/Library/PrivilegedHelperTools/com.example.proxygo.helper'",
+		"/bin/rm -f '/Library/PrivilegedHelperTools/app.capyvibe.proxygo.helper'",
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("install script lacks %q:\n%s", want, script)
@@ -182,7 +182,31 @@ func TestInstallCommandsCopyTheWholeApp(t *testing.T) {
 		t.Errorf("an app's executable is copied without its bundle:\n%s", script)
 	}
 	lone := strings.Join(installCommands(label, "/Users/me/go/bin/proxygo", 501), " && ")
-	if !strings.Contains(lone, "<string>/Library/PrivilegedHelperTools/com.example.proxygo.helper</string>") {
+	if !strings.Contains(lone, "<string>/Library/PrivilegedHelperTools/app.capyvibe.proxygo.helper</string>") {
 		t.Errorf("a bare executable is not installed on its own:\n%s", lone)
+	}
+}
+
+func TestInstallRemovesTheFormerHelper(t *testing.T) {
+	for label, former := range map[string]string{
+		"app.capyvibe.proxygo.helper":       "com.example.proxygo.helper",
+		"app.capyvibe.proxygo.debug.helper": "com.example.proxygo.debug.helper",
+	} {
+		if got := formerLabel(label); got != former {
+			t.Errorf("formerLabel(%q) = %q, want %q", label, got, former)
+		}
+		script := strings.Join(installCommands(label, "/Applications/ProxyGo.app/Contents/MacOS/ProxyGo", 501), " && ")
+		for _, want := range []string{
+			"/bin/launchctl bootout 'system/" + former + "'",
+			"/bin/rm -rf '/Library/PrivilegedHelperTools/" + former + ".app'",
+			"'/Library/LaunchDaemons/" + former + ".plist'",
+		} {
+			if !strings.Contains(script, want) {
+				t.Errorf("install script for %s lacks %q", label, want)
+			}
+		}
+	}
+	if got := formerLabel("com.example.other.helper"); got != "" {
+		t.Errorf("formerLabel of another app = %q", got)
 	}
 }

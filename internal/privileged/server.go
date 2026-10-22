@@ -138,14 +138,24 @@ func (s *server) handle(req Request, p peer) error {
 	case "link-cli":
 		return linkCLI(p.path)
 	case "uninstall":
-		for _, path := range []string{plistPath(s.label), toolPath(s.label), socketPath(s.label)} {
-			if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if old := formerLabel(s.label); old != "" {
+			_ = exec.Command("/bin/launchctl", "bootout", "system/"+old).Run() // #nosec G204 -- launchctl, given the label of the helper an older ProxyGo installed.
+			if err := removeHelper(old); err != nil {
 				return err
 			}
 		}
-		return os.RemoveAll(bundlePath(s.label))
+		return removeHelper(s.label)
 	}
 	return fmt.Errorf("unknown request %q", req.Op)
+}
+
+func removeHelper(label string) error {
+	for _, path := range []string{plistPath(label), toolPath(label), socketPath(label)} {
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	return os.RemoveAll(bundlePath(label))
 }
 
 func (s *server) watch(pid int, cfg systemproxy.Config, before systemproxy.State) {

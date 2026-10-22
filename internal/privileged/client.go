@@ -43,7 +43,7 @@ func Uninstall() error {
 	if !needsInstall(err) {
 		return err
 	}
-	return runAdmin(strings.Join(removeCommands(label), " && "), "ProxyGo removes its helper.")
+	return runAdmin(strings.Join(append(removeCommands(label), formerCommands(label)...), " && "), "ProxyGo removes its helper.")
 }
 
 func needsInstall(err error) bool {
@@ -110,6 +110,7 @@ func installCommands(label, exe string, uid int) []string {
 		"/bin/mkdir -p " + quote(toolDir),
 		"{ /bin/launchctl bootout " + quote("system/"+label) + " 2>/dev/null || true; }",
 	}
+	cmds = append(cmds, formerCommands(label)...)
 	program := tool
 	if app := appBundle(exe); app != "" {
 		program = filepath.Join(bundle, "Contents", "MacOS", filepath.Base(exe))
@@ -142,6 +143,13 @@ func installCommands(label, exe string, uid int) []string {
 		"{ /bin/launchctl bootstrap system "+quote(plist)+" || { /bin/sleep 1 && /bin/launchctl bootstrap system "+quote(plist)+"; }; }",
 	)
 	return cmds
+}
+
+func formerCommands(label string) []string {
+	if old := formerLabel(label); old != "" {
+		return removeCommands(old)
+	}
+	return nil
 }
 
 func removeCommands(label string) []string {
