@@ -340,7 +340,7 @@ func (a *App) statusCard(c *ui.Context, s *overviewStats) {
 				a.filterBy(status(store.OpEquals, code))
 			}
 			var n int
-			fmt.Sscan(code, &n)
+			_, _ = fmt.Sscan(code, &n)
 			chip.Tooltip(errorReasonText(n))
 			chip.Children(func() {
 				ui.Text(c, code).FontSize(11).FontWeight(600).TextColor(codeColor(p, n)).FontFeatures("tnum")

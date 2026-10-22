@@ -231,7 +231,7 @@ func Pretty(values []any) string {
 		}
 		out, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
-			b.WriteString(fmt.Sprint(v))
+			fmt.Fprint(&b, v)
 			continue
 		}
 		b.Write(out)

@@ -58,7 +58,7 @@ func (x *exchange) webSocket(r *http.Request, body []byte) {
 	}
 	f.Summary.ServerIPAddress = ip
 	upstream = wire.Client(upstream)
-	defer upstream.Close()
+	defer func() { _ = upstream.Close() }()
 
 	out := r.Clone(ctx)
 	out.RequestURI = ""
@@ -112,7 +112,7 @@ func (x *exchange) webSocket(r *http.Request, body []byte) {
 		x.publish()
 		return
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	live := &liveSocket{rec: &wsRecorder{x: x}}
 	live.sides[toServer] = &wsSide{conn: upstream, mask: true}
 	live.sides[toClient] = &wsSide{conn: client}

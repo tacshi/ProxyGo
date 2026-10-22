@@ -21,17 +21,17 @@ func TestSnapshots(t *testing.T) {
 	if dir == "" {
 		t.Skip("PROXYGO_SNAPSHOTS is not set")
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	save := func(tt *ui.Tester, name string) {
 		t.Helper()
 		tt.Frame()
-		f, err := os.Create(filepath.Join(dir, name+".png"))
+		f, err := os.Create(filepath.Join(dir, name+".png")) // #nosec G304 -- the snapshot directory PROXYGO_SNAPSHOTS names.
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		if err := png.Encode(f, tt.Image()); err != nil {
 			t.Fatal(err)
 		}
@@ -160,12 +160,12 @@ func TestSnapshotsInspector(t *testing.T) {
 	save := func(tt *ui.Tester, name string) {
 		t.Helper()
 		tt.Frame()
-		f, err := os.Create(filepath.Join(dir, name+".png"))
+		f, err := os.Create(filepath.Join(dir, name+".png")) // #nosec G304 -- the snapshot directory PROXYGO_SNAPSHOTS names.
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer f.Close()
-		png.Encode(f, tt.Image())
+		defer func() { _ = f.Close() }()
+		_ = png.Encode(f, tt.Image())
 	}
 	a, tt, _ := loaded(t)
 	for _, f := range inspectorFixtures() {
@@ -203,12 +203,12 @@ func TestSnapshotsTools(t *testing.T) {
 		t.Helper()
 		tt.Frame()
 		tt.Frame()
-		f, err := os.Create(filepath.Join(dir, name+".png"))
+		f, err := os.Create(filepath.Join(dir, name+".png")) // #nosec G304 -- the snapshot directory PROXYGO_SNAPSHOTS names.
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer f.Close()
-		png.Encode(f, tt.Image())
+		defer func() { _ = f.Close() }()
+		_ = png.Encode(f, tt.Image())
 	}
 	a, tt, _ := loaded(t)
 	window := func(kind string) *ui.Tester {

@@ -98,12 +98,15 @@ func LooksLikeJWT(s string) bool {
 		return false
 	}
 	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == '=') {
+		if !jwtByte(s[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+func jwtByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == '='
 }
 
 func BearerToken(h flow.Header) string {

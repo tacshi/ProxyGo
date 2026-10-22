@@ -3,11 +3,11 @@
 package privileged
 
 import (
+	"encoding/binary"
 	"errors"
 	"net"
 	"os"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
@@ -23,10 +23,10 @@ const (
 type auditToken [8]uint32
 
 var (
-	getsockopt      func(fd, level, name int32, val unsafe.Pointer, size *uint32) int32
-	csops           func(pid int32, ops uint32, buf unsafe.Pointer, size uintptr) int32
-	csopsAuditToken func(pid int32, ops uint32, buf unsafe.Pointer, size uintptr, token *auditToken) int32
-	procPidpath     func(pid int32, buf unsafe.Pointer, size uint32) int32
+	getsockopt      func(fd, level, name int32, val *auditToken, size *uint32) int32
+	csops           func(pid int32, ops uint32, buf []byte, size uintptr) int32
+	csopsAuditToken func(pid int32, ops uint32, buf []byte, size uintptr, token *auditToken) int32
+	procPidpath     func(pid int32, buf []byte, size uint32) int32
 )
 
 var loadLib = sync.OnceValue(func() error {
@@ -46,7 +46,7 @@ func ownCDHash() ([]byte, error) {
 		return nil, err
 	}
 	hash := make([]byte, cdhashLen)
-	if csops(int32(os.Getpid()), csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen) != 0 {
+	if csops(int32(os.Getpid()), csOpsCDHash, hash, cdhashLen) != 0 {
 		return nil, errors.New("this copy of ProxyGo is not code signed")
 	}
 	return hash, nil
@@ -63,8 +63,8 @@ func peerOf(c *net.UnixConn) (peer, error) {
 	var tok auditToken
 	ok := false
 	if err := raw.Control(func(fd uintptr) {
-		size := uint32(unsafe.Sizeof(tok))
-		ok = getsockopt(int32(fd), unix.SOL_LOCAL, unix.LOCAL_PEERTOKEN, unsafe.Pointer(&tok), &size) == 0
+		size := uint32(binary.Size(tok))
+		ok = getsockopt(int32(fd), unix.SOL_LOCAL, unix.LOCAL_PEERTOKEN, &tok, &size) == 0
 	}); err != nil {
 		return peer{}, err
 	}
@@ -72,16 +72,16 @@ func peerOf(c *net.UnixConn) (peer, error) {
 		return peer{}, errors.New("no peer credentials")
 	}
 	pid := int32(tok[5])
-	var status uint32
-	if csopsAuditToken(pid, csOpsStatus, unsafe.Pointer(&status), unsafe.Sizeof(status), &tok) != 0 || status&csValid == 0 {
+	status := make([]byte, 4)
+	if csopsAuditToken(pid, csOpsStatus, status, uintptr(len(status)), &tok) != 0 || binary.NativeEndian.Uint32(status)&csValid == 0 {
 		return peer{}, errors.New("the peer's code signature is not valid")
 	}
 	hash := make([]byte, cdhashLen)
-	if csopsAuditToken(pid, csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen, &tok) != 0 {
+	if csopsAuditToken(pid, csOpsCDHash, hash, cdhashLen, &tok) != 0 {
 		return peer{}, errors.New("the peer has no code directory hash")
 	}
 	buf := make([]byte, 4096)
-	n := procPidpath(pid, unsafe.Pointer(&buf[0]), uint32(len(buf)))
+	n := procPidpath(pid, buf, uint32(len(buf)))
 	if n <= 0 {
 		return peer{}, errors.New("no path for the peer")
 	}

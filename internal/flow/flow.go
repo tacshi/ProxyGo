@@ -739,16 +739,16 @@ func decodeBody(body []byte, encoding string) []byte {
 		if err != nil {
 			return body
 		}
-		defer gr.Close()
+		defer func() { _ = gr.Close() }()
 		r = gr
 	case "deflate":
 		zr, err := zlib.NewReader(bytes.NewReader(body))
 		if err != nil {
 			fr := flate.NewReader(bytes.NewReader(body))
-			defer fr.Close()
+			defer func() { _ = fr.Close() }()
 			r = fr
 		} else {
-			defer zr.Close()
+			defer func() { _ = zr.Close() }()
 			r = zr
 		}
 	case "br":

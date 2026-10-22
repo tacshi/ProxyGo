@@ -64,7 +64,7 @@ func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + 
 var Terminals = []string{"Terminal", "iTerm"}
 
 var Run = func(name string, args ...string) error {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	out, err := exec.Command(name, args...).CombinedOutput() // #nosec G204 -- callers run open with arguments ProxyGo builds, never shell text.
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if msg == "" {
@@ -79,14 +79,14 @@ func OpenTerminal(c Config, terminal string) error {
 	if terminal == "" {
 		terminal = "Terminal"
 	}
-	if err := os.MkdirAll(c.Dir, 0o755); err != nil {
+	if err := os.MkdirAll(c.Dir, 0o750); err != nil {
 		return err
 	}
 	path := filepath.Join(c.Dir, "ProxyGo Terminal.command")
 	script := "#!/bin/sh\n# Opened by ProxyGo: this shell's tools go through ProxyGo.\n" + Shell(c, false) +
 		"clear\necho 'This shell sends its traffic through ProxyGo at " + strings.ReplaceAll(c.Proxy, "'", "") + ".'\n" +
 		"exec \"${SHELL:-/bin/zsh}\" -l\n"
-	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil { // #nosec G306 -- Terminal runs this script, so it must be executable.
 		return err
 	}
 	return Run("open", "-a", terminal, path)

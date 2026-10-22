@@ -184,7 +184,7 @@ func run(cmds []string) error {
 	if len(cmds) == 0 {
 		return errors.New("no network services found")
 	}
-	out, err := exec.Command("/bin/sh", "-c", strings.Join(cmds, " && ")).CombinedOutput()
+	out, err := exec.Command("/bin/sh", "-c", strings.Join(cmds, " && ")).CombinedOutput() // #nosec G204 -- networksetup commands with every value quoted.
 	if err != nil {
 		if msg := strings.TrimSpace(string(out)); msg != "" {
 			return errors.New(msg)
@@ -229,14 +229,14 @@ func Save(path string, s Saved) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	return os.WriteFile(path, b, 0o600)
 }
 
 func Load(path string) (Saved, bool) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- ProxyGo's own record of the system proxy settings.
 	if err != nil {
 		return Saved{}, false
 	}

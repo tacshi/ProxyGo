@@ -47,7 +47,7 @@ func TestSettings(t *testing.T) {
 	if s.TogglePin("host:api.dev") || len(s.Pinned) != 0 {
 		t.Fatal("unpin")
 	}
-	os.WriteFile(path, []byte("{broken"), 0o644)
+	_ = os.WriteFile(path, []byte("{broken"), 0o600)
 	if Open(path).Get().Port != 9090 {
 		t.Fatal("broken file not ignored")
 	}

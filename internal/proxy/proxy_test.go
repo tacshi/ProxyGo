@@ -98,7 +98,7 @@ func get(t *testing.T, c *http.Client, u string) (*http.Response, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp, string(b)
 }
@@ -129,7 +129,7 @@ func TestForwardHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.Header.Get("X-Seen-Header") != "yes" {
 		t.Fatal("header not forwarded")
 	}
@@ -247,14 +247,14 @@ func TestPlainHTTPThroughConnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	host := strings.TrimPrefix(ts.URL, "http://")
-	io.WriteString(c, "CONNECT "+host+" HTTP/1.1\r\nHost: "+host+"\r\n\r\n")
+	_, _ = io.WriteString(c, "CONNECT "+host+" HTTP/1.1\r\nHost: "+host+"\r\n\r\n")
 	buf := make([]byte, 39)
 	if _, err := io.ReadFull(c, buf); err != nil || !strings.Contains(string(buf), "200") {
 		t.Fatalf("connect: %q %v", buf, err)
 	}
-	io.WriteString(c, "GET /inside HTTP/1.1\r\nHost: "+host+"\r\nConnection: close\r\n\r\n")
+	_, _ = io.WriteString(c, "GET /inside HTTP/1.1\r\nHost: "+host+"\r\nConnection: close\r\n\r\n")
 	b, _ := io.ReadAll(c)
 	if !strings.Contains(string(b), "/inside") {
 		t.Fatalf("response %q", b)

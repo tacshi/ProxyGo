@@ -3,7 +3,7 @@ package proxy
 import (
 	"bufio"
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- RFC 6455 computes the WebSocket accept key with SHA-1.
 	"encoding/base64"
 	"encoding/binary"
 	"io"
@@ -26,7 +26,7 @@ func freePort(t *testing.T) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
@@ -35,7 +35,7 @@ func waitListening(t *testing.T, port int) {
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if c, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(port)); err == nil {
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -75,23 +75,23 @@ func socksDial(socksAddr, target string) (net.Conn, error) {
 	}
 	host, portText, _ := net.SplitHostPort(target)
 	port, _ := strconv.Atoi(portText)
-	c.Write([]byte{5, 1, 0})
+	_, _ = c.Write([]byte{5, 1, 0})
 	var greet [2]byte
 	if _, err := io.ReadFull(c, greet[:]); err != nil || greet[1] != 0 {
-		c.Close()
+		_ = c.Close()
 		return nil, err
 	}
 	req := []byte{5, 1, 0, 3, byte(len(host))}
 	req = append(req, host...)
 	req = binary.BigEndian.AppendUint16(req, uint16(port))
-	c.Write(req)
+	_, _ = c.Write(req)
 	var reply [10]byte
 	if _, err := io.ReadFull(c, reply[:]); err != nil {
-		c.Close()
+		_ = c.Close()
 		return nil, err
 	}
 	if reply[1] != 0 {
-		c.Close()
+		_ = c.Close()
 		return nil, &net.OpError{Op: "socks", Err: io.ErrUnexpectedEOF}
 	}
 	return c, nil
@@ -130,24 +130,24 @@ func TestSocks5(t *testing.T) {
 
 func wsEcho(w http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get("Sec-WebSocket-Key")
-	sum := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	sum := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")) // #nosec G401 -- RFC 6455 computes the WebSocket accept key with SHA-1.
 	c, brw, err := http.NewResponseController(w).Hijack()
 	if err != nil {
 		return
 	}
-	defer c.Close()
-	brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + base64.StdEncoding.EncodeToString(sum[:]) + "\r\n\r\n")
-	brw.Flush()
+	defer func() { _ = c.Close() }()
+	_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + base64.StdEncoding.EncodeToString(sum[:]) + "\r\n\r\n")
+	_ = brw.Flush()
 	for {
 		f, err := readFrame(brw.Reader)
 		if err != nil {
 			return
 		}
 		if f.opcode == 0x8 {
-			c.Write(frame(0x8, f.payload, false))
+			_, _ = c.Write(frame(0x8, f.payload, false))
 			return
 		}
-		c.Write(frame(f.opcode, []byte("echo: "+string(f.payload)), false))
+		_, _ = c.Write(frame(f.opcode, []byte("echo: "+string(f.payload)), false))
 	}
 }
 
@@ -185,20 +185,20 @@ func TestWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(5 * time.Second))
-	io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	defer func() { _ = c.Close() }()
+	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
 	br := bufio.NewReader(c)
 	resp, err := http.ReadResponse(br, nil)
 	if err != nil || resp.StatusCode != 101 {
 		t.Fatalf("upgrade: %v %v", resp, err)
 	}
-	c.Write(frame(0x1, []byte("hello"), true))
+	_, _ = c.Write(frame(0x1, []byte("hello"), true))
 	got, err := readFrame(br)
 	if err != nil || string(got.payload) != "echo: hello" {
 		t.Fatalf("echo %q %v", got.payload, err)
 	}
-	c.Write(frame(0x8, []byte{0x03, 0xe8}, true))
+	_, _ = c.Write(frame(0x8, []byte{0x03, 0xe8}, true))
 	if got, err := readFrame(br); err != nil || got.opcode != 0x8 {
 		t.Fatalf("the server's close did not come back: %v %v", got.opcode, err)
 	}
@@ -225,9 +225,9 @@ func TestWebSocketSendIntoLiveSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(5 * time.Second))
-	io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	defer func() { _ = c.Close() }()
+	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
 	br := bufio.NewReader(c)
 	if resp, err := http.ReadResponse(br, nil); err != nil || resp.StatusCode != 101 {
 		t.Fatalf("upgrade: %v", err)
@@ -248,7 +248,7 @@ func TestWebSocketSendIntoLiveSocket(t *testing.T) {
 	if got, err := readFrame(br); err != nil || string(got.payload) != "hi client" || got.raw[1]&0x80 != 0 {
 		t.Fatalf("to the client %q %v, masked %v", got.payload, err, got.raw[1]&0x80 != 0)
 	}
-	c.Write(frame(0x8, []byte{0x03, 0xe8}, true))
+	_, _ = c.Write(frame(0x8, []byte{0x03, 0xe8}, true))
 	f = e.waitFlow(func(f *flow.Flow) bool { return f.IsWebSocket() && f.Timing.ResponseEndedAt != nil })
 	var injected int
 	for _, m := range f.WebSocketMessageStorage.Messages {
@@ -311,7 +311,7 @@ func TestSocks5UDPAssociate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer echo.Close()
+	defer func() { _ = echo.Close() }()
 	go func() {
 		buf := make([]byte, 2048)
 		for {
@@ -319,7 +319,7 @@ func TestSocks5UDPAssociate(t *testing.T) {
 			if err != nil {
 				return
 			}
-			echo.WriteToUDP(append([]byte("echo:"), buf[:n]...), from)
+			_, _ = echo.WriteToUDP(append([]byte("echo:"), buf[:n]...), from)
 		}
 	}()
 	port := freePort(t)
@@ -330,12 +330,12 @@ func TestSocks5UDPAssociate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(5 * time.Second))
-	c.Write([]byte{5, 1, 0})
+	defer func() { _ = c.Close() }()
+	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = c.Write([]byte{5, 1, 0})
 	var greet [2]byte
-	io.ReadFull(c, greet[:])
-	c.Write([]byte{5, 3, 0, 1, 0, 0, 0, 0, 0, 0})
+	_, _ = io.ReadFull(c, greet[:])
+	_, _ = c.Write([]byte{5, 3, 0, 1, 0, 0, 0, 0, 0, 0})
 	var reply [10]byte
 	if _, err := io.ReadFull(c, reply[:]); err != nil || reply[1] != 0 || reply[3] != 1 {
 		t.Fatalf("reply %v %v", reply, err)
@@ -345,8 +345,8 @@ func TestSocks5UDPAssociate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer u.Close()
-	u.SetDeadline(time.Now().Add(5 * time.Second))
+	defer func() { _ = u.Close() }()
+	_ = u.SetDeadline(time.Now().Add(5 * time.Second))
 	target := echo.LocalAddr().(*net.UDPAddr)
 	msg := []byte{0, 0, 0, 3, 9}
 	msg = append(msg, "localhost"...)
@@ -364,15 +364,15 @@ func TestSocks5UDPAssociate(t *testing.T) {
 	if err != nil || string(payload) != "echo:query" || gotPort != target.Port || host != "127.0.0.1" {
 		t.Fatalf("%q %d %q %v", host, gotPort, payload, err)
 	}
-	u.Write(append([]byte{0, 0, 1}, msg[3:]...))
-	u.Write(msg)
+	_, _ = u.Write(append([]byte{0, 0, 1}, msg[3:]...))
+	_, _ = u.Write(msg)
 	if n, err := u.Read(buf); err != nil || !strings.HasSuffix(string(buf[:n]), "echo:query") {
 		t.Fatalf("after a fragment: %v", err)
 	}
-	c.Close()
+	_ = c.Close()
 	time.Sleep(100 * time.Millisecond)
-	u.Write(msg)
-	u.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	_, _ = u.Write(msg)
+	_ = u.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
 	if _, err := u.Read(buf); err == nil {
 		t.Error("the association outlived its connection")
 	}
@@ -392,13 +392,13 @@ func TestWebSocketScriptHook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(5 * time.Second))
-	io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+	defer func() { _ = c.Close() }()
+	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = io.WriteString(c, "GET http://"+host+"/socket HTTP/1.1\r\nHost: "+host+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
 	br := bufio.NewReader(c)
-	http.ReadResponse(br, nil)
-	c.Write(frame(0x1, []byte("hello"), true))
-	readFrame(br)
+	_, _ = http.ReadResponse(br, nil)
+	_, _ = c.Write(frame(0x1, []byte("hello"), true))
+	_, _ = readFrame(br)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) && len(engine.Logs()) < 2 {
 		time.Sleep(20 * time.Millisecond)

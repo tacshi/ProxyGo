@@ -54,7 +54,7 @@ var loadEnv = func() map[string]string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", `printf '\0PROXYGO_ENV\0'; env -0`)
+	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", `printf '\0PROXYGO_ENV\0'; env -0`) // #nosec G204 -- the user's login shell, running a fixed command.
 	cmd.Stdin = nil
 	b, err := cmd.Output()
 	if err != nil && len(b) == 0 {

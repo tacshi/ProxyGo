@@ -3,10 +3,7 @@ package app
 import (
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -158,7 +155,7 @@ func toolIcon(name string) string {
 
 var primaryIP = sync.OnceValue(func() string {
 	if conn, err := net.Dial("udp", "8.8.8.8:80"); err == nil {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && addr.IP != nil {
 			return addr.IP.String()
 		}
@@ -209,16 +206,4 @@ func parseHeaderLines(s string) flow.Header {
 		h.Add(name, strings.TrimSpace(value))
 	}
 	return h
-}
-
-func residentMemory() int64 {
-	out, err := exec.Command("ps", "-o", "rss=", "-p", strconv.Itoa(os.Getpid())).Output()
-	if err != nil {
-		return 0
-	}
-	kb, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
-	if err != nil {
-		return 0
-	}
-	return kb << 10
 }

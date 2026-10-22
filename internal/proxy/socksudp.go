@@ -13,7 +13,7 @@ import (
 const udpIdle = 5 * time.Minute
 
 func (s *Server) serveUDPAssociate(c net.Conn, br *bufio.Reader, wantHost string, wantPort int) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	local, _ := c.LocalAddr().(*net.TCPAddr)
 	remote, _ := c.RemoteAddr().(*net.TCPAddr)
 	if local == nil || remote == nil {
@@ -25,13 +25,13 @@ func (s *Server) serveUDPAssociate(c net.Conn, br *bufio.Reader, wantHost string
 		_ = socksReply(c, socksRefused)
 		return
 	}
-	defer front.Close()
+	defer func() { _ = front.Close() }()
 	back, err := net.ListenUDP("udp", nil)
 	if err != nil {
 		_ = socksReply(c, socksRefused)
 		return
 	}
-	defer back.Close()
+	defer func() { _ = back.Close() }()
 	if err := socksReplyAddr(c, front.LocalAddr().(*net.UDPAddr)); err != nil {
 		return
 	}

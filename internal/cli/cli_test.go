@@ -23,7 +23,7 @@ func shortDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
 
@@ -95,9 +95,9 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("create %s", stderr)
 	}
 	var rule struct{ ID string }
-	json.Unmarshal([]byte(out), &rule)
+	_ = json.Unmarshal([]byte(out), &rule)
 	rulePath := filepath.Join(t.TempDir(), "rule.json")
-	os.WriteFile(rulePath, []byte(`{"status_code":418}`), 0o644)
+	_ = os.WriteFile(rulePath, []byte(`{"status_code":418}`), 0o600)
 	if code, _, stderr := runTool(t, dir, nil, "rules", "map-local", "update", rule.ID, "@"+rulePath); code != 0 || h.R.Current().MapLocal[0].StatusCode != 418 {
 		t.Errorf("update from a file: %s", stderr)
 	}
@@ -115,7 +115,7 @@ func TestCommands(t *testing.T) {
 	if code, _, stderr := runTool(t, dir, nil, "export", "--output", exported, "--mode", "enabledRules"); code != 0 {
 		t.Errorf("export %s", stderr)
 	}
-	if b, _ := os.ReadFile(exported); !bytes.Contains(b, []byte("ads.dev")) {
+	if b, _ := os.ReadFile(exported); !bytes.Contains(b, []byte("ads.dev")) { // #nosec G304 -- a file of the test's directory.
 		t.Error("exported rules")
 	}
 	log := filepath.Join(t.TempDir(), "log.har")
@@ -150,15 +150,15 @@ func TestMCPCommands(t *testing.T) {
 	go func() {
 		var errOut bytes.Buffer
 		done <- run([]string{"--data-dir", dir, "mcp-server"}, "", inR, outW, &errOut)
-		outW.Close()
+		_ = outW.Close()
 	}()
-	io.WriteString(inW, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`+"\n")
+	_, _ = io.WriteString(inW, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`+"\n")
 	line, err := bufio.NewReader(outR).ReadString('\n')
 	if err != nil || !strings.Contains(line, `"serverInfo"`) || !strings.Contains(line, `"proxygo"`) {
 		t.Errorf("bridge answered %q %v", line, err)
 	}
-	inW.Close()
-	go io.Copy(io.Discard, outR)
+	_ = inW.Close()
+	go func() { _, _ = io.Copy(io.Discard, outR) }()
 	if code := <-done; code != 0 {
 		t.Errorf("bridge exit %d", code)
 	}

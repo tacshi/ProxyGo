@@ -79,7 +79,7 @@ func looksMsgPack(body []byte) bool {
 	if len(body) < 2 || len(body) > 1<<20 {
 		return false
 	}
-	if b := body[0]; !(b >= 0x80 && b <= 0x9f || b >= 0xdc && b <= 0xdf) {
+	if b := body[0]; b < 0x80 || b > 0x9f && b < 0xdc || b > 0xdf {
 		return false
 	}
 	_, err := preview.MsgPackText(body)
@@ -494,9 +494,10 @@ func prettyGraphQL(q string) string {
 				}
 			}
 		case parens > 0:
-			if ch == '(' {
+			switch ch {
+			case '(':
 				parens++
-			} else if ch == ')' {
+			case ')':
 				parens--
 			}
 			b.WriteByte(ch)

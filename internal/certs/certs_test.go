@@ -82,9 +82,9 @@ func TestExport(t *testing.T) {
 			t.Fatalf("%s: %v", format, err)
 		}
 	}
-	pemBytes, _ := os.ReadFile(pemPath)
+	pemBytes, _ := os.ReadFile(pemPath) // #nosec G304 -- a file of the test's directory.
 	block, _ := pem.Decode(pemBytes)
-	der, _ := os.ReadFile(derPath)
+	der, _ := os.ReadFile(derPath) // #nosec G304 -- a file of the test's directory.
 	if block == nil || string(block.Bytes) != string(der) {
 		t.Fatal("PEM and DER differ")
 	}
@@ -163,7 +163,7 @@ func TestImportRootAndLeafValidity(t *testing.T) {
 		t.Errorf("P12: %v %q", err, m3.CommonName())
 	}
 	path := filepath.Join(t.TempDir(), "server.p12")
-	os.WriteFile(path, p12, 0o600)
+	_ = os.WriteFile(path, p12, 0o600)
 	c, err := LoadP12(path, "s3cret")
 	if err != nil || c.Leaf.Subject.CommonName != "Corp Root" {
 		t.Errorf("LoadP12 %v", err)

@@ -23,7 +23,7 @@ func TestShell(t *testing.T) {
 	if !strings.Contains(Shell(c, true), "set -gx HTTP_PROXY 'http://127.0.0.1:9090'\n") {
 		t.Error("fish")
 	}
-	out, err := exec.Command("sh", "-c", Shell(c, false)+"echo $https_proxy $REQUESTS_CA_BUNDLE; "+Unset(c)+"echo [$HTTP_PROXY]").Output()
+	out, err := exec.Command("sh", "-c", Shell(c, false)+"echo $https_proxy $REQUESTS_CA_BUNDLE; "+Unset(c)+"echo [$HTTP_PROXY]").Output() // #nosec G204 -- the test runs the shell snippet it checks.
 	if err != nil || string(out) != "http://127.0.0.1:9090 /ca/bundle.pem\n[]\n" {
 		t.Errorf("%q %v", out, err)
 	}
@@ -42,7 +42,7 @@ func TestOpeners(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(c.Dir, "ProxyGo Terminal.command")
-	b, _ := os.ReadFile(script)
+	b, _ := os.ReadFile(script) // #nosec G304 -- a file of the test's directory.
 	if fi, _ := os.Stat(script); fi.Mode()&0o100 == 0 || !strings.HasPrefix(string(b), "#!/bin/sh\n") || !strings.Contains(string(b), "exec \"${SHELL:-/bin/zsh}\" -l") {
 		t.Errorf("script:\n%s", b)
 	}
@@ -66,7 +66,7 @@ func TestOpeners(t *testing.T) {
 	if err := OpenElectron(c, app); err == nil {
 		t.Error("not an Electron app")
 	}
-	os.MkdirAll(filepath.Join(app, "Contents", "Frameworks", "Electron Framework.framework"), 0o755)
+	_ = os.MkdirAll(filepath.Join(app, "Contents", "Frameworks", "Electron Framework.framework"), 0o750)
 	if err := OpenElectron(c, app); err != nil {
 		t.Fatal(err)
 	}

@@ -498,7 +498,7 @@ func (s *Store) notify() {
 func Open(path string) *Store {
 	s := &Store{path: path}
 	s.data.Bypass = append([]string(nil), DefaultBypass...)
-	if b, err := os.ReadFile(path); err == nil {
+	if b, err := os.ReadFile(path); err == nil { // #nosec G304 -- ProxyGo's own rules file.
 		_ = json.Unmarshal(b, &s.data)
 	}
 	if s.data.BreakpointTemplates == nil {
@@ -617,8 +617,8 @@ func (s *Store) Update(fn func(*Data)) {
 	b, _ := json.Marshal(s.data, jsontext.WithIndent("  "))
 	path := s.path
 	if path != "" {
-		_ = os.MkdirAll(filepath.Dir(path), 0o755)
-		_ = os.WriteFile(path, b, 0o644)
+		_ = os.MkdirAll(filepath.Dir(path), 0o750)
+		_ = os.WriteFile(path, b, 0o600)
 	}
 	s.mu.Unlock()
 	s.notify()
@@ -631,11 +631,11 @@ func (s *Store) Export(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o644) // #nosec G306 -- rules exported to the path the user chose.
 }
 
 func (s *Store) Import(path string) error {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- the rules file the user imports.
 	if err != nil {
 		return err
 	}

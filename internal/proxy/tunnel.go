@@ -76,7 +76,7 @@ func (ts *tunnelServer) serve(c net.Conn, info *tunnelInfo) {
 }
 
 func (ts *tunnelServer) close() {
-	ts.ln.Close()
+	_ = ts.ln.Close()
 	_ = ts.srv.Close()
 }
 
@@ -155,7 +155,7 @@ func (c *bufferedConn) CloseWrite() error {
 	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
 		return cw.CloseWrite()
 	}
-	return c.Conn.Close()
+	return c.Close()
 }
 
 type target struct {
@@ -202,7 +202,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	reply := func(err error) error {
 		if err != nil {
 			body := "ProxyGo: could not connect to " + joinHostPort(host, port) + ": " + err.Error() + "\r\n"
-			fmt.Fprintf(brw, "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(body), body)
+			_, _ = fmt.Fprintf(brw, "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(body), body)
 		} else {
 			_, _ = brw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
 		}

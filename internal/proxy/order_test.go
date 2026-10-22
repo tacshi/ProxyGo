@@ -28,7 +28,7 @@ func TestHeadersInWireOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	reached := make(chan []string, 1)
 	go func() {
 		for {
@@ -37,7 +37,7 @@ func TestHeadersInWireOrder(t *testing.T) {
 				return
 			}
 			go func() {
-				defer c.Close()
+				defer func() { _ = c.Close() }()
 				names, err := headNames(bufio.NewReader(c))
 				if err != nil {
 					return
@@ -52,7 +52,7 @@ func TestHeadersInWireOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	addr := ln.Addr().String()
 	_, _ = io.WriteString(c, "GET http://"+addr+"/order HTTP/1.1\r\nUser-Agent: t\r\nHost: "+addr+"\r\nx-custom: 1\r\nAccept: */*\r\n\r\n")
 	got, err := headNames(bufio.NewReader(c))
@@ -114,7 +114,7 @@ func TestHTTP2HeadersAsSent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.ProtoMajor != 2 {
 		t.Fatalf("client spoke %s", resp.Proto)
 	}

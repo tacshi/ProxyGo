@@ -93,7 +93,7 @@ func (s *Server) acceptUnix(ctx context.Context, ln net.Listener) {
 			return
 		}
 		s.sessions.Go(func() {
-			defer c.Close()
+			defer func() { _ = c.Close() }()
 			ss, err := s.srv.Connect(ctx, &mcp.IOTransport{Reader: c, Writer: c}, nil)
 			if err != nil {
 				return
@@ -114,7 +114,7 @@ func (s *Server) startHTTPLocked() error {
 	}
 	var b [32]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		ln.Close()
+		_ = ln.Close()
 		return err
 	}
 	s.token = hex.EncodeToString(b[:])

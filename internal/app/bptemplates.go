@@ -17,7 +17,6 @@ type templateSheet struct {
 	open  bool
 	name  string
 	pause string
-	err   string
 }
 
 func templateMessage(t *rules.BreakpointTemplate, pausedURL string) (proxy.Message, error) {

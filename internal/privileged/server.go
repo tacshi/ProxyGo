@@ -59,7 +59,7 @@ func Serve(args []string) int {
 		log.Print(err)
 		return 1
 	}
-	if err := os.Chmod(path, 0o666); err != nil {
+	if err := os.Chmod(path, 0o666); err != nil { // #nosec G302 -- the app connects as the logged-in user, and the helper checks its code signature.
 		log.Print(err)
 		return 1
 	}
@@ -74,7 +74,7 @@ func Serve(args []string) int {
 }
 
 func (s *server) serve(c *net.UnixConn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(time.Minute))
 	enc := json.NewEncoder(c)
 	p, err := peerOf(c)
@@ -96,8 +96,8 @@ func (s *server) serve(c *net.UnixConn) {
 	}
 	_ = enc.Encode(resp)
 	if req.Op == "uninstall" && err == nil {
-		c.Close()
-		_ = exec.Command("/bin/launchctl", "bootout", "system/"+s.label).Run()
+		_ = c.Close()
+		_ = exec.Command("/bin/launchctl", "bootout", "system/"+s.label).Run() // #nosec G204 -- launchctl, given the helper's own label.
 		os.Exit(0)
 	}
 }
@@ -140,7 +140,7 @@ func linkCLI(target string) error {
 	if fi, err := os.Lstat(cliLink); err == nil && fi.Mode()&fs.ModeSymlink == 0 {
 		return fmt.Errorf("%s is a file, not a link: remove it first", cliLink)
 	}
-	if err := os.MkdirAll(filepath.Dir(cliLink), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cliLink), 0o755); err != nil { // #nosec G301 -- /usr/local/bin, which every user's shell searches.
 		return err
 	}
 	tmp := cliLink + ".proxygo-new"

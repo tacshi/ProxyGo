@@ -33,7 +33,7 @@ func TestPrettyText(t *testing.T) {
 func TestProtobufRuleDecodesOctetStream(t *testing.T) {
 	a, tt, _ := loaded(t)
 	proto := filepath.Join(t.TempDir(), "user.proto")
-	if err := os.WriteFile(proto, []byte("syntax = \"proto3\";\npackage demo;\nmessage User { int32 id = 1; string name = 2; }\n"), 0o644); err != nil {
+	if err := os.WriteFile(proto, []byte("syntax = \"proto3\";\npackage demo;\nmessage User { int32 id = 1; string name = 2; }\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.schemas.Import(proto); err != nil {

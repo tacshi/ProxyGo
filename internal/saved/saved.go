@@ -189,10 +189,10 @@ func (s *Store) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
+	if err := os.MkdirAll(s.dir, 0o750); err != nil {
 		return err
 	}
-	return os.WriteFile(s.index(), b, 0o644)
+	return os.WriteFile(s.index(), b, 0o600)
 }
 
 func (s *Store) Delete(path string) error {
@@ -227,7 +227,7 @@ func (s *Store) Rename(from, to string) error {
 			continue
 		}
 		np := to + strings.TrimPrefix(f.Path, from)
-		if err := os.MkdirAll(filepath.Dir(s.file(np)), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(s.file(np)), 0o750); err != nil {
 			return err
 		}
 		if err := os.Rename(s.file(f.Path), s.file(np)); err != nil && !errors.Is(err, os.ErrNotExist) {

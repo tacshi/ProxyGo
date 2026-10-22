@@ -64,47 +64,47 @@ func TestGeneratedCodeParses(t *testing.T) {
 		if _, err := exec.LookPath(tool); err != nil {
 			return
 		}
-		if out, err := exec.Command(tool, args...).CombinedOutput(); err != nil {
+		if out, err := exec.Command(tool, args...).CombinedOutput(); err != nil { // #nosec G204 -- the toolchain checks the generated code.
 			t.Errorf("%s: %v\n%s", tool, err, out)
 		}
 	}
 	dir := t.TempDir()
 	py := filepath.Join(dir, "a.py")
-	os.WriteFile(py, []byte(Python(sample())), 0o644)
+	_ = os.WriteFile(py, []byte(Python(sample())), 0o600)
 	check("python3", "-c", "import ast,sys; ast.parse(open(sys.argv[1]).read())", py)
 	js := filepath.Join(dir, "a.mjs")
-	os.WriteFile(js, []byte(Fetch(sample())), 0o644)
+	_ = os.WriteFile(js, []byte(Fetch(sample())), 0o600)
 	check("node", "--check", js)
 	sh := filepath.Join(dir, "a.sh")
-	os.WriteFile(sh, []byte(Curl(sample())+"\n"+HTTPie(sample())), 0o644)
+	_ = os.WriteFile(sh, []byte(Curl(sample())+"\n"+HTTPie(sample())), 0o600)
 	check("bash", "-n", sh)
 	rb := filepath.Join(dir, "a.rb")
-	os.WriteFile(rb, []byte(Ruby(sample())), 0o644)
+	_ = os.WriteFile(rb, []byte(Ruby(sample())), 0o600)
 	check("ruby", "-c", rb)
 	for name, gen := range map[string]func(Request) string{"node.js": NodeHTTP, "jquery.js": JQuery, "axios.js": Axios} {
 		p := filepath.Join(dir, name)
-		os.WriteFile(p, []byte(gen(sample())), 0o644)
+		_ = os.WriteFile(p, []byte(gen(sample())), 0o600)
 		check("node", "--check", p)
 	}
 	for name, gen := range map[string]func(Request) string{"urlsession.swift": Swift, "alamofire.swift": Alamofire, "moya.swift": Moya} {
 		p := filepath.Join(dir, name)
-		os.WriteFile(p, []byte(gen(sample())), 0o644)
+		_ = os.WriteFile(p, []byte(gen(sample())), 0o600)
 		check("swiftc", "-parse", p)
 	}
 	objc := filepath.Join(dir, "a.m")
-	os.WriteFile(objc, []byte(ObjC(sample())), 0o644)
+	_ = os.WriteFile(objc, []byte(ObjC(sample())), 0o600)
 	check("clang", "-fsyntax-only", "-fobjc-arc", "-framework", "Foundation", objc)
 	if out, err := exec.Command("javac", "-version").CombinedOutput(); err == nil && strings.Contains(string(out), "javac") {
 		jdir := filepath.Join(dir, "java")
-		os.MkdirAll(jdir, 0o755)
-		os.WriteFile(filepath.Join(jdir, "Main.java"), []byte(Java(sample())), 0o644)
+		_ = os.MkdirAll(jdir, 0o750)
+		_ = os.WriteFile(filepath.Join(jdir, "Main.java"), []byte(Java(sample())), 0o600)
 		check("javac", "-d", jdir, filepath.Join(jdir, "Main.java"))
 	}
 	rs := filepath.Join(dir, "a.rs")
-	os.WriteFile(rs, []byte(Rust(sample())), 0o644)
+	_ = os.WriteFile(rs, []byte(Rust(sample())), 0o600)
 	check("rustfmt", "--edition", "2021", "--emit", "stdout", rs)
 	dart := filepath.Join(dir, "a.dart")
-	os.WriteFile(dart, []byte(Dart(sample())), 0o644)
+	_ = os.WriteFile(dart, []byte(Dart(sample())), 0o600)
 	check("dart", "format", "--output=none", dart)
 	for name, gen := range map[string]func(Request) string{"har": HAR, "postman": Postman} {
 		var v any
@@ -119,7 +119,7 @@ func TestCurlRunsAgainstItsOwnQuoting(t *testing.T) {
 		t.Skip("no bash")
 	}
 	cmd := strings.Replace(Curl(sample()), "curl", "printf '%s\\n'", 1)
-	out, err := exec.Command("bash", "-c", cmd).CombinedOutput()
+	out, err := exec.Command("bash", "-c", cmd).CombinedOutput() // #nosec G204 -- bash runs the generated curl command with printf in place of curl.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestGeneratedCodeRuns(t *testing.T) {
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		fmt.Fprintf(w, "%s %s|%s|%s|%s", r.Method, r.URL.RequestURI(), r.Header.Get("Authorization"), r.Header.Get("X-Note"), b)
+		_, _ = fmt.Fprintf(w, "%s %s|%s|%s|%s", r.Method, r.URL.RequestURI(), r.Header.Get("Authorization"), r.Header.Get("X-Note"), b)
 	}))
 	defer ts.Close()
 	body := `{"query":"query GetUser($id: ID!) { user(id: $id) { name } }","note":"#{x} #$y \"q\" it's\ttab\nline ü"}`
@@ -176,10 +176,10 @@ func TestGeneratedCodeRuns(t *testing.T) {
 			return
 		}
 		path := filepath.Join(dir, file)
-		if err := os.WriteFile(path, []byte(code), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(code), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		cmd := exec.Command(tool, append(args, path)...)
+		cmd := exec.Command(tool, append(args, path)...) // #nosec G204 -- the toolchain checks the generated code.
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
 		if err != nil || !strings.Contains(string(out), want) {
@@ -203,8 +203,8 @@ func TestGeneratedCodeEscapes(t *testing.T) {
 	}
 	if _, err := exec.LookPath("node"); err == nil {
 		path := filepath.Join(t.TempDir(), "axios.js")
-		os.WriteFile(path, []byte(Axios(req)), 0o644)
-		if out, err := exec.Command("node", "--check", path).CombinedOutput(); err != nil {
+		_ = os.WriteFile(path, []byte(Axios(req)), 0o600)
+		if out, err := exec.Command("node", "--check", path).CombinedOutput(); err != nil { // #nosec G204 -- node checks the generated code.
 			t.Errorf("axios: %v\n%s", err, out)
 		}
 		if a := Axios(req); strings.Contains(a, "require(") && !strings.Contains(a, "async") {

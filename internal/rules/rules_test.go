@@ -214,7 +214,7 @@ func TestStorePersistsAndMigrates(t *testing.T) {
 	old := `{"throttle":{"enabled":true,"name":"3G","latency_ms":200,"download_kbps":780},
 	"external_proxy":"http://127.0.0.1:8888",
 	"map_local":[{"id":"A","enabled":true,"name":"x","url":"https://a/*","path":"/tmp/x","match":"wildcard"}]}`
-	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	s := Open(path)
@@ -246,7 +246,7 @@ func TestStorePersistsAndMigrates(t *testing.T) {
 	if len(reopened.Snapshot().Breakpoints) != 1 {
 		t.Fatal("update not saved")
 	}
-	raw, _ := os.ReadFile(path)
+	raw, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if strings.Contains(string(raw), `"throttle"`) || strings.Contains(string(raw), `"external_proxy"`) {
 		t.Fatal("migrated keys written back")
 	}

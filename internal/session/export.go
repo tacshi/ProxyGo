@@ -85,7 +85,7 @@ type (
 )
 
 func ReadCharles(path string) ([]*flow.Flow, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- the session file the user imports.
 	if err != nil {
 		return nil, err
 	}

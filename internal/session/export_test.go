@@ -24,7 +24,7 @@ func TestWritePostman(t *testing.T) {
 	if err := WritePostman(path, "Test", append(flows, form, tunnel)); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(path)
+	b, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	var c struct {
 		Info struct{ Name, Schema string }
 		Item []struct {
@@ -91,7 +91,7 @@ func TestWriteOpenAPI(t *testing.T) {
 	if err := WriteOpenAPI(path, "API", flows); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(path)
+	b, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if !strings.HasPrefix(string(b), "openapi: 3.0.3\n") {
 		t.Errorf("keys keep their order:\n%s", b)
 	}
@@ -133,7 +133,7 @@ func TestWriteOpenAPI(t *testing.T) {
 	if err := WriteOpenAPIHTML(html, "API <x>", flows); err != nil {
 		t.Fatal(err)
 	}
-	page, _ := os.ReadFile(html)
+	page, _ := os.ReadFile(html) // #nosec G304 -- a file of the test's directory.
 	if !strings.Contains(string(page), `"openapi":"3.0.3"`) || !strings.Contains(string(page), "API &lt;x&gt;") || !strings.Contains(string(page), "swagger-ui-bundle.js") {
 		t.Errorf("page:\n%s", page)
 	}
@@ -156,7 +156,7 @@ func TestRawHTTP(t *testing.T) {
 	if err := WriteRaw(path, sampleFlows()); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(path)
+	b, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if strings.Count(string(b), "### ") != 3 {
 		t.Errorf("raw export:\n%s", b)
 	}
@@ -172,13 +172,13 @@ func TestReadCharlesSession(t *testing.T) {
 
 	app := filepath.Join(t.TempDir(), "Charles.app")
 	bin := filepath.Join(app, "Contents", "MacOS")
-	os.MkdirAll(bin, 0o755)
+	_ = os.MkdirAll(bin, 0o750)
 	har := filepath.Join(t.TempDir(), "fixture.har")
 	if err := WriteHAR(har, sampleFlows()); err != nil {
 		t.Fatal(err)
 	}
 	script := "#!/bin/sh\n[ \"$1\" = convert ] || exit 2\ncp '" + har + "' \"$3\"\n"
-	os.WriteFile(filepath.Join(bin, "Charles"), []byte(script), 0o755)
+	_ = os.WriteFile(filepath.Join(bin, "Charles"), []byte(script), 0o755) // #nosec G306 -- a stand-in for the Charles executable.
 	CharlesApp = func() string { return app }
 	b, err := Open(filepath.Join(t.TempDir(), "s.chls"))
 	if err != nil {
@@ -187,7 +187,7 @@ func TestReadCharlesSession(t *testing.T) {
 	if len(b.Flows) != 3 || b.Flows[0].Client.Name != "Charles" {
 		t.Errorf("%d flows", len(b.Flows))
 	}
-	os.WriteFile(filepath.Join(bin, "Charles"), []byte("#!/bin/sh\necho 'bad file' >&2\nexit 1\n"), 0o755)
+	_ = os.WriteFile(filepath.Join(bin, "Charles"), []byte("#!/bin/sh\necho 'bad file' >&2\nexit 1\n"), 0o755) // #nosec G306 -- a stand-in for the Charles executable.
 	if _, err := Open(filepath.Join(t.TempDir(), "s.chlsx")); err == nil || !strings.Contains(err.Error(), "bad file") {
 		t.Errorf("a failed conversion: %v", err)
 	}

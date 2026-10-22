@@ -1,8 +1,6 @@
 package certs
 
 import (
-	"bytes"
-	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
@@ -10,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"time"
 
 	"software.sslmate.com/src/go-pkcs12"
@@ -62,7 +58,7 @@ func (m *Manager) ImportRoot(certPEM, keyPEM []byte) error {
 	if err := os.WriteFile(m.keyPath, keyPEM, 0o600); err != nil {
 		return err
 	}
-	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil {
+	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil { // #nosec G306 -- the public CA certificate, which other tools read.
 		return err
 	}
 	m.rootCert, m.rootKey, m.rootPEM = cert, key, certPEM
@@ -88,7 +84,7 @@ func (m *Manager) ImportRootP12(data []byte, password string) error {
 }
 
 func LoadP12(path, password string) (*tls.Certificate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- the PKCS #12 file the user imports.
 	if err != nil {
 		return nil, err
 	}
@@ -135,36 +131,3 @@ var Keychain interface {
 	Get(ref string) (string, error)
 	Delete(ref string) error
 } = keychain{}
-
-type keychain struct{}
-
-func (keychain) Set(ref, secret string) error {
-	out, err := run("security", "add-generic-password", "-U", "-s", keychainService, "-a", ref, "-w", secret)
-	if err != nil {
-		return fmt.Errorf("keychain: %s", strings.TrimSpace(out))
-	}
-	return nil
-}
-
-func (keychain) Get(ref string) (string, error) {
-	out, err := run("security", "find-generic-password", "-s", keychainService, "-a", ref, "-w")
-	if err != nil {
-		return "", fmt.Errorf("keychain: no password for %s", ref)
-	}
-	return strings.TrimSuffix(out, "\n"), nil
-}
-
-func (keychain) Delete(ref string) error {
-	_, _ = run("security", "delete-generic-password", "-s", keychainService, "-a", ref)
-	return nil
-}
-
-func run(name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	var out bytes.Buffer
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err := cmd.Run()
-	return out.String(), err
-}

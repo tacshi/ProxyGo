@@ -176,12 +176,12 @@ func TestErrorFlow(t *testing.T) {
 func TestDecodeBodies(t *testing.T) {
 	var gz bytes.Buffer
 	w := gzip.NewWriter(&gz)
-	w.Write([]byte("hello gzip"))
-	w.Close()
+	_, _ = w.Write([]byte("hello gzip"))
+	_ = w.Close()
 	var br bytes.Buffer
 	bw := brotli.NewWriter(&br)
-	bw.Write([]byte("hello brotli"))
-	bw.Close()
+	_, _ = bw.Write([]byte("hello brotli"))
+	_ = bw.Close()
 	zw, _ := zstd.NewWriter(nil)
 	zs := zw.EncodeAll([]byte("hello zstd"), nil)
 	for enc, data := range map[string][]byte{"gzip": gz.Bytes(), "br": br.Bytes(), "zstd": zs} {

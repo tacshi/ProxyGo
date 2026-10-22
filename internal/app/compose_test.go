@@ -76,7 +76,7 @@ func TestComposeFollowsRedirectsWhenAsked(t *testing.T) {
 			http.Redirect(w, r, "/new", http.StatusFound)
 			return
 		}
-		io.WriteString(w, "arrived")
+		_, _ = io.WriteString(w, "arrived")
 	}))
 	t.Cleanup(ts.Close)
 	a.proxy = proxy.New(proxy.Options{Addr: "127.0.0.1:0", Rules: a.rules, Sink: a.store, Certs: a.certs})

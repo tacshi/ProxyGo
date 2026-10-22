@@ -70,8 +70,8 @@ func selfSigned(t *testing.T, names ...string) (certPath, keyPath string, cert *
 	dir := t.TempDir()
 	certPath, keyPath = filepath.Join(dir, "c.pem"), filepath.Join(dir, "k.pem")
 	kd, _ := x509.MarshalPKCS8PrivateKey(key)
-	os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
-	os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: kd}), 0o600)
+	_ = os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	_ = os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: kd}), 0o600)
 	return certPath, keyPath, cert
 }
 
@@ -88,9 +88,9 @@ func TestCustomServerCertificate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer c.Close()
-		c.SetDeadline(time.Now().Add(5 * time.Second))
-		fmt.Fprintf(c, "CONNECT %s:443 HTTP/1.1\r\nHost: %s:443\r\n\r\n", host, host)
+		defer func() { _ = c.Close() }()
+		_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+		_, _ = fmt.Fprintf(c, "CONNECT %s:443 HTTP/1.1\r\nHost: %s:443\r\n\r\n", host, host)
 		buf := make([]byte, 39)
 		if _, err := c.Read(buf); err != nil {
 			t.Fatal(err)
@@ -115,7 +115,7 @@ func TestPACChoosesTheUpstream(t *testing.T) {
 	ts := httptest.NewServer(echoServer())
 	defer ts.Close()
 	pacSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `function FindProxyForURL(url, host) {
+		_, _ = fmt.Fprintf(w, `function FindProxyForURL(url, host) {
 			if (url.indexOf("/via-pac") >= 0) return "PROXY %s; DIRECT";
 			return "DIRECT";
 		}`, upstream.proxy.Addr())

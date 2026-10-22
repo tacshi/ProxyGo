@@ -42,7 +42,7 @@ func (e *Engine) SetRoot(root string) {
 		return
 	}
 	for _, d := range []string{UsersDir, AddonsDir, LibsDir} {
-		_ = os.MkdirAll(filepath.Join(root, d), 0o755)
+		_ = os.MkdirAll(filepath.Join(root, d), 0o750)
 	}
 }
 
@@ -72,7 +72,7 @@ var errOutside = errors.New("outside the scripts folder")
 func (e *Engine) resolve(name, from string) (*source, error) {
 	root := e.Root()
 	if nodeBuiltins[strings.TrimPrefix(name, "node:")] || strings.HasPrefix(name, "node:") {
-		return nil, fmt.Errorf("Node.js's own module %q is not available in ProxyGo scripts", name)
+		return nil, fmt.Errorf("Node.js's own module %q is not available in ProxyGo scripts", name) //nolint:staticcheck // Node.js is a proper name and starts the message.
 	}
 	if strings.HasSuffix(name, ".node") {
 		return nil, fmt.Errorf("native add-ons, as %q, are not supported in ProxyGo scripts", name)
@@ -143,7 +143,7 @@ func (e *Engine) file(dir, rel, root string) (*source, error) {
 		if err != nil || rootErr != nil || !inside(real, realRoot) {
 			return nil, fmt.Errorf("%q is %w", rel, errOutside)
 		}
-		b, err := os.ReadFile(c)
+		b, err := os.ReadFile(c) // #nosec G304 -- checked above to resolve inside the scripts folder.
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +175,7 @@ func (e *Engine) pkg(name, root string) (*source, error) {
 		return e.file(dir, sub, root)
 	}
 	main := "index.js"
-	if b, err := os.ReadFile(filepath.Join(dir, "package.json")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(dir, "package.json")); err == nil { // #nosec G304 -- the manifest of a package the script requires.
 		var pj struct {
 			Main string `json:"main"`
 			Type string `json:"type"`

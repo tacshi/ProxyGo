@@ -18,7 +18,6 @@ type scriptState struct {
 	selected  string
 	drafts    map[string]*scriptDraft
 	err       string
-	console   bool
 	logs      ui.ListState
 	level     int
 	reference bool
@@ -303,7 +302,7 @@ func (a *App) scriptOptions(m *ui.Menu) {
 	}
 	if m.Item(locales.OpenScriptsFolder()).Chosen() {
 		root := a.scripts.Root()
-		_ = os.MkdirAll(root, 0o755)
+		_ = os.MkdirAll(root, 0o750)
 		openPath(root)
 	}
 	if m.Item(locales.ScriptingReference()).Chosen() {

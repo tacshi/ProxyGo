@@ -8,7 +8,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- the keychain names certificates by their SHA-1 hash.
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 type Manager struct {
@@ -160,7 +162,7 @@ func (m *Manager) generate() error {
 	if err := os.WriteFile(m.keyPath, keyPEM, 0o600); err != nil {
 		return err
 	}
-	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil {
+	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil { // #nosec G306 -- the public CA certificate, which other tools read.
 		return err
 	}
 	m.rootCert, m.rootKey, m.rootPEM = cert, key, certPEM
@@ -295,7 +297,7 @@ func (m *Manager) Leaf(host string) (*tls.Certificate, error) {
 func (m *Manager) Trusted() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, "security", "verify-cert", "-c", m.certPath, "-p", "ssl", "-L").Run() == nil
+	return exec.CommandContext(ctx, "security", "verify-cert", "-c", m.certPath, "-p", "ssl", "-L").Run() == nil // #nosec G204 -- security, given ProxyGo's own certificate.
 }
 
 func loginKeychain() string {
@@ -308,7 +310,7 @@ func loginKeychain() string {
 }
 
 func (m *Manager) Install() error {
-	out, err := exec.Command("security", "add-trusted-cert", "-r", "trustRoot", "-p", "ssl", "-p", "basic", "-k", loginKeychain(), m.certPath).CombinedOutput()
+	out, err := exec.Command("security", "add-trusted-cert", "-r", "trustRoot", "-p", "ssl", "-p", "basic", "-k", loginKeychain(), m.certPath).CombinedOutput() // #nosec G204 -- security, given ProxyGo's own certificate.
 	if err != nil {
 		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -316,11 +318,11 @@ func (m *Manager) Install() error {
 }
 
 func (m *Manager) Uninstall() error {
-	_ = exec.Command("security", "remove-trusted-cert", m.certPath).Run()
+	_ = exec.Command("security", "remove-trusted-cert", m.certPath).Run() // #nosec G204 -- security, given ProxyGo's own certificate.
 	m.mu.RLock()
-	sum := sha1.Sum(m.rootCert.Raw)
+	sum := sha1.Sum(m.rootCert.Raw) // #nosec G401 -- the keychain names certificates by their SHA-1 hash.
 	m.mu.RUnlock()
-	out, err := exec.Command("security", "delete-certificate", "-Z", strings.ToUpper(hex.EncodeToString(sum[:])), loginKeychain()).CombinedOutput()
+	out, err := exec.Command("security", "delete-certificate", "-Z", strings.ToUpper(hex.EncodeToString(sum[:])), loginKeychain()).CombinedOutput() // #nosec G204 -- security, given ProxyGo's own certificate.
 	if err != nil && !strings.Contains(string(out), "Unable to delete certificate matching") {
 		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -337,9 +339,9 @@ const (
 func (m *Manager) Export(format, path, password string) error {
 	switch format {
 	case FormatPEM:
-		return os.WriteFile(path, m.CertPEM(), 0o644)
+		return os.WriteFile(path, m.CertPEM(), 0o644) // #nosec G306 -- an exported public certificate.
 	case FormatDER:
-		return os.WriteFile(path, m.CertDER(), 0o644)
+		return os.WriteFile(path, m.CertDER(), 0o644) // #nosec G306 -- an exported public certificate.
 	case FormatKey:
 		b, err := m.KeyPEM()
 		if err != nil {
@@ -347,12 +349,13 @@ func (m *Manager) Export(format, path, password string) error {
 		}
 		return os.WriteFile(path, b, 0o600)
 	case FormatP12:
-		cmd := exec.Command("openssl", "pkcs12", "-export", "-in", m.certPath, "-inkey", m.keyPath, "-out", path, "-name", m.CommonName(), "-passout", "env:PROXYGO_P12_PASSWORD")
-		cmd.Env = append(os.Environ(), "PROXYGO_P12_PASSWORD="+password)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("openssl: %s: %w", strings.TrimSpace(string(out)), err)
+		m.mu.RLock()
+		b, err := pkcs12.LegacyDES.Encode(m.rootKey, m.rootCert, nil, password)
+		m.mu.RUnlock()
+		if err != nil {
+			return err
 		}
-		return nil
+		return os.WriteFile(path, b, 0o600)
 	}
 	return fmt.Errorf("unknown format %q", format)
 }

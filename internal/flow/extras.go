@@ -168,18 +168,16 @@ func (f *Flow) HTTPVersionLabel() string {
 }
 
 func (f *Flow) ErrorText() string {
-	if f == nil || f.Response == nil || f.Response.Error == nil {
+	if f == nil || f.Response == nil || len(f.Response.Error) == 0 {
 		return ""
 	}
-	for _, k := range slices.Sorted(maps.Keys(f.Response.Error)) {
-		if m, ok := f.Response.Error[k].(map[string]any); ok {
-			if msg, ok := m["message"].(string); ok && msg != "" {
-				return msg
-			}
+	k := slices.Min(slices.Collect(maps.Keys(f.Response.Error)))
+	if m, ok := f.Response.Error[k].(map[string]any); ok {
+		if msg, ok := m["message"].(string); ok && msg != "" {
+			return msg
 		}
-		return humanizeError(k)
 	}
-	return ""
+	return humanizeError(k)
 }
 
 func humanizeError(kind string) string {

@@ -27,8 +27,8 @@ func TestRequire(t *testing.T) {
 	e.SetRoot(root)
 	write := func(rel, content string) {
 		p := filepath.Join(root, rel)
-		os.MkdirAll(filepath.Dir(p), 0o755)
-		os.WriteFile(p, []byte(content), 0o644)
+		_ = os.MkdirAll(filepath.Dir(p), 0o750)
+		_ = os.WriteFile(p, []byte(content), 0o600)
 	}
 	write("users/token.json", `{"token":"abc"}`)
 	write("users/greet.js", `const util = require("./util.js"); exports.greet = (n) => util.prefix + n;`)
@@ -39,7 +39,7 @@ func TestRequire(t *testing.T) {
 	write("node_modules/esm-only/package.json", `{"type":"module","main":"index.js"}`)
 	write("node_modules/esm-only/index.js", `export default 1;`)
 	write("users/esm.js", `export const x = 1;`)
-	os.WriteFile(filepath.Join(t.TempDir(), "secret.js"), []byte("exports.s = 1"), 0o644)
+	_ = os.WriteFile(filepath.Join(t.TempDir(), "secret.js"), []byte("exports.s = 1"), 0o600)
 
 	comment, _ := runScript(t, e, `function onRequest(c, u, request) {
 		const { token } = require("@users/token.json");

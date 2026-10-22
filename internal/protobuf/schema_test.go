@@ -40,11 +40,11 @@ func writeProtos(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	dir := filepath.Join(root, "demo", "v1")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(dir, "user.proto"), []byte(userProto), 0o644)
-	os.WriteFile(filepath.Join(dir, "common.proto"), []byte(commonProto), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "user.proto"), []byte(userProto), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "common.proto"), []byte(commonProto), 0o600)
 	return filepath.Join(dir, "user.proto")
 }
 
@@ -103,8 +103,8 @@ func TestSchemasFromProto(t *testing.T) {
 
 	var zipped bytes.Buffer
 	zw := gzip.NewWriter(&zipped)
-	zw.Write(msg)
-	zw.Close()
+	_, _ = zw.Write(msg)
+	_ = zw.Close()
 	frame := func(flag byte, b []byte) []byte {
 		return append(binary.BigEndian.AppendUint32([]byte{flag}, uint32(len(b))), b...)
 	}
@@ -147,7 +147,7 @@ func TestSchemasFromDescriptorSet(t *testing.T) {
 	}
 	b, _ := proto.Marshal(&set)
 	path := filepath.Join(t.TempDir(), "api.desc")
-	os.WriteFile(path, b, 0o644)
+	_ = os.WriteFile(path, b, 0o600)
 	s := OpenSchemas(t.TempDir())
 	if _, err := s.Import(path); err != nil {
 		t.Fatal(err)
@@ -162,11 +162,11 @@ func TestSchemasFromDescriptorSet(t *testing.T) {
 		}
 	}
 	b, _ = proto.Marshal(&partial)
-	os.WriteFile(path, b, 0o644)
+	_ = os.WriteFile(path, b, 0o600)
 	if _, err := OpenSchemas(t.TempDir()).Import(path); err == nil || !strings.Contains(err.Error(), "--include_imports") {
 		t.Errorf("a partial set: %v", err)
 	}
-	os.WriteFile(path, []byte("not a set"), 0o644)
+	_ = os.WriteFile(path, []byte("not a set"), 0o600)
 	if _, err := OpenSchemas(t.TempDir()).Import(path); err == nil {
 		t.Error("garbage imported")
 	}
