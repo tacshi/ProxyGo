@@ -10,6 +10,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/rules"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 func (a *App) overview(c *ui.Context) {
@@ -17,8 +18,8 @@ func (a *App) overview(c *ui.Context) {
 	if len(a.flows) == 0 {
 		ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
 			glyph(c, "chart", 30, p.faint)
-			ui.Text(c, "No traffic yet").FontSize(15).FontWeight(600).TextColor(p.text2)
-			ui.Text(c, "The overview fills in as requests arrive.").TextColor(p.muted)
+			ui.Text(c, locales.NoTrafficYet()).FontSize(15).FontWeight(600).TextColor(p.text2)
+			ui.Text(c, locales.TheOverviewFillsInAsRequests()).TextColor(p.muted)
 		})
 		return
 	}
@@ -28,29 +29,29 @@ func (a *App) overview(c *ui.Context) {
 			a.overviewHeader(c, s)
 			a.overviewTiles(c, s)
 			cardRow(c, func() {
-				panel(c, p, "Requests over time", func() {
-					legend(c, p, "Succeeded", p.accent)
-					legend(c, p, "Errors", p.red)
-					legend(c, p, "Active", p.gray)
+				panel(c, p, locales.RequestsOverTime(), func() {
+					legend(c, p, locales.Succeeded(), p.accent)
+					legend(c, p, locales.Errors(), p.red)
+					legend(c, p, locales.StatusActive(), p.gray)
 				}, func() { a.requestsChart(c, s) }).Grow(2).Basis(0).MinWidth(420)
-				panel(c, p, "Status", nil, func() { a.statusCard(c, s) }).Grow(1).Basis(0).MinWidth(260)
+				panel(c, p, locales.Status(), nil, func() { a.statusCard(c, s) }).Grow(1).Basis(0).MinWidth(260)
 			})
 			cardRow(c, func() {
-				panel(c, p, "Data over time", func() {
-					legend(c, p, "Downloaded", p.accent)
-					legend(c, p, "Uploaded", p.purple)
+				panel(c, p, locales.DataOverTime(), func() {
+					legend(c, p, locales.Downloaded(), p.accent)
+					legend(c, p, locales.Uploaded(), p.purple)
 				}, func() { a.dataChart(c, s) }).Grow(2).Basis(0).MinWidth(420)
-				panel(c, p, "Response Times", nil, func() { a.responseTimes(c, s) }).Grow(1).Basis(0).MinWidth(260)
+				panel(c, p, locales.ResponseTimes(), nil, func() { a.responseTimes(c, s) }).Grow(1).Basis(0).MinWidth(260)
 			})
 			cardRow(c, func() {
-				panel(c, p, "Top Domains", nil, func() {
-					a.bars(c, s.domains, s.domainFails, s.domainBytes, s.total, 8, func(name string) { a.section = "domain:" + name })
+				panel(c, p, locales.TopDomains(), nil, func() {
+					a.bars(c, s.domains, s.domainFails, s.domainBytes, s.total, 8, nil, func(name string) { a.section = "domain:" + name })
 				}).Grow(1).Basis(0).MinWidth(260)
-				panel(c, p, "Top Apps", nil, func() {
-					a.bars(c, s.apps, s.appFails, s.appBytes, s.total, 8, func(name string) { a.section = "app:" + name })
+				panel(c, p, locales.TopApps(), nil, func() {
+					a.bars(c, s.apps, s.appFails, s.appBytes, s.total, 8, nil, func(name string) { a.section = "app:" + name })
 				}).Grow(1).Basis(0).MinWidth(260)
-				panel(c, p, "Content Types", nil, func() {
-					a.bars(c, s.kinds, nil, s.kindBytes, s.total, len(s.kinds), func(name string) {
+				panel(c, p, locales.ContentTypes(), nil, func() {
+					a.bars(c, s.kinds, nil, s.kindBytes, s.total, len(s.kinds), kindLabel, func(name string) {
 						if name != "Encrypted" {
 							a.section = "all"
 							clear(a.kinds)
@@ -60,15 +61,15 @@ func (a *App) overview(c *ui.Context) {
 				}).Grow(1).Basis(0).MinWidth(260)
 			})
 			cardRow(c, func() {
-				panel(c, p, "HTTPS Decryption", nil, func() { a.decryptionCard(c, s) }).Grow(1).Basis(0).MinWidth(320)
-				panel(c, p, "Errors", nil, func() { a.errorsCard(c, s) }).Grow(1).Basis(0).MinWidth(320)
+				panel(c, p, locales.HTTPSDecryption(), nil, func() { a.decryptionCard(c, s) }).Grow(1).Basis(0).MinWidth(320)
+				panel(c, p, locales.Errors(), nil, func() { a.errorsCard(c, s) }).Grow(1).Basis(0).MinWidth(320)
 			})
 			cardRow(c, func() {
-				panel(c, p, "Slowest", nil, func() {
-					a.topFlows(c, s.slow, flowDuration, "No finished requests yet")
+				panel(c, p, locales.Slowest(), nil, func() {
+					a.topFlows(c, s.slow, flowDuration, locales.NoFinishedRequestsYet())
 				}).Grow(1).Basis(0).MinWidth(320)
-				panel(c, p, "Largest Responses", nil, func() {
-					a.topFlows(c, s.large, func(f *flow.Flow) string { return formatSize(f.ResponseBodySize()) }, "No response bodies yet")
+				panel(c, p, locales.LargestResponses(), nil, func() {
+					a.topFlows(c, s.large, func(f *flow.Flow) string { return formatSize(f.ResponseBodySize()) }, locales.NoResponseBodiesYet())
 				}).Grow(1).Basis(0).MinWidth(320)
 			})
 		})
@@ -78,20 +79,20 @@ func (a *App) overview(c *ui.Context) {
 func (a *App) overviewHeader(c *ui.Context, s *overviewStats) {
 	p := a.pal
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-		summary := plural(s.total, "request", "requests")
+		summary := locales.RequestsCount(s.total)
 		if !s.first.IsZero() {
 			from, to := s.first.Local(), s.last.Local()
 			layout := "15:04:05"
 			if from.YearDay() != to.YearDay() || from.Year() != to.Year() {
 				layout = "Jan 2 15:04:05"
 			}
-			summary += fmt.Sprintf(" from %s to %s, over %s", from.Format(layout), to.Format(layout), formatDuration(max(s.span(), time.Millisecond)))
+			summary = locales.RequestsFromTo(s.total, formatClock(from, layout), formatClock(to, layout), formatDuration(max(s.span(), time.Millisecond)))
 		}
 		ui.Text(c, summary).FontSize(12).TextColor(p.muted).SingleLine().Shrink(1).MinWidth(0)
 		ui.Spacer(c)
-		b := ui.Button(c, "Copy as Markdown").Tooltip("Copy this overview as a Markdown report")
+		b := ui.Button(c, locales.CopyAsMarkdown()).Tooltip(locales.CopyThisOverviewAsAMarkdown())
 		if b.Clicked() {
-			a.copy(s.markdown(), "the overview as Markdown")
+			a.copy(s.markdown(), locales.CopiedTheOverviewAsMarkdown())
 		}
 	})
 }
@@ -102,38 +103,38 @@ func (a *App) overviewTiles(c *ui.Context, s *overviewStats) {
 	ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Stretch).Wrap().Children(func() {
 		note := ""
 		if peak, step := s.peakRequests(); peak > 1 {
-			note = fmt.Sprintf("Peak %d per %s", peak, stepLabel(step))
+			note = locales.PeakPerStep(peak, stepLabel(step))
 		}
-		stat(c, p, "Requests", fmt.Sprint(s.total), note, p.text)
+		stat(c, p, locales.Requests(), fmt.Sprint(s.total), note, p.text)
 		errs := s.errors()
 		color := p.text
 		if errs > 0 {
 			color = p.red
 		}
-		t := stat(c, p, "Errors", fmt.Sprint(errs), pct(errs, s.total)+" of requests", color)
+		t := stat(c, p, locales.Errors(), fmt.Sprint(errs), locales.PercentOfRequests(pct(errs, s.total)), color)
 		if errs > 0 {
 			hoverTile(t, p)
-			t.Tooltip("Show the failed requests")
+			t.Tooltip(locales.ShowTheFailedRequests())
 			if t.Clicked() {
 				a.filterBy(store.Condition{Enabled: true, Field: store.FieldStatus, Op: store.OpRegex, Value: `^([45]\d\d|999)$`})
 			}
 		}
 		if len(s.durations) > 0 {
-			stat(c, p, "Median Time", formatDuration(s.percentile(0.5)), "P95 "+formatDuration(s.percentile(0.95)), p.text)
+			stat(c, p, locales.MedianTime(), formatDuration(s.percentile(0.5)), "P95 "+formatDuration(s.percentile(0.95)), p.text)
 		} else {
-			stat(c, p, "Median Time", "–", "No finished requests", p.text)
+			stat(c, p, locales.MedianTime(), "–", locales.NoFinishedRequests(), p.text)
 		}
-		stat(c, p, "Data Transferred", formatBytes(s.up+s.down), "↑ "+formatBytes(s.up)+"  ↓ "+formatBytes(s.down), p.text)
+		stat(c, p, locales.DataTransferred(), formatBytes(s.up+s.down), "↑ "+formatBytes(s.up)+"  ↓ "+formatBytes(s.down), p.text)
 		if s.https() > 0 {
 			color := p.text
 			if s.decrypted == s.https() {
 				color = p.green
 			}
-			stat(c, p, "HTTPS Decrypted", pct(s.decrypted, s.https()), fmt.Sprintf("%d of %d HTTPS requests", s.decrypted, s.https()), color)
+			stat(c, p, locales.HTTPSDecrypted(), pct(s.decrypted, s.https()), locales.DecryptedOfHTTPSRequests(s.decrypted, s.https()), color)
 		} else {
-			stat(c, p, "HTTPS Decrypted", "–", "No HTTPS requests", p.text)
+			stat(c, p, locales.HTTPSDecrypted(), "–", locales.NoHTTPSRequests(), p.text)
 		}
-		stat(c, p, "Apps · Domains", fmt.Sprintf("%d · %d", len(s.apps), len(s.domains)), "", p.text)
+		stat(c, p, locales.AppsDomains(), fmt.Sprintf("%d · %d", len(s.apps), len(s.domains)), "", p.text)
 	})
 }
 
@@ -188,12 +189,12 @@ func listRow(c *ui.Context, key string, padY float32) ui.Element {
 	return ui.Row(c.Key(key)).AlignSelf(ui.Stretch).Margin(0, -6).Padding(padY, 6).Gap(8).AlignItems(ui.Center).Radius(5)
 }
 
-func (a *App) bars(c *ui.Context, counts, fails map[string]int, bytes map[string]int64, total, limit int, choose func(string)) {
+func (a *App) bars(c *ui.Context, counts, fails map[string]int, bytes map[string]int64, total, limit int, label func(string) string, choose func(string)) {
 	p := a.pal
 	names := store.ByCount(counts)
 	for i, name := range names {
 		if i >= limit {
-			ui.Text(c, plural(len(names)-limit, "more", "more")).FontSize(11).TextColor(p.muted).Padding(2, 2)
+			ui.Text(c, locales.MoreCount(len(names)-limit)).FontSize(11).TextColor(p.muted).Padding(2, 2)
 			break
 		}
 		n, bad := counts[name], fails[name]
@@ -204,16 +205,20 @@ func (a *App) bars(c *ui.Context, counts, fails map[string]int, bytes map[string
 		if row.Clicked() {
 			choose(name)
 		}
-		tip := plural(n, "request", "requests")
+		tip := locales.RequestsCount(n)
 		if bad > 0 {
-			tip += fmt.Sprintf(" · %d failed", bad)
+			tip += " · " + locales.FailedCount(bad)
 		}
 		if b := bytes[name]; b > 0 {
 			tip += " · " + formatBytes(b)
 		}
 		row.Tooltip(tip)
 		row.Children(func() {
-			ui.Text(c, name).FontSize(11.5).TextColor(p.text2).SingleLine().Width(150)
+			shown := name
+			if label != nil {
+				shown = label(name)
+			}
+			ui.Text(c, shown).FontSize(11.5).TextColor(p.text2).SingleLine().Width(150)
 			ui.Row(c).Height(6).Grow(1).Radius(3).Clip().Background(p.hover).Children(func() {
 				share := max(2, 100*float32(n)/float32(max(total, 1)))
 				ui.Row(c).Height(6).WidthPercent(share).Children(func() {
@@ -276,12 +281,12 @@ func (a *App) statusCard(c *ui.Context, s *overviewStats) {
 		return store.Condition{Enabled: true, Field: store.FieldStatus, Op: op, Value: v}
 	}
 	parts := []statusPart{
-		{"2xx Success", s.ok, p.green, status(store.OpRegex, `^2\d\d$`)},
-		{"3xx Redirect", s.redirect, p.blue, status(store.OpRegex, `^3\d\d$`)},
-		{"4xx Client Error", s.client, p.orange, status(store.OpRegex, `^4\d\d$`)},
-		{"5xx Server Error", s.server, p.red, status(store.OpRegex, `^5\d\d$`)},
-		{"Failed", s.failed, p.purple, status(store.OpEquals, "999")},
-		{"Active", s.active, p.gray, status(store.OpEquals, "Active")},
+		{locales.Status2xxSuccess(), s.ok, p.green, status(store.OpRegex, `^2\d\d$`)},
+		{locales.Status3xxRedirect(), s.redirect, p.blue, status(store.OpRegex, `^3\d\d$`)},
+		{locales.Status4xxClientError(), s.client, p.orange, status(store.OpRegex, `^4\d\d$`)},
+		{locales.Status5xxServerError(), s.server, p.red, status(store.OpRegex, `^5\d\d$`)},
+		{locales.Failed(), s.failed, p.purple, status(store.OpEquals, "999")},
+		{locales.StatusActive(), s.active, p.gray, status(store.OpEquals, "Active")},
 	}
 	ui.Row(c).FillWidth().Height(10).Radius(5).Clip().Background(p.hover).Gap(2).Children(func() {
 		for _, part := range parts {
@@ -364,9 +369,9 @@ func codeColor(p palette, code int) ui.Color {
 func (a *App) responseTimes(c *ui.Context, s *overviewStats) {
 	p := a.pal
 	if len(s.durations) == 0 {
-		msg := "No finished requests yet."
+		msg := locales.NoFinishedRequestsYetDot()
 		if s.tunnels > 0 {
-			msg += " Encrypted tunnels have no response time: enable SSL Proxying to measure them."
+			msg += " " + locales.EncryptedTunnelsHaveNoResponseTime()
 		}
 		placeholder(c, p, msg)
 		return
@@ -375,7 +380,7 @@ func (a *App) responseTimes(c *ui.Context, s *overviewStats) {
 		for _, q := range []struct {
 			label string
 			v     float64
-		}{{"Median", 0.5}, {"P95", 0.95}, {"P99", 0.99}} {
+		}{{locales.Median(), 0.5}, {"P95", 0.95}, {"P99", 0.99}} {
 			ui.Column(c.Key(q.label)).Grow(1).Basis(0).Gap(1).Children(func() {
 				ui.Text(c, q.label).FontSize(10.5).TextColor(p.muted)
 				ui.Text(c, formatDuration(s.percentile(q.v))).FontSize(15).FontWeight(650).TextColor(p.text).FontFeatures("tnum").SingleLine()
@@ -388,11 +393,11 @@ func (a *App) responseTimes(c *ui.Context, s *overviewStats) {
 		lo, hi time.Duration
 		color  ui.Color
 	}{
-		{"Under 100 ms", 0, 100 * ms, p.green},
+		{locales.Under100Ms(), 0, 100 * ms, p.green},
 		{"100–300 ms", 100 * ms, 300 * ms, p.green},
 		{"300 ms – 1 s", 300 * ms, time.Second, p.yellow},
 		{"1–3 s", time.Second, 3 * time.Second, p.orange},
-		{"3 s or more", 3 * time.Second, 0, p.red},
+		{locales.ThreeSOrMore(), 3 * time.Second, 0, p.red},
 	}
 	counts := make([]int, len(ranges))
 	for _, d := range s.durations {
@@ -418,7 +423,7 @@ func (a *App) responseTimes(c *ui.Context, s *overviewStats) {
 				if row.Clicked() {
 					a.filterDuration(r.lo, r.hi)
 				}
-				row.Tooltip(fmt.Sprintf("%s · %.0f%% of finished requests", plural(n, "request", "requests"), 100*float64(n)/float64(len(s.durations))))
+				row.Tooltip(locales.RequestsCount(n) + " · " + locales.PercentOfFinishedRequests(fmt.Sprintf("%.0f%%", 100*float64(n)/float64(len(s.durations)))))
 			}
 			row.Children(func() {
 				ui.Text(c, r.label).FontSize(11.5).TextColor(p.text2).SingleLine().Width(92)
@@ -449,13 +454,13 @@ func (a *App) filterDuration(lo, hi time.Duration) {
 func (a *App) decryptionCard(c *ui.Context, s *overviewStats) {
 	p := a.pal
 	if s.https() == 0 {
-		placeholder(c, p, "No HTTPS requests yet")
+		placeholder(c, p, locales.NoHTTPSRequestsYet())
 		return
 	}
 	share := float64(s.decrypted) / float64(s.https())
 	ui.Row(c).FillWidth().Gap(10).AlignItems(ui.End).Children(func() {
 		ui.Text(c, fmt.Sprintf("%.0f%%", 100*share)).FontSize(22).FontWeight(650).TextColor(p.text).FontFeatures("tnum")
-		ui.Text(c, fmt.Sprintf("of HTTPS requests decrypted · %d encrypted", s.tunnels)).FontSize(11.5).TextColor(p.muted).Padding(0, 0, 4, 0).SingleLine().Shrink(1).MinWidth(0)
+		ui.Text(c, locales.OfHTTPSRequestsDecrypted(s.tunnels)).FontSize(11.5).TextColor(p.muted).Padding(0, 0, 4, 0).SingleLine().Shrink(1).MinWidth(0)
 	})
 	ui.Row(c).FillWidth().Height(8).Radius(4).Clip().Background(p.hover).Gap(2).Children(func() {
 		if s.decrypted > 0 {
@@ -475,24 +480,24 @@ func (a *App) decryptionCard(c *ui.Context, s *overviewStats) {
 	if len(hosts) == 0 {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(4, 0).Children(func() {
 			glyph(c, "check", 13, p.green)
-			msg := "Every HTTPS request is decrypted."
+			msg := locales.EveryHTTPSRequestIsDecrypted()
 			if s.tunnels > 0 {
-				msg = "SSL Proxying now covers every encrypted domain: reload to see their requests."
+				msg = locales.SSLProxyingNowCoversEveryEncrypted()
 			}
 			ui.Text(c, msg).FontSize(11.5).TextColor(p.text2).Wrap().Shrink(1).MinWidth(0)
 		})
 		return
 	}
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Encrypted domains").FontSize(11).FontWeight(600).TextColor(p.muted)
+		ui.Text(c, locales.EncryptedDomains()).FontSize(11).FontWeight(600).TextColor(p.muted)
 		ui.Spacer(c)
-		if len(hosts) > 1 && ui.Button(c, fmt.Sprintf("Enable All %d", len(hosts))).Tooltip("Turn on SSL Proxying for every domain listed").Clicked() {
+		if len(hosts) > 1 && ui.Button(c, locales.EnableAllCount(len(hosts))).Tooltip(locales.TurnOnSSLProxyingForEvery()).Clicked() {
 			a.enableSSLHosts(hosts)
 		}
 	})
 	for i, h := range hosts {
 		if i >= 6 {
-			ui.Text(c, plural(len(hosts)-6, "more domain", "more domains")).FontSize(11).TextColor(p.muted).Padding(2, 0)
+			ui.Text(c, locales.MoreDomains(len(hosts)-6)).FontSize(11).TextColor(p.muted).Padding(2, 0)
 			break
 		}
 		row := listRow(c, "tls:"+h, 2)
@@ -506,11 +511,11 @@ func (a *App) decryptionCard(c *ui.Context, s *overviewStats) {
 			glyph(c, "lock", 11, p.faint)
 			ui.Text(c, h).FontSize(11.5).TextColor(p.text2).SingleLine().Grow(1).Shrink(1).MinWidth(0)
 			ui.Text(c, fmt.Sprint(s.tunnelHosts[h])).FontSize(11).TextColor(p.muted).FontFeatures("tnum")
-			b := ui.ButtonBase(c).Padding(1, 8).Radius(5).Background(p.surface).Border(1, p.border).Label("Enable SSL Proxying for " + h)
+			b := ui.ButtonBase(c).Padding(1, 8).Radius(5).Background(p.surface).Border(1, p.border).Label(locales.EnableSSLProxyingForHost(h))
 			if b.Hovered() {
 				b.Background(p.hover)
 			}
-			b.Children(func() { ui.Text(c, "Enable").FontSize(11).TextColor(p.text2) })
+			b.Children(func() { ui.Text(c, locales.Enable()).FontSize(11).TextColor(p.text2) })
 			if b.Clicked() {
 				a.enableSSL(h, false)
 			}
@@ -524,7 +529,7 @@ func (a *App) enableSSLHosts(hosts []string) {
 			includeSSL(d, h)
 		}
 	})
-	a.toast("SSL Proxying is on for " + plural(len(hosts), "domain", "domains") + ": reload to see their requests")
+	a.toast(locales.SSLProxyingIsOnForDomains(len(hosts)))
 }
 
 func (a *App) errorsCard(c *ui.Context, s *overviewStats) {
@@ -532,11 +537,11 @@ func (a *App) errorsCard(c *ui.Context, s *overviewStats) {
 	if s.errors() == 0 {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(4, 0).Children(func() {
 			glyph(c, "check", 13, p.green)
-			ui.Text(c, "No failed requests").FontSize(11.5).TextColor(p.text2)
+			ui.Text(c, locales.NoFailedRequests()).FontSize(11.5).TextColor(p.text2)
 		})
 		return
 	}
-	ui.Text(c, "Most common").FontSize(11).FontWeight(600).TextColor(p.muted)
+	ui.Text(c, locales.MostCommon()).FontSize(11).FontWeight(600).TextColor(p.muted)
 	reasons := store.ByCount(s.reasons)
 	peak := s.reasons[reasons[0]]
 	for i, r := range reasons {
@@ -563,7 +568,7 @@ func (a *App) errorsCard(c *ui.Context, s *overviewStats) {
 			ui.Text(c, fmt.Sprint(n)).FontSize(11).TextColor(p.muted).FontFeatures("tnum").Width(32).TextAlign(ui.End)
 		})
 	}
-	ui.Text(c, "By domain").FontSize(11).FontWeight(600).TextColor(p.muted).Padding(4, 0, 0, 0)
+	ui.Text(c, locales.ByDomain()).FontSize(11).FontWeight(600).TextColor(p.muted).Padding(4, 0, 0, 0)
 	for i, h := range store.ByCount(s.domainFails) {
 		if i >= 4 {
 			break
@@ -578,7 +583,7 @@ func (a *App) errorsCard(c *ui.Context, s *overviewStats) {
 		}
 		row.Children(func() {
 			ui.Text(c, h).FontSize(11.5).TextColor(p.text2).SingleLine().Grow(1).Shrink(1).MinWidth(0)
-			ui.Text(c, fmt.Sprintf("%d of %d", bad, all)).FontSize(11).TextColor(p.muted).FontFeatures("tnum")
+			ui.Text(c, locales.CountOf(bad, all)).FontSize(11).TextColor(p.muted).FontFeatures("tnum")
 			rate := float64(bad) / float64(max(all, 1))
 			color := p.orange
 			if rate >= 0.5 {
@@ -594,15 +599,15 @@ func stepLabel(d time.Duration) string {
 	case d < time.Second:
 		return fmt.Sprintf("%d ms", d.Milliseconds())
 	case d == time.Second:
-		return "second"
+		return locales.UnitSecond()
 	case d < time.Minute:
 		return fmt.Sprintf("%d s", int(d.Seconds()))
 	case d == time.Minute:
-		return "minute"
+		return locales.UnitMinute()
 	case d < time.Hour:
 		return fmt.Sprintf("%d min", int(d.Minutes()))
 	case d == time.Hour:
-		return "hour"
+		return locales.UnitHour()
 	}
 	return fmt.Sprintf("%d h", int(d.Hours()))
 }
@@ -695,7 +700,7 @@ func (a *App) requestsChart(c *ui.Context, s *overviewStats) {
 		peak = max(peak, b.ok+b.failed+b.active)
 	}
 	top := niceCeil(float64(peak))
-	a.chart(c, "requests-chart", s, fmt.Sprintf("%g per %s", top, stepLabel(s.step)), func(p *ui.Painter, cp chartPlot) {
+	a.chart(c, "requests-chart", s, locales.ValuePerStep(fmt.Sprintf("%g", top), stepLabel(s.step)), func(p *ui.Painter, cp chartPlot) {
 		r := cp.rect
 		bw := min(cp.slot()*0.7, 22)
 		for i, b := range s.buckets {
@@ -724,12 +729,12 @@ func (a *App) requestsChart(c *ui.Context, s *overviewStats) {
 	}, func(i int) string {
 		b := s.buckets[i]
 		from := s.first.Add(time.Duration(i) * s.step).Local()
-		tip := from.Format(tickLayout(s)) + " · " + plural(b.ok+b.failed+b.active, "request", "requests")
+		tip := formatClock(from, tickLayout(s)) + " · " + locales.RequestsCount(b.ok+b.failed+b.active)
 		if b.failed > 0 {
-			tip += fmt.Sprintf(" · %s", plural(b.failed, "error", "errors"))
+			tip += " · " + locales.ErrorsCount(b.failed)
 		}
 		if b.active > 0 {
-			tip += fmt.Sprintf(" · %d active", b.active)
+			tip += " · " + locales.ActiveCount(b.active)
 		}
 		return tip
 	})
@@ -783,6 +788,6 @@ func (a *App) dataChart(c *ui.Context, s *overviewStats) {
 	}, func(i int) string {
 		b := s.buckets[i]
 		from := s.first.Add(time.Duration(i) * s.step).Local()
-		return fmt.Sprintf("%s · ↓ %s · ↑ %s", from.Format(tickLayout(s)), formatRate(int64(float64(b.down)/sec)), formatRate(int64(float64(b.up)/sec)))
+		return fmt.Sprintf("%s · ↓ %s · ↑ %s", formatClock(from, tickLayout(s)), formatRate(int64(float64(b.down)/sec)), formatRate(int64(float64(b.up)/sec)))
 	})
 }

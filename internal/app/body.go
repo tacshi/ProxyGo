@@ -21,6 +21,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/preview"
 	"proxygo/internal/protobuf"
+	"proxygo/locales"
 )
 
 const (
@@ -156,7 +157,7 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 		modes = []string{modeProtobuf, modeHex}
 	}
 	if len(modes) == 0 {
-		emptyState(c, p, "No body")
+		emptyState(c, p, locales.NoBody())
 		return
 	}
 	mode := a.bodyMode[side+":"+strings.Join(modes, ",")]
@@ -166,7 +167,7 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 	ui.Column(c.Key(side + "body")).Fill().Children(func() {
 		ui.Row(c).Height(34).FillWidth().Padding(0, inset-5, 0, inset).Gap(8).AlignItems(ui.Center).Children(func() {
 			if len(modes) > 1 {
-				if ui.Segmented(c, &mode, modes...).Label("Body view").Changed() {
+				if ui.Segmented(c, &mode, bodyModeLabels(modes)...).Label(locales.BodyView()).Changed() {
 					a.bodyMode[side+":"+strings.Join(modes, ",")] = mode
 				}
 			}
@@ -183,14 +184,14 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 			}
 			ui.Spacer(c)
 			about := formatSize(len(body)) + "  " + strings.Split(ct, ";")[0]
-			copyLabel := "Copy Body"
+			copyLabel := locales.CopyBody()
 			if crowded {
-				copyLabel += " (" + strings.TrimSpace(about) + ")"
+				copyLabel = locales.CopyBodyAbout(strings.TrimSpace(about))
 			} else {
 				ui.Text(c, about).FontSize(11).TextColor(p.muted).SingleLine()
 			}
 			if plainIconButton(c, "copy", copyLabel, 12, p.muted, p.hover).Clicked() {
-				a.copy(string(body), "the body")
+				a.copy(string(body), locales.CopiedTheBody())
 			}
 		})
 		ui.Divider(c)
@@ -202,9 +203,9 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 		}
 		switch modes[mode] {
 		case modePretty:
-			a.textViewer(c, k, prettyText(body, ct), languageName(ct), "Body")
+			a.textViewer(c, k, prettyText(body, ct), languageName(ct), locales.TabBody())
 		case modeRaw:
-			a.textViewer(c, k, string(body), "", "Body")
+			a.textViewer(c, k, string(body), "", locales.TabBody())
 		case modeHex:
 			a.textViewer(c, k, hexDump(body), "", "Hex")
 		case modeTree:
@@ -223,7 +224,7 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 				}
 			}
 			_ = values
-			a.pairsTable(c, rows, "Field", "Value", "No fields", "")
+			a.pairsTable(c, rows, locales.Field(), locales.Value(), locales.NoFields(), "")
 		case modeParts:
 			a.multipartView(c, k, body, ct, side)
 		case modeProtobuf:
@@ -560,7 +561,7 @@ func hexDump(body []byte) string {
 	const limit = 1 << 20
 	tail := ""
 	if len(body) > limit {
-		tail = fmt.Sprintf("… %s more", formatSize(len(body)-limit))
+		tail = "… " + locales.SizeMore(formatSize(len(body)-limit))
 		body = body[:limit]
 	}
 	return strings.TrimRight(hex.Dump(body), "\n") + "\n" + tail
@@ -633,7 +634,7 @@ func (a *App) jsonTreeView(c *ui.Context, key string, body []byte) {
 		}
 	}
 	if t.err != "" {
-		emptyState(c, p, "Not valid JSON: "+t.err)
+		emptyState(c, p, locales.NotValidJSON(t.err))
 		return
 	}
 	if !t.expanded {
@@ -656,9 +657,9 @@ func (a *App) jsonTreeView(c *ui.Context, key string, body []byte) {
 			}
 			switch n.kind {
 			case '{':
-				ui.Text(c, fmt.Sprintf("{ %s }", plural(n.count, "key", "keys"))).TextColor(p.muted).SingleLine()
+				ui.Text(c, "{ "+locales.KeysCount(n.count)+" }").TextColor(p.muted).SingleLine()
 			case '[':
-				ui.Text(c, fmt.Sprintf("[ %s ]", plural(n.count, "item", "items"))).TextColor(p.muted).SingleLine()
+				ui.Text(c, "[ "+locales.ItemsCount(n.count)+" ]").TextColor(p.muted).SingleLine()
 			case '"':
 				ui.Text(c, n.value).TextColor(p.green).SingleLine().Selectable()
 			case '0':
@@ -667,17 +668,17 @@ func (a *App) jsonTreeView(c *ui.Context, key string, body []byte) {
 				ui.Text(c, n.value).TextColor(p.orange).SingleLine()
 			}
 		}).ContextMenu(func(m *ui.Menu) {
-			if m.Item("Copy Value").Chosen() {
-				a.copy(n.value, "the value")
+			if m.Item(locales.CopyValue()).Chosen() {
+				a.copy(n.value, locales.CopiedTheValue())
 			}
-			if m.Item("Copy Key").Disabled(n.key == "").Chosen() {
-				a.copy(n.key, "the key")
+			if m.Item(locales.CopyKey()).Disabled(n.key == "").Chosen() {
+				a.copy(n.key, locales.CopiedTheKey())
 			}
-			if m.Item("Copy Path").Chosen() {
-				a.copy(id, "the path")
+			if m.Item(locales.CopyPath()).Chosen() {
+				a.copy(id, locales.CopiedThePath())
 			}
 		})
-	}).Grow(1).Label("JSON tree")
+	}).Grow(1).Label(locales.JSONTree())
 }
 
 func parseJSONTree(body []byte) *jsonTree {
@@ -759,7 +760,7 @@ func (a *App) imageView(c *ui.Context, key string, body []byte, ct string) {
 		}
 	}
 	if bmp == nil {
-		emptyState(c, p, "ProxyGo cannot show this image format; see it in Hex")
+		emptyState(c, p, locales.ProxyGoCannotShowThisImageFormat())
 		return
 	}
 	w, h := bmp.Size()
@@ -782,7 +783,7 @@ func (a *App) multipartView(c *ui.Context, key string, body []byte, ct, side str
 	p := a.pal
 	_, params, err := mime.ParseMediaType(ct)
 	if err != nil || params["boundary"] == "" {
-		emptyState(c, p, "No multipart boundary")
+		emptyState(c, p, locales.NoMultipartBoundary())
 		return
 	}
 	r := multipart.NewReader(bytes.NewReader(body), params["boundary"])
@@ -796,7 +797,7 @@ func (a *App) multipartView(c *ui.Context, key string, body []byte, ct, side str
 		parts = append(parts, bodyPart{name: part.FormName(), file: part.FileName(), ct: part.Header.Get("Content-Type"), data: data})
 	}
 	if len(parts) == 0 {
-		emptyState(c, p, "No parts")
+		emptyState(c, p, locales.NoParts())
 		return
 	}
 	row := a.partRow[key]
@@ -807,7 +808,7 @@ func (a *App) multipartView(c *ui.Context, key string, body []byte, ct, side str
 	*row = min(max(*row, 0), len(parts)-1)
 	list := a.listState(key+":parts", false)
 	list.Selected = row
-	cols := []ui.TableColumn{{Title: "Part", Width: 160}, {Title: "Value"}}
+	cols := []ui.TableColumn{{Title: locales.Part(), Width: 160}, {Title: locales.Value()}}
 	ui.Column(c).Fill().Children(func() {
 		ui.Table(c.Key(key+":parts"), list, cols, len(parts), func(i, col int) {
 			pt := parts[i]
@@ -817,10 +818,10 @@ func (a *App) multipartView(c *ui.Context, key string, body []byte, ct, side str
 			}
 			value := string(pt.data)
 			if pt.file != "" || !utf8.Valid(pt.data) {
-				value = fmt.Sprintf("%s (%s, %s)", pt.file, cmp.Or(pt.ct, "no type"), formatSize(len(pt.data)))
+				value = fmt.Sprintf("%s (%s, %s)", pt.file, cmp.Or(pt.ct, locales.NoType()), formatSize(len(pt.data)))
 			}
 			ui.Text(c, value).TextColor(p.text).SingleLine()
-		}).Height(float32(min(len(parts), 5))*26 + 30).Label("Parts")
+		}).Height(float32(min(len(parts), 5))*26 + 30).Label(locales.Parts())
 		ui.Divider(c)
 		pt := parts[*row]
 		ui.Column(c).Grow(1).Children(func() {

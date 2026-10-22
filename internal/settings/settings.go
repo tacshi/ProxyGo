@@ -36,6 +36,7 @@ func (h HeaderColumn) ID() string {
 type Settings struct {
 	Port                int    `json:"port"`
 	Appearance          string `json:"appearance,omitempty"`
+	Language            string `json:"language,omitempty"`
 	OverrideSystemProxy bool   `json:"override_system_proxy,omitzero"`
 	StartPaused         bool   `json:"start_paused,omitzero"`
 	MaxFlows            int    `json:"max_flows"`

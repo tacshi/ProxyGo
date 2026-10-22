@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"cmp"
 	"image"
 	"image/color"
 	"image/png"
@@ -22,6 +21,7 @@ import (
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
 	"proxygo/internal/systemproxy"
+	"proxygo/locales"
 )
 
 func testApp(t *testing.T) (*App, *[]string) {
@@ -656,10 +656,10 @@ func TestRuleWindows(t *testing.T) {
 		tt := ui.NewTester(func(c *ui.Context) { a.toolWindow(c, kind) }, 900, 640)
 		tt.Frame()
 		before := len(k.ids(a.rules.Current()))
-		if !tt.HasText(k.title) || before == 0 && !tt.HasText(cmp.Or(k.empty, "No rules yet")) {
+		if !tt.HasText(k.title()) || before == 0 && !tt.HasText(orText(k.empty, locales.NoRulesYet)) {
 			t.Fatalf("%s: %v", kind, tt.Texts())
 		}
-		if err := tt.Click(k.add); err != nil {
+		if err := tt.Click(k.add()); err != nil {
 			t.Fatalf("%s add: %v", kind, err)
 		}
 		st := a.toolState(kind)

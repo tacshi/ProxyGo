@@ -13,6 +13,7 @@ import (
 	"proxygo/internal/privileged"
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
+	"proxygo/locales"
 )
 
 var settingsTabs = []string{"General", "Proxy", "HTTPS", "Tools", "Automation", "Advanced"}
@@ -29,6 +30,10 @@ type settingsDrafts struct {
 	accessFrom string
 }
 
+func settingsTabLabels() []string {
+	return []string{locales.General(), locales.Proxy(), locales.HTTPS(), locales.Tools(), locales.Automation(), locales.Advanced()}
+}
+
 func (a *App) settingsWindow(c *ui.Context) {
 	p := a.pal
 	d := a.rules.Current()
@@ -41,7 +46,7 @@ func (a *App) settingsWindow(c *ui.Context) {
 		}
 	}
 	ui.Row(c).FillWidth().Padding(14, 16, 6, 16).Justify(ui.Center).Children(func() {
-		ui.Tabs(c, &a.settingsTab, settingsTabs...).Label("Settings")
+		ui.Tabs(c, &a.settingsTab, settingsTabLabels()...).Label(locales.Settings())
 	})
 	ui.Divider(c)
 	ui.Scroll(c.Key(settingsTabs[a.settingsTab])).Grow(1).Children(func() {
@@ -73,64 +78,65 @@ func group(c *ui.Context, p palette, title string, build func()) {
 
 func (a *App) generalSettings(c *ui.Context, p palette) {
 	drafts := &a.drafts
-	group(c, p, "Proxy Port", func() {
+	group(c, p, locales.ProxyPort(), func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.NumberInput(c, &drafts.port, 1024, 65535, 1).Width(120).Label("Port")
-			if ui.Button(c, "Apply").Disabled(int(drafts.port) == a.proxy.Port()).Clicked() {
+			ui.NumberInput(c, &drafts.port, 1024, 65535, 1).Width(120).Label(locales.Port())
+			if ui.Button(c, locales.Apply()).Disabled(int(drafts.port) == a.proxy.Port()).Clicked() {
 				port := int(drafts.port)
 				addr, network := a.set.ListenAddr(port)
 				if err := a.proxy.SetListen(addr, network); err != nil {
-					a.toast("Port " + strconv.Itoa(port) + ": " + err.Error())
+					a.toast(locales.PortError(strconv.Itoa(port), err.Error()))
 					_ = a.proxy.SetListen(a.set.ListenAddr(a.set.Port))
 				} else {
 					a.updateSettings(func(s *settings.Settings) { s.Port = port })
 					a.proxyErr = ""
-					a.toast("ProxyGo listens on port " + strconv.Itoa(port))
+					a.toast(locales.ListensOnPort(strconv.Itoa(port)))
 					if a.systemProxyOn() || a.overrode {
 						a.setSystemProxy(true)
 					}
 				}
 			}
-			ui.Text(c, "Listening on "+a.proxyAddress()).TextColor(p.muted)
+			ui.Text(c, locales.ListeningOn(a.proxyAddress())).TextColor(p.muted)
 		})
 	})
-	group(c, p, "On Launch", func() {
-		a.settingSwitch(c, "Override the macOS proxy", "And give it back on quit.", a.set.OverrideSystemProxy, func(on bool) {
+	group(c, p, locales.OnLaunch(), func() {
+		a.settingSwitch(c, locales.OverrideTheMacOSProxy(), locales.AndGiveItBackOnQuit(), a.set.OverrideSystemProxy, func(on bool) {
 			a.updateSettings(func(s *settings.Settings) { s.OverrideSystemProxy = on })
 		})
-		a.settingSwitch(c, "Open the last session", "Keep the flows of the last run.", a.set.OpenLastSession, func(on bool) {
+		a.settingSwitch(c, locales.OpenTheLastSession(), locales.KeepTheFlowsOfTheLast(), a.set.OpenLastSession, func(on bool) {
 			a.updateSettings(func(s *settings.Settings) { s.OpenLastSession = on })
 		})
-		a.settingSwitch(c, "Start with recording paused", "", a.set.StartPaused, func(on bool) {
+		a.settingSwitch(c, locales.StartWithRecordingPaused(), "", a.set.StartPaused, func(on bool) {
 			a.updateSettings(func(s *settings.Settings) { s.StartPaused = on })
 		})
 	})
-	group(c, p, "Window", func() {
-		a.settingRow(c, "Appearance", "", func() {
+	group(c, p, locales.Window(), func() {
+		a.settingRow(c, locales.Appearance(), "", func() {
 			mode := map[string]int{settings.AppearanceSystem: 0, settings.AppearanceLight: 1, settings.AppearanceDark: 2}[a.set.Appearance]
-			if ui.Segmented(c, &mode, "System", "Light", "Dark").Label("Appearance").Changed() {
+			if ui.Segmented(c, &mode, locales.System(), locales.Light(), locales.Dark()).Label(locales.Appearance()).Changed() {
 				a.setAppearance([]string{settings.AppearanceSystem, settings.AppearanceLight, settings.AppearanceDark}[mode])
 			}
 		})
-		a.settingSwitch(c, "Keep the window on top", "", a.set.StayOnTop, a.setStayOnTop)
+		a.languageSetting(c)
+		a.settingSwitch(c, locales.KeepTheWindowOnTop(), "", a.set.StayOnTop, a.setStayOnTop)
 		a.menuBarSettings(c)
 	})
-	group(c, p, "App Icon", func() {
-		ui.Text(c, "Shown in the Dock and in Finder.").FontSize(11).TextColor(p.muted)
+	group(c, p, locales.AppIcon(), func() {
+		ui.Text(c, locales.ShownInTheDockAndIn()).FontSize(11).TextColor(p.muted)
 		a.appIconPicker(c, p)
 	})
-	group(c, p, "Flows", func() {
-		a.settingSwitch(c, "Select new requests as they arrive", "Auto Select", a.set.AutoSelect, func(on bool) {
+	group(c, p, locales.Flows(), func() {
+		a.settingSwitch(c, locales.SelectNewRequestsAsTheyArrive(), locales.AutoSelect(), a.set.AutoSelect, func(on bool) {
 			a.updateSettings(func(s *settings.Settings) { s.AutoSelect = on })
 		})
-		a.settingRow(c, "Keep at most", "The oldest flows go first.", func() {
+		a.settingRow(c, locales.KeepAtMost(), locales.TheOldestFlowsGoFirst(), func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				if ui.NumberInput(c, &drafts.maxFlows, 1000, 1_000_000, 1000).Width(110).Label("Most flows").Changed() {
+				if ui.NumberInput(c, &drafts.maxFlows, 1000, 1_000_000, 1000).Width(110).Label(locales.MostFlows()).Changed() {
 					n := int(drafts.maxFlows)
 					a.updateSettings(func(s *settings.Settings) { s.MaxFlows = n })
 					a.store.SetLimit(n)
 				}
-				ui.Text(c, "flows").TextColor(p.text2)
+				ui.Text(c, locales.FlowsUnit()).TextColor(p.text2)
 			})
 		})
 		a.memorySettings(c, p)
@@ -142,7 +148,7 @@ func (a *App) appIconPicker(c *ui.Context, p palette) {
 	choice := cmp.Or(a.set.AppIcon, appIcons[0].id)
 	ui.RadioGroup(c, func() {
 		for _, icon := range appIcons {
-			r := ui.RadioBase(c.Key("app-icon-"+icon.id), &choice, icon.id).Label(icon.name).
+			r := ui.RadioBase(c.Key("app-icon-"+icon.id), &choice, icon.id).Label(appIconName(icon.id, icon.name)).
 				OnChange(func() { a.setAppIcon(choice) })
 			r.Column().AlignItems(ui.Center).Gap(4).Padding(6, 8).Radius(12).Border(2, ui.Transparent)
 			chosen := choice == icon.id
@@ -154,10 +160,10 @@ func (a *App) appIconPicker(c *ui.Context, p palette) {
 			}
 			r.Children(func() {
 				ui.Image(c, a.appIconThumbnail(icon.id)).Size(56, 56)
-				ui.Text(c, icon.name).FontSize(11).TextColor(map[bool]ui.Color{true: p.text, false: p.muted}[chosen])
+				ui.Text(c, appIconName(icon.id, icon.name)).FontSize(11).TextColor(map[bool]ui.Color{true: p.text, false: p.muted}[chosen])
 			})
 		}
-	}).Label("App Icon").Row().Wrap().Gap(4)
+	}).Label(locales.AppIcon()).Row().Wrap().Gap(4)
 }
 
 func (a *App) settingSwitch(c *ui.Context, label, description string, on bool, set func(bool)) {
@@ -195,83 +201,83 @@ func lines(s string) []string {
 func (a *App) proxySettings(c *ui.Context, p palette, d *rules.Data) {
 	drafts := &a.drafts
 	a.listenSettings(c, p)
-	group(c, p, "macOS Proxy", func() {
+	group(c, p, locales.MacOSProxy(), func() {
 		on := a.systemProxyOn()
-		a.settingSwitch(c, "Override the macOS proxy", "Send this Mac's HTTP and HTTPS traffic through ProxyGo.", on, a.setSystemProxy)
+		a.settingSwitch(c, locales.OverrideTheMacOSProxy(), locales.SendThisMacsHTTPAndHTTPS(), on, a.setSystemProxy)
 		installed := privileged.Installed()
-		status := "Not installed: the first change to the macOS proxy installs it, after your password."
+		status := locales.NotInstalledTheFirstChangeTo()
 		if installed {
-			status = "Installed: ProxyGo changes the macOS proxy without asking for your password."
+			status = locales.InstalledProxyGoChangesTheMacOSProxy()
 		}
-		a.settingRow(c, "Helper", status, func() {
-			if installed && ui.Button(c, "Remove").Tooltip("Uninstall ProxyGo's helper; the next change asks for your password again").Clicked() {
+		a.settingRow(c, locales.Helper(), status, func() {
+			if installed && ui.Button(c, locales.Remove()).Tooltip(locales.UninstallProxyGosHelperTheNextChange()).Clicked() {
 				a.removeHelper()
 			}
 		})
-		ui.Text(c, "Bypass the proxy for").TextColor(p.text2)
-		ui.TextArea(c, &drafts.bypass).Height(70).Label("Bypassed hosts").Placeholder("localhost, *.local, 10.0.0.0/8")
+		ui.Text(c, locales.BypassTheProxyFor()).TextColor(p.text2)
+		ui.TextArea(c, &drafts.bypass).Height(70).Label(locales.BypassedHosts()).Placeholder("localhost, *.local, 10.0.0.0/8")
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, "Apply Bypass List").Clicked() {
+			if ui.Button(c, locales.ApplyBypassList()).Clicked() {
 				list := lines(drafts.bypass)
 				a.rules.Update(func(d *rules.Data) { d.Bypass = list })
 				if on {
 					a.setSystemProxy(true)
 				}
 			}
-			if ui.Button(c, "Reset to Default").Clicked() {
+			if ui.Button(c, locales.ResetToDefault()).Clicked() {
 				drafts.bypass = strings.Join(rules.DefaultBypass, "\n")
 			}
 		})
 	})
-	group(c, p, "SOCKS5 Proxy", func() {
-		a.settingSwitch(c, "Listen for SOCKS5", "For apps that only speak SOCKS. Its traffic is recorded and decrypted like the HTTP proxy's.", d.Socks.Enabled, func(on bool) {
+	group(c, p, locales.SOCKS5Proxy(), func() {
+		a.settingSwitch(c, locales.ListenForSOCKS5(), locales.ForAppsThatOnlySpeakSOCKS(), d.Socks.Enabled, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.Socks.Enabled = on })
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Port").TextColor(p.text2)
-			ui.NumberInput(c, &drafts.socksPort, 1024, 65535, 1).Width(120).Label("SOCKS port")
-			if ui.Button(c, "Apply").Disabled(int(drafts.socksPort) == d.Socks.Port).Clicked() {
+			ui.Text(c, locales.Port()).TextColor(p.text2)
+			ui.NumberInput(c, &drafts.socksPort, 1024, 65535, 1).Width(120).Label(locales.SOCKSPort())
+			if ui.Button(c, locales.Apply()).Disabled(int(drafts.socksPort) == d.Socks.Port).Clicked() {
 				port := int(drafts.socksPort)
 				a.rules.Update(func(d *rules.Data) { d.Socks.Port = port })
 			}
 			if port := a.proxy.SocksPort(); port > 0 {
-				ui.Text(c, fmt.Sprintf("Listening on %s:%d", a.proxyHost(), port)).TextColor(p.green)
+				ui.Text(c, locales.ListeningOn(fmt.Sprintf("%s:%d", a.proxyHost(), port))).TextColor(p.green)
 			}
 		})
 	})
-	group(c, p, "External Proxy", func() {
+	group(c, p, locales.ExternalProxy(), func() {
 		up := d.Upstream
-		a.settingSwitch(c, "Send ProxyGo's traffic through another proxy", "As a corporate proxy, or another debugging proxy.", up.Enabled, func(on bool) {
+		a.settingSwitch(c, locales.SendProxyGosTrafficThroughAnotherProxy(), locales.AsACorporateProxyOrAnother(), up.Enabled, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.Upstream.Enabled = on })
 		})
 		field := func(label string, v string, set func(string)) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, label).TextColor(p.text2).Width(110)
 				val := v
-				in := ui.TextInput(c.Key(label), &val).Placeholder("host:port, or http://user:pass@host:port").Label(label).Grow(1)
+				in := ui.TextInput(c.Key(label), &val).Placeholder(locales.UpstreamProxyPlaceholder()).Label(label).Grow(1)
 				if in.Changed() {
 					set(val)
 				}
 			})
 		}
-		field("HTTP Proxy", up.HTTP, func(v string) { a.rules.Update(func(d *rules.Data) { d.Upstream.HTTP = strings.TrimSpace(v) }) })
-		field("HTTPS Proxy", up.HTTPS, func(v string) { a.rules.Update(func(d *rules.Data) { d.Upstream.HTTPS = strings.TrimSpace(v) }) })
+		field(locales.HTTPProxy(), up.HTTP, func(v string) { a.rules.Update(func(d *rules.Data) { d.Upstream.HTTP = strings.TrimSpace(v) }) })
+		field(locales.HTTPSProxy(), up.HTTPS, func(v string) { a.rules.Update(func(d *rules.Data) { d.Upstream.HTTPS = strings.TrimSpace(v) }) })
 		a.pacField(c, p, d)
-		ui.Text(c, "Connect directly to").TextColor(p.text2)
-		ui.TextArea(c, &drafts.upBypass).Height(52).Label("External proxy bypass").Placeholder("*.internal, localhost")
-		if ui.Button(c, "Apply").AlignSelf(ui.Start).Clicked() {
+		ui.Text(c, locales.ConnectDirectlyTo()).TextColor(p.text2)
+		ui.TextArea(c, &drafts.upBypass).Height(52).Label(locales.ExternalProxyBypass()).Placeholder("*.internal, localhost")
+		if ui.Button(c, locales.Apply()).AlignSelf(ui.Start).Clicked() {
 			list := lines(drafts.upBypass)
 			a.rules.Update(func(d *rules.Data) { d.Upstream.Bypass = list })
 		}
 	})
-	group(c, p, "Access Control", func() {
+	group(c, p, locales.AccessControl(), func() {
 		modes := []string{rules.AccessAll, rules.AccessAsk, rules.AccessLocal, rules.AccessList}
-		names := []string{"Any device", "Ask about each new device", "This Mac only", "This Mac and the devices listed"}
+		names := []string{locales.AnyDevice(), locales.AskAboutEachNewDevice(), locales.ThisMacOnly(), locales.ThisMacAndTheDevicesListed()}
 		choice := names[max(slices.Index(modes, d.Access.Mode), 0)]
-		a.settingRow(c, "Who may connect", map[string]string{
-			rules.AccessAsk: "ProxyGo asks before a device not listed uses it; those you allow join the list.",
+		a.settingRow(c, locales.WhoMayConnect(), map[string]string{
+			rules.AccessAsk: locales.ProxyGoAsksBeforeADeviceNot(),
 		}[d.Access.Mode], func() {
-			if ui.Select(c, &choice, names).Label("Who may connect").Width(250).Changed() {
+			if ui.Select(c, &choice, names).Label(locales.WhoMayConnect()).Width(250).Changed() {
 				m := modes[slices.Index(names, choice)]
 				a.rules.Update(func(d *rules.Data) { d.Access.Mode = m })
 			}
@@ -280,38 +286,38 @@ func (a *App) proxySettings(c *ui.Context, p palette, d *rules.Data) {
 			drafts.access, drafts.accessFrom = joined, joined
 		}
 		if d.Access.Mode == rules.AccessList || d.Access.Mode == rules.AccessAsk {
-			ui.TextArea(c, &drafts.access).Height(64).Label("Allowed addresses").Placeholder("192.168.1.20\n10.0.0.0/24")
-			if ui.Button(c, "Apply").AlignSelf(ui.Start).Clicked() {
+			ui.TextArea(c, &drafts.access).Height(64).Label(locales.AllowedAddresses()).Placeholder("192.168.1.20\n10.0.0.0/24")
+			if ui.Button(c, locales.Apply()).AlignSelf(ui.Start).Clicked() {
 				list := lines(drafts.access)
 				a.rules.Update(func(d *rules.Data) { d.Access.IPs = list })
 			}
 		}
 		if a.set.ListenLocalhost {
-			ui.Text(c, "Only this Mac can connect while Listening › Only this Mac is on.").FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.OnlyThisMacCanConnectWhile()).FontSize(11).TextColor(p.muted)
 		} else {
-			ui.Text(c, "Devices on your network connect to "+a.proxyAddress()+".").FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.DevicesConnectTo(a.proxyAddress())).FontSize(11).TextColor(p.muted)
 		}
 	})
 }
 
 func (a *App) httpsSettings(c *ui.Context, p palette, d *rules.Data) {
-	group(c, p, "Decryption", func() {
-		a.settingSwitch(c, "SSL Proxying", "Decrypt the hosts on the SSL Proxying List.", d.SSL.Enabled, func(on bool) {
+	group(c, p, locales.Decryption(), func() {
+		a.settingSwitch(c, locales.SSLProxying(), locales.DecryptTheHostsOnTheSSL(), d.SSL.Enabled, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.SSL.Enabled = on })
 		})
-		if ui.Button(c, "SSL Proxying List…").AlignSelf(ui.Start).Clicked() {
+		if ui.Button(c, locales.SSLProxyingListEllipsis()).AlignSelf(ui.Start).Clicked() {
 			a.openWindow("ssl")
 		}
-		a.settingSwitch(c, "HTTP/2", "Speak HTTP/2 with clients and servers that offer it.", !d.DisableHTTP2, func(on bool) {
+		a.settingSwitch(c, "HTTP/2", locales.SpeakHTTP2WithClientsAnd(), !d.DisableHTTP2, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.DisableHTTP2 = !on })
 		})
-		a.settingSwitch(c, "Accept any server certificate", "Connect to servers with self-signed or expired certificates. Not safe on networks you do not trust.", d.InsecureTLS, func(on bool) {
+		a.settingSwitch(c, locales.AcceptAnyServerCertificate(), locales.ConnectToServersWithSelfSigned(), d.InsecureTLS, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.InsecureTLS = on })
 		})
 	})
-	group(c, p, "TLS Key Logging", func() {
+	group(c, p, locales.TLSKeyLogging(), func() {
 		path := filepath.Join(a.dir, "sslkeylog.txt")
-		a.settingSwitch(c, "Write TLS secrets to a key log", "Wireshark reads it to decrypt captured packets (SSLKEYLOGFILE format).", d.KeyLogPath != "", func(on bool) {
+		a.settingSwitch(c, locales.WriteTLSSecretsToAKey(), locales.WiresharkReadsItToDecryptCaptured(), d.KeyLogPath != "", func(on bool) {
 			a.rules.Update(func(d *rules.Data) {
 				d.KeyLogPath = ""
 				if on {
@@ -322,37 +328,37 @@ func (a *App) httpsSettings(c *ui.Context, p palette, d *rules.Data) {
 		if d.KeyLogPath != "" {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, d.KeyLogPath).FontSize(11).TextColor(p.text2).Selectable().Grow(1)
-				if ui.Button(c, "Reveal").Clicked() {
+				if ui.Button(c, locales.Reveal()).Clicked() {
 					revealInFinder(d.KeyLogPath)
 				}
 			})
 		}
 	})
-	group(c, p, "Certificates", func() {
+	group(c, p, locales.Certificates(), func() {
 		a.certificateButtons(c, d)
 		a.leafSettings(c, p, d)
 	})
-	group(c, p, "Caching", func() {
-		a.settingSwitch(c, "No Caching", "Strip conditional request headers and mark responses uncacheable, so every request reaches the server.", d.NoCaching, a.setNoCaching)
+	group(c, p, locales.Caching(), func() {
+		a.settingSwitch(c, locales.NoCaching(), locales.StripConditionalRequestHeadersAndMark(), d.NoCaching, a.setNoCaching)
 	})
 }
 
 func (a *App) toolSettings(c *ui.Context, p palette, d *rules.Data) {
-	group(c, p, "Diagnostics", func() {
-		a.settingSwitch(c, "Diagnostic headers", "Add X-ProxyGo-* headers to the responses a tool changed, naming the tool and its rule, for the client to see.", d.DiagnosticHeaders, func(on bool) {
+	group(c, p, locales.Diagnostics(), func() {
+		a.settingSwitch(c, locales.DiagnosticHeaders(), locales.AddXProxyGoHeadersToThe(), d.DiagnosticHeaders, func(on bool) {
 			a.rules.Update(func(d *rules.Data) { d.DiagnosticHeaders = on })
 		})
 	})
-	group(c, p, "Tools", func() {
-		ui.Text(c, "Switch a tool off to stop all its rules at once, keeping them.").FontSize(11).TextColor(p.muted)
+	group(c, p, locales.Tools(), func() {
+		ui.Text(c, locales.SwitchAToolOffToStop()).FontSize(11).TextColor(p.muted)
 		for _, t := range rules.AllTools {
 			ui.Row(c.Key(t.ID)).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, t.Name).Grow(1)
-				if ui.Button(c, "Rules…").Clicked() {
+				ui.Text(c, toolName(t.ID)).Grow(1)
+				if ui.Button(c, locales.RulesEllipsis()).Clicked() {
 					a.openWindow(t.ID)
 				}
 				on := d.ToolOn(t.ID)
-				if ui.Switch(c, &on).Label(t.Name).Changed() {
+				if ui.Switch(c, &on).Label(toolName(t.ID)).Changed() {
 					a.setTool(t.ID, on)
 				}
 			})
@@ -361,28 +367,28 @@ func (a *App) toolSettings(c *ui.Context, p palette, d *rules.Data) {
 }
 
 func (a *App) advancedSettings(c *ui.Context, p palette) {
-	group(c, p, "Rules and Settings", func() {
-		ui.Text(c, "Back up every tool's rules and the proxy settings to a file, or restore them.").TextColor(p.text2)
+	group(c, p, locales.RulesAndSettings(), func() {
+		ui.Text(c, locales.BackUpEveryToolsRulesAnd()).TextColor(p.text2)
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, "Export…").Clicked() {
+			if ui.Button(c, locales.ExportEllipsis()).Clicked() {
 				a.exportRules()
 			}
-			if ui.Button(c, "Import…").Clicked() {
+			if ui.Button(c, locales.ImportEllipsis()).Clicked() {
 				a.importRules()
 			}
 		})
 	})
-	group(c, p, "Data", func() {
+	group(c, p, locales.Data(), func() {
 		ui.Text(c, a.dir).FontSize(11).TextColor(p.text2).Selectable()
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, "Open Data Folder").Clicked() {
+			if ui.Button(c, locales.OpenDataFolder()).Clicked() {
 				openPath(a.dir)
 			}
-			if ui.Button(c, "Clear Recent Sessions").Clicked() {
+			if ui.Button(c, locales.ClearRecentSessions()).Clicked() {
 				a.updateSettings(func(s *settings.Settings) { s.RecentSessions = nil })
 				a.refreshRecentMenu()
 			}
-			if ui.Button(c, "Reset Network Proxy").Tooltip("Turn the macOS proxy off").Clicked() {
+			if ui.Button(c, locales.ResetNetworkProxy()).Tooltip(locales.TurnTheMacOSProxyOff()).Clicked() {
 				a.resetSystemProxy()
 			}
 		})
@@ -391,9 +397,13 @@ func (a *App) advancedSettings(c *ui.Context, p palette) {
 
 var certTabs = []string{"This Mac", "iOS Device", "iOS Simulator", "Android", "Android Emulator", "Other"}
 
+func certTabLabels() []string {
+	return []string{locales.ThisMac(), locales.IOSDevice(), locales.IOSSimulator(), locales.Android(), locales.AndroidEmulator(), locales.Other()}
+}
+
 func (a *App) certificateWindow(c *ui.Context) {
 	p := a.pal
-	a.windowHeader(c, "Certificate", "Devices and apps must trust ProxyGo's root certificate before they accept decrypted HTTPS.", nil)
+	a.windowHeader(c, locales.Certificate(), locales.DevicesAndAppsMustTrustProxyGos(), nil)
 	if a.certs == nil {
 		emptyState(c, p, a.proxyErr)
 		return
@@ -405,56 +415,56 @@ func (a *App) certificateWindow(c *ui.Context) {
 				glyph(c, "certificate", 22, p.accent)
 				ui.Column(c).Grow(1).Gap(2).Children(func() {
 					ui.Text(c, a.certs.CommonName()).FontWeight(650)
-					ui.Text(c, "Expires "+a.certs.NotAfter().Format("2 January 2006")).FontSize(11).TextColor(p.muted)
+					ui.Text(c, locales.CertificateExpires(a.certs.NotAfter())).FontSize(11).TextColor(p.muted)
 				})
 				if a.certTrusted {
-					ui.Text(c, "Trusted on this Mac").FontSize(11).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 8).Radius(5)
+					ui.Text(c, locales.TrustedOnThisMac()).FontSize(11).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 8).Radius(5)
 				} else {
-					ui.Text(c, "Not trusted on this Mac").FontSize(11).FontWeight(650).TextColor(p.yellow).Background(p.yellowSoft).Padding(2, 8).Radius(5)
+					ui.Text(c, locales.NotTrustedOnThisMac()).FontSize(11).FontWeight(650).TextColor(p.yellow).Background(p.yellowSoft).Padding(2, 8).Radius(5)
 				}
 			})
 			ui.Text(c, "SHA-256 "+a.certs.Fingerprint()).FontSize(10.5).TextColor(p.muted).Selectable().Wrap()
 			ui.Row(c).Gap(8).Children(func() {
 				if !a.certTrusted {
-					if ui.PrimaryButton(c, "Install on this Mac…").Clicked() {
+					if ui.PrimaryButton(c, locales.InstallOnThisMacEllipsis()).Clicked() {
 						a.installCertificate()
 					}
-				} else if ui.Button(c, "Remove from this Mac").Clicked() {
+				} else if ui.Button(c, locales.RemoveFromThisMac()).Clicked() {
 					a.uninstallCertificate()
 				}
-				ui.MenuButton(c, "Export", func(m *ui.Menu) {
-					for _, f := range [][2]string{{"pem", "Root Certificate as PEM…"}, {"der", "Root Certificate as DER…"}, {"p12", "Root Certificate as P12…"}, {"key", "Private Key…"}} {
+				ui.MenuButton(c, locales.Export(), func(m *ui.Menu) {
+					for _, f := range [][2]string{{"pem", locales.RootCertificateAsPEMEllipsis()}, {"der", locales.RootCertificateAsDEREllipsis()}, {"p12", locales.RootCertificateAsP12Ellipsis()}, {"key", locales.PrivateKeyEllipsis()}} {
 						if m.Item(f[1]).Chosen() {
 							a.exportCertificate(f[0])
 						}
 					}
 				})
-				if ui.Button(c, "Reveal in Finder").Clicked() {
+				if ui.Button(c, locales.RevealInFinder()).Clicked() {
 					revealInFinder(a.certs.CertPath())
 				}
-				ui.MenuButton(c, "More", func(m *ui.Menu) {
-					if m.Item("Use Your Own Root Certificate…").Chosen() {
+				ui.MenuButton(c, locales.More(), func(m *ui.Menu) {
+					if m.Item(locales.UseYourOwnRootCertificateEllipsis()).Chosen() {
 						a.rootImport = rootImport{open: true}
 					}
-					if m.Item("Custom Server Certificates…").Chosen() {
+					if m.Item(locales.CustomServerCertificatesEllipsis()).Chosen() {
 						a.openWindow("servercerts")
 					}
-					if m.Item("Automatic Setup…").Chosen() {
+					if m.Item(locales.AutomaticSetupEllipsis()).Chosen() {
 						a.openWindow("setup")
 					}
 					m.Separator()
-					if m.Item("Reset Certificate…").Chosen() {
+					if m.Item(locales.ResetCertificateEllipsis()).Chosen() {
 						a.regenerateCertificate()
 					}
 				})
-				if ui.Button(c, "Check Again").Clicked() {
+				if ui.Button(c, locales.CheckAgain()).Clicked() {
 					a.checkTrust()
 				}
 			})
 		})
 	})
 	ui.Row(c).FillWidth().Padding(0, windowInset, 8, windowInset).Children(func() {
-		ui.Tabs(c, &a.certTab, certTabs...).Label("Platform")
+		ui.Tabs(c, &a.certTab, certTabLabels()...).Label(locales.Platform())
 	})
 	ui.Scroll(c.Key(certTabs[a.certTab])).Grow(1).Children(func() {
 		ui.Column(c).FillWidth().Padding(4, 22, 18, 22).Gap(8).Children(func() {
@@ -468,50 +478,50 @@ func (a *App) certificateWindow(c *ui.Context) {
 			if tab := certTabs[a.certTab]; a.set.ListenLocalhost && (tab == "iOS Device" || tab == "Android") {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					glyph(c, "warning", 12, p.yellow)
-					ui.Text(c, "ProxyGo takes only this Mac's connections: turn off Only this Mac in Settings › Proxy for a device to connect.").TextColor(p.yellow).Wrap().Grow(1)
+					ui.Text(c, locales.ProxyGoTakesOnlyThisMacsConnections()).TextColor(p.yellow).Wrap().Grow(1)
 				})
 			}
 			switch certTabs[a.certTab] {
 			case "This Mac":
-				step(1, "Choose Install on this Mac above. macOS asks for your password, then trusts the certificate for TLS.")
-				step(2, "Turn on Tools › Override macOS Proxy, or point an app at "+addr+".")
-				step(3, "Add the hosts to decrypt in Tools › SSL Proxying List. Firefox keeps its own store: import the PEM in its Settings › Certificates.")
+				step(1, locales.CertMacStep1())
+				step(2, locales.CertMacStep2(addr))
+				step(3, locales.CertMacStep3())
 			case "iOS Device":
-				step(1, "On the iPhone, open Settings › Wi-Fi › your network › Configure Proxy › Manual: Server "+primaryIP()+", Port "+strconv.Itoa(a.proxy.Port())+".")
-				step(2, "In Safari, open http://proxy.go and download the certificate; allow the profile.")
-				step(3, "Settings › General › VPN & Device Management: install the ProxyGo profile.")
-				step(4, "Settings › General › About › Certificate Trust Settings: turn on full trust for ProxyGo.")
+				step(1, locales.CertIOSStep1(primaryIP(), strconv.Itoa(a.proxy.Port())))
+				step(2, locales.CertIOSStep2())
+				step(3, locales.CertIOSStep3())
+				step(4, locales.CertIOSStep4())
 			case "iOS Simulator":
-				step(1, "Boot the simulator, then run:")
+				step(1, locales.BootTheSimulatorThenRun())
 				code(c, p, "xcrun simctl keychain booted add-root-cert '"+a.certs.CertPath()+"'")
-				if ui.Button(c, "Copy Command").AlignSelf(ui.Start).Clicked() {
-					a.copy("xcrun simctl keychain booted add-root-cert '"+a.certs.CertPath()+"'", "the command")
+				if ui.Button(c, locales.CopyCommand()).AlignSelf(ui.Start).Clicked() {
+					a.copy("xcrun simctl keychain booted add-root-cert '"+a.certs.CertPath()+"'", locales.CopiedTheCommand())
 				}
-				step(2, "The simulator uses the Mac's proxy: turn on Override macOS Proxy.")
+				step(2, locales.TheSimulatorUsesTheMacsProxy())
 				a.simulatorInstall(c)
 			case "Android":
-				step(1, "Settings › Wi-Fi › your network › Proxy › Manual: host "+primaryIP()+", port "+strconv.Itoa(a.proxy.Port())+".")
-				step(2, "In Chrome, open http://proxy.go and tap Download for Android (CRT).")
-				step(3, "Settings › Security › Encryption & credentials › Install a certificate › CA certificate.")
-				step(4, "Apps targeting Android 7+ trust user certificates only with a network security config:")
+				step(1, locales.CertAndroidStep1(primaryIP(), strconv.Itoa(a.proxy.Port())))
+				step(2, locales.CertAndroidStep2())
+				step(3, locales.CertAndroidStep3())
+				step(4, locales.CertAndroidStep4())
 				code(c, p, "<network-security-config>\n  <debug-overrides>\n    <trust-anchors>\n      <certificates src=\"user\" />\n    </trust-anchors>\n  </debug-overrides>\n</network-security-config>")
 				a.androidInstall(c, false)
 			case "Android Emulator":
-				step(1, "Start the emulator with ProxyGo as its proxy:")
+				step(1, locales.StartTheEmulatorWithProxyGoAs())
 				code(c, p, "emulator -avd <name> -http-proxy http://127.0.0.1:"+strconv.Itoa(a.proxy.Port()))
-				step(2, "Push the certificate and install it from Settings › Security:")
+				step(2, locales.PushTheCertificateAndInstallIt())
 				code(c, p, "adb push '"+a.certs.CertPath()+"' /sdcard/Download/proxygo-ca.pem")
 				a.androidInstall(c, true)
 			case "Other":
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, "Automatic Setup opens a terminal, a browser or an Electron app already set up.").TextColor(p.text2).Grow(1).Wrap()
-					if ui.Button(c, "Automatic Setup…").Clicked() {
+					ui.Text(c, locales.AutomaticSetupOpensATerminalA()).TextColor(p.text2).Grow(1).Wrap()
+					if ui.Button(c, locales.AutomaticSetupEllipsis()).Clicked() {
 						a.openWindow("setup")
 					}
 				})
 				a.firefoxTrust(c)
 				a.javaInstall(c)
-				ui.Text(c, "Tools that ignore the macOS keychain read the PEM file:").TextColor(p.text2).Margin(8, 0, 0, 0)
+				ui.Text(c, locales.ToolsThatIgnoreTheMacOSKeychain()).TextColor(p.text2).Margin(8, 0, 0, 0)
 				pem := a.certs.CertPath()
 				for _, r := range [][2]string{
 					{"Node.js", "export NODE_EXTRA_CA_CERTS='" + pem + "'\nexport HTTPS_PROXY=http://127.0.0.1:" + strconv.Itoa(a.proxy.Port())},

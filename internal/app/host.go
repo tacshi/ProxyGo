@@ -19,6 +19,7 @@ import (
 	"proxygo/internal/settings"
 	"proxygo/internal/store"
 	"proxygo/internal/systemproxy"
+	"proxygo/locales"
 )
 
 var _ control.Host = (*App)(nil)
@@ -125,7 +126,7 @@ func (a *App) Export(path, format string, flows []*flow.Flow) error {
 func (a *App) startServers() {
 	srv, err := control.Serve(a, control.SocketPath(a.dir))
 	if err != nil {
-		a.automationErr = "Command-line tool: " + err.Error()
+		a.automationErr = locales.CommandLineToolError(err.Error())
 	} else {
 		a.control = srv
 	}
@@ -134,7 +135,7 @@ func (a *App) startServers() {
 	a.syncAtomics()
 	if a.set.MCP {
 		if err := a.mcp.Start(a.set.MCPHTTP); err != nil {
-			a.automationErr = "MCP: " + err.Error()
+			a.automationErr = locales.MCPError(err.Error())
 		}
 	}
 }
@@ -159,7 +160,7 @@ func (a *App) setMCP(on bool) error {
 		return nil
 	}
 	if err := a.mcp.Start(a.set.MCPHTTP); err != nil {
-		a.automationErr = "MCP: " + err.Error()
+		a.automationErr = locales.MCPError(err.Error())
 		return err
 	}
 	return nil
@@ -207,15 +208,15 @@ func (a *App) applySystemProxy(on, reset bool) error {
 		switch {
 		case errors.Is(err, privileged.ErrCanceled):
 		case err != nil:
-			a.toast("System proxy: " + err.Error())
+			a.toast(locales.SystemProxyError(err.Error()))
 		case on:
 			a.overrode = true
 			_ = systemproxy.Save(a.proxyStatePath(), systemproxy.Saved{Before: a.sysBefore, Host: cfg.Host, Port: cfg.Port})
-			a.toast("macOS now uses ProxyGo as its proxy")
+			a.toast(locales.MacOSNowUsesProxyGo())
 		default:
 			a.overrode = false
 			systemproxy.Forget(a.proxyStatePath())
-			a.toast("macOS no longer uses ProxyGo")
+			a.toast(locales.MacOSNoLongerUsesProxyGo())
 		}
 	})
 	return err
@@ -240,7 +241,7 @@ func (a *App) recoverSystemProxy() {
 		a.sysBefore, a.overrode = saved.Before, true
 		go func() {
 			if err := a.applySystemProxy(false, false); err == nil {
-				a.do(func() { a.toast("Gave macOS back the proxy ProxyGo had when it last quit unexpectedly") })
+				a.do(func() { a.toast(locales.GaveMacOSBackTheProxy()) })
 			}
 		}()
 	})

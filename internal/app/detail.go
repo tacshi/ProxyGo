@@ -13,6 +13,7 @@ import (
 
 	"proxygo/internal/flow"
 	"proxygo/internal/preview"
+	"proxygo/locales"
 )
 
 var (
@@ -49,7 +50,7 @@ func (a *App) inspector(c *ui.Context, f *flow.Flow, scope string) {
 		if f == nil {
 			centered(c, 6, func() {
 				glyph(c, "inspect", 26, p.faint)
-				ui.Text(c, "Select a flow to inspect it").FontSize(13).TextColor(p.muted)
+				ui.Text(c, locales.SelectAFlowToInspectIt()).FontSize(13).TextColor(p.muted)
 			})
 			return
 		}
@@ -73,32 +74,32 @@ func (a *App) summaryBar(c *ui.Context, f *flow.Flow) {
 		bg, tc := p.flowColors(f)
 		label, tip := f.StatusLine(), ""
 		if f.IsError() && !f.IsIncomplete() {
-			label, tip = "Failed", f.ErrorText()
+			label, tip = locales.Failed(), f.ErrorText()
 		}
 		ui.Text(c, label).Tooltip(tip).FontSize(10.5).FontWeight(650).TextColor(tc).Background(bg).Padding(2, 7).Radius(5).SingleLine()
 		if op := f.GraphQLOperation(); op != "" {
-			ui.Text(c, "GraphQL · "+op).FontSize(10.5).FontWeight(650).TextColor(p.purple).Background(p.purpleSoft).Padding(2, 7).Radius(5).SingleLine()
+			ui.Text(c, locales.GraphQLChip(op)).FontSize(10.5).FontWeight(650).TextColor(p.purple).Background(p.purpleSoft).Padding(2, 7).Radius(5).SingleLine()
 		}
 		ui.Text(c, displayURL(f)).TextColor(p.link).SingleLine().Selectable().Grow(1).Shrink(1).ClipX()
 		for _, t := range tools(f) {
-			ui.Row(c).Gap(3).AlignItems(ui.Center).Padding(2, 6).Radius(5).Background(p.surface).Tooltip("Changed by " + t).Children(func() {
+			ui.Row(c).Gap(3).AlignItems(ui.Center).Padding(2, 6).Radius(5).Background(p.surface).Tooltip(locales.ChangedBy(flowToolName(t))).Children(func() {
 				glyph(c, toolIcon(t), 11, p.orange)
-				ui.Text(c, t).FontSize(10.5).TextColor(p.text2).SingleLine()
+				ui.Text(c, flowToolName(t)).FontSize(10.5).TextColor(p.text2).SingleLine()
 			})
 		}
 		if !f.IsTunnel() && !f.IsWebSocket() {
-			if iconButton(c, "repeat", "Repeat (⌘R)", p.text2).Clicked() {
+			if iconButton(c, "repeat", locales.RepeatShortcut(), p.text2).Clicked() {
 				a.repeatFlows([]*flow.Flow{f})
 			}
-			if iconButton(c, "compose", "Edit and Repeat (⌘E)", p.text2).Clicked() {
+			if iconButton(c, "compose", locales.EditAndRepeatShortcut(), p.text2).Clicked() {
 				a.composeFrom(f)
 			}
 		}
-		saved := iconButton(c, map[bool]string{true: "bookmarkFill", false: "bookmark"}[f.Saved], "Save Request (⌘D)", map[bool]ui.Color{true: p.accent, false: p.text2}[f.Saved])
+		saved := iconButton(c, map[bool]string{true: "bookmarkFill", false: "bookmark"}[f.Saved], locales.SaveRequestShortcut(), map[bool]ui.Color{true: p.accent, false: p.text2}[f.Saved])
 		if saved.Clicked() {
 			a.setSaved([]*flow.Flow{f}, !f.Saved)
 		}
-		more := iconButton(c, "ellipsis", "More", p.text2)
+		more := iconButton(c, "ellipsis", locales.More(), p.text2)
 		more.Menu(func(m *ui.Menu) { a.flowMenu(m, []*flow.Flow{f}) })
 	})
 	if f.Comment != "" {
@@ -124,13 +125,13 @@ func paneHeader(c *ui.Context, p palette, title string, tab *int, tabs []string,
 			}
 			scroll := ui.Local(row, "tabs", func() ui.ScrollState { return ui.ScrollState{} })
 			ui.ScrollHorizontal(c).TrackScroll(scroll).Shrink(1).Children(func() {
-				ui.Tabs(c, tab, tabs...).Label(title + " tabs")
+				ui.Tabs(c, tab, inspectorTabLabels(tabs)...).Label(locales.PaneTabs(title))
 			})
 			if scroll.MaxX > 0 {
-				more := plainIconButton(c, "chevronDown", "All "+title+" Tabs", 10, p.muted, p.hover)
+				more := plainIconButton(c, "chevronDown", locales.AllPaneTabs(title), 10, p.muted, p.hover)
 				more.Menu(func(m *ui.Menu) {
 					for i, name := range tabs {
-						if m.Item(name).Checked(i == *tab).Chosen() {
+						if m.Item(inspectorTabLabel(name)).Checked(i == *tab).Chosen() {
 							*tab = i
 							x := scroll.MaxX * float32(i) / float32(max(len(tabs)-1, 1))
 							if i == len(tabs)-1 {
@@ -155,7 +156,7 @@ func (a *App) requestPane(c *ui.Context, f *flow.Flow) {
 	ui.Column(c.Key("request")).Fill().Children(func() {
 		tabs := requestTabs(f)
 		tab := tabNamed(&a.reqTabName, tabs)
-		paneHeader(c, p, "Request", tab, tabs, nil)
+		paneHeader(c, p, locales.PhaseRequest(), tab, tabs, nil)
 		a.reqTabName = tabs[*tab]
 		switch a.reqTabName {
 		case "JWT":
@@ -163,17 +164,17 @@ func (a *App) requestPane(c *ui.Context, f *flow.Flow) {
 		case "Header":
 			a.headerTable(c, f.Request.Header, "request")
 		case "Query":
-			a.pairsTable(c, f.QueryItems(), "Parameter", "Value", "No query parameters", "")
+			a.pairsTable(c, f.QueryItems(), locales.Parameter(), locales.Value(), locales.NoQueryParameters(), "")
 		case "Body":
 			a.bodyView(c, f, false, "")
 		case "Raw":
-			a.textViewer(c, f.UniqueID+":rawreq", rawRequest(f), "HTTP", "Raw request")
+			a.textViewer(c, f.UniqueID+":rawreq", rawRequest(f), "HTTP", locales.RawRequest())
 		case "Cookies":
 			var rows [][2]string
 			for _, ck := range f.Cookies() {
 				rows = append(rows, [2]string{ck.Name, ck.Value})
 			}
-			a.pairsTable(c, rows, "Name", "Value", "No cookies", "")
+			a.pairsTable(c, rows, locales.ColumnName(), locales.Value(), locales.NoCookies(), "")
 		case "Summary":
 			a.summary(c, f)
 		case "Comment":
@@ -194,10 +195,10 @@ func (a *App) responsePane(c *ui.Context, f *flow.Flow) {
 		show := f.Response != nil && !f.IsTunnel() && !f.IsError() && paused(f) == ""
 		tab := tabNamed(&a.respTabName, tabs)
 		if show {
-			paneHeader(c, p, "Response", tab, tabs, nil)
+			paneHeader(c, p, locales.PhaseResponse(), tab, tabs, nil)
 			a.respTabName = tabs[*tab]
 		} else {
-			paneHeader(c, p, "Response", tab, nil, nil)
+			paneHeader(c, p, locales.PhaseResponse(), tab, nil, nil)
 		}
 		switch {
 		case paused(f) != "":
@@ -212,8 +213,8 @@ func (a *App) responsePane(c *ui.Context, f *flow.Flow) {
 		case f.IsActive():
 			centered(c, 8, func() {
 				ui.Spinner(c)
-				ui.Text(c, "Waiting for the response…").TextColor(p.muted)
-				ui.Text(c, "Started "+time.Since(f.RequestTime()).Round(time.Second).String()+" ago").FontSize(11).TextColor(p.faint)
+				ui.Text(c, locales.WaitingForTheResponse()).TextColor(p.muted)
+				ui.Text(c, locales.StartedAgo(time.Since(f.RequestTime()).Round(time.Second).String())).FontSize(11).TextColor(p.faint)
 			})
 			c.After(time.Second)
 			return
@@ -226,7 +227,7 @@ func (a *App) responsePane(c *ui.Context, f *flow.Flow) {
 		case "Body":
 			a.bodyView(c, f, true, "")
 		case "Raw":
-			a.textViewer(c, f.UniqueID+":rawres:"+fmt.Sprint(len(f.Response.BodyData)), rawResponse(f), "HTTP", "Raw response")
+			a.textViewer(c, f.UniqueID+":rawres:"+fmt.Sprint(len(f.Response.BodyData)), rawResponse(f), "HTTP", locales.RawResponse())
 		case "Set-Cookie":
 			a.setCookies(c, f)
 		case "TLS":
@@ -242,7 +243,7 @@ func (a *App) headerTable(c *ui.Context, h flow.Header, side string) {
 			rows = append(rows, [2]string{e.Key.Name, e.Value})
 		}
 	}
-	a.pairsTable(c, rows, "Key", "Value", "No headers", side)
+	a.pairsTable(c, rows, locales.ColumnKey(), locales.Value(), locales.NoHeaders(), side)
 }
 
 func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, empty, side string) {
@@ -254,18 +255,18 @@ func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, 
 	ui.Table(c, nil, []ui.TableColumn{{Title: keyTitle, Width: 200}, {Title: valueTitle}}, len(rows), func(row, col int) {
 		r := rows[row]
 		ui.Box(c).Absolute().Top(-6).Bottom(-6).Left(-8).Right(-8).ContextMenu(func(m *ui.Menu) {
-			if m.Item("Copy Value").Chosen() {
-				a.copy(r[1], "the value")
+			if m.Item(locales.CopyValue()).Chosen() {
+				a.copy(r[1], locales.CopiedTheValue())
 			}
-			if m.Item("Copy Key").Chosen() {
-				a.copy(r[0], "the key")
+			if m.Item(locales.CopyKey()).Chosen() {
+				a.copy(r[0], locales.CopiedTheKey())
 			}
-			if m.Item("Copy as \"Key: Value\"").Chosen() {
-				a.copy(r[0]+": "+r[1], "the line")
+			if m.Item(locales.CopyAsKeyValue()).Chosen() {
+				a.copy(r[0]+": "+r[1], locales.CopiedTheLine())
 			}
 			if side != "" {
 				m.Separator()
-				if m.Item("Show " + r[0] + " as a Column").Chosen() {
+				if m.Item(locales.ShowAsAColumn(r[0])).Chosen() {
 					a.addHeaderColumn(r[0], side == "response")
 				}
 			}
@@ -275,29 +276,29 @@ func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, 
 		} else {
 			ui.Text(c, r[1]).TextColor(p.text).Selectable().Wrap().MinWidth(0).Shrink(1)
 		}
-	}).Grow(1).Label(keyTitle + "s")
+	}).Grow(1).Label(keyTitle)
 }
 
 func maxAgeText(sec int) string {
 	switch {
 	case sec < 60:
-		return fmt.Sprintf("%d s", sec)
+		return locales.DurationSeconds(sec)
 	case sec < 3600:
-		return fmt.Sprintf("%d min", sec/60)
+		return locales.DurationMinutes(sec / 60)
 	case sec < 86400:
-		return fmt.Sprintf("%d h", sec/3600)
+		return locales.DurationHours(sec / 3600)
 	}
-	return plural(sec/86400, "day", "days")
+	return locales.DurationDays(sec / 86400)
 }
 
 func (a *App) setCookies(c *ui.Context, f *flow.Flow) {
 	p := a.pal
 	cookies := f.SetCookies()
 	if len(cookies) == 0 {
-		emptyState(c, p, "No cookies set")
+		emptyState(c, p, locales.NoCookiesSet())
 		return
 	}
-	cols := []ui.TableColumn{{Title: "Name", Width: 130}, {Title: "Value"}, {Title: "Expires", Width: 130}, {Title: "Attributes"}}
+	cols := []ui.TableColumn{{Title: locales.ColumnName(), Width: 130}, {Title: locales.Value()}, {Title: locales.Expires(), Width: 130}, {Title: locales.Attributes()}}
 	ui.Table(c, nil, cols, len(cookies), func(row, col int) {
 		ck := cookies[row]
 		var s string
@@ -312,9 +313,9 @@ func (a *App) setCookies(c *ui.Context, f *flow.Flow) {
 			case !ck.Expires.IsZero():
 				s = ck.Expires.Local().Format("2006-01-02 15:04")
 			case ck.MaxAge > 0:
-				s = "in " + maxAgeText(ck.MaxAge)
+				s = locales.InDuration(maxAgeText(ck.MaxAge))
 			default:
-				s = "Session"
+				s = locales.SessionCookie()
 			}
 		case 3:
 			var attrs []string
@@ -356,12 +357,12 @@ func (a *App) summary(c *ui.Context, f *flow.Flow) {
 		}
 		return fmt.Sprintf("%s:%d", ip, port)
 	}
-	tls := "No"
+	tls := locales.No()
 	switch {
 	case f.IsTunnel():
-		tls = "Encrypted tunnel (not decrypted)"
+		tls = locales.EncryptedTunnelNotDecrypted()
 	case f.IsSSL:
-		tls = "Decrypted by ProxyGo"
+		tls = locales.DecryptedByProxyGo()
 	}
 	dns := ""
 	if f.Summary.HostDNS != nil {
@@ -369,33 +370,33 @@ func (a *App) summary(c *ui.Context, f *flow.Flow) {
 	}
 	rows := []row{
 		{"URL", displayURL(f)},
-		{"Method", f.MethodName()},
-		{"Status", f.StatusLine()},
-		{"Protocol", f.Request.Version.HTTPVersion()},
-		{"Client", a.clientLabel(f) + cmp.Or(map[bool]string{true: fmt.Sprintf(" (PID %d)", f.Client.PID)}[f.Client.PID > 0], "")},
-		{"Source", map[bool]string{true: "Remote device " + remoteIP(f)}[remoteIP(f) != ""]},
-		{"Client Path", f.Client.Path},
-		{"Client Address", addr(f.Summary.ClientIPAddress, f.Summary.ClientPort)},
-		{"Server Address", addr(f.Summary.ServerIPAddress, f.Summary.ServerPort)},
-		{"Resolved", dns},
+		{locales.ColumnMethod(), f.MethodName()},
+		{locales.Status(), f.StatusLine()},
+		{locales.Protocol(), f.Request.Version.HTTPVersion()},
+		{locales.Client(), a.clientLabel(f) + cmp.Or(map[bool]string{true: fmt.Sprintf(" (PID %d)", f.Client.PID)}[f.Client.PID > 0], "")},
+		{locales.Source(), map[bool]string{true: locales.RemoteDevice(remoteIP(f))}[remoteIP(f) != ""]},
+		{locales.ClientPath(), f.Client.Path},
+		{locales.ClientAddress(), addr(f.Summary.ClientIPAddress, f.Summary.ClientPort)},
+		{locales.ServerAddress(), addr(f.Summary.ServerIPAddress, f.Summary.ServerPort)},
+		{locales.Resolved(), dns},
 		{"TLS", tls},
-		{"Started", f.RequestTime().Local().Format("2006-01-02 15:04:05.000")},
-		{"Duration", flowDuration(f)},
-		{"Request Size", formatSize(f.RequestSize())},
-		{"Response Size", formatSize(f.ResponseSize())},
-		{"Content Type", f.ContentType()},
-		{"Tools", strings.Join(tools(f), ", ")},
-		{"GraphQL Operation", f.GraphQLOperation()},
-		{"Error", f.ErrorText()},
+		{locales.Started(), f.RequestTime().Local().Format("2006-01-02 15:04:05.000")},
+		{locales.Duration(), flowDuration(f)},
+		{locales.RequestSize(), formatSize(f.RequestSize())},
+		{locales.ResponseSize(), formatSize(f.ResponseSize())},
+		{locales.ContentType(), f.ContentType()},
+		{locales.Tools(), strings.Join(flowToolNames(tools(f)), ", ")},
+		{locales.GraphQLOperation(), f.GraphQLOperation()},
+		{locales.Error(), f.ErrorText()},
 	}
 	if f.ConnectionRecord != nil && f.ConnectionRecord.Exchange.Truncated {
-		rows = append(rows, row{"Note", "The body was larger than ProxyGo keeps; it was truncated here, not on the wire."})
+		rows = append(rows, row{locales.Note(), locales.TheBodyWasTruncated()})
 	}
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).FillWidth().Padding(inset).Children(func() {
 			ui.Form(c, func() {
 				for _, r := range rows {
-					if r.v == "" || r.v == "–" && r.k != "Duration" {
+					if r.v == "" || r.v == "–" && r.k != locales.Duration() {
 						continue
 					}
 					ui.Field(c, r.k, func() {
@@ -414,10 +415,10 @@ func (a *App) commentTab(c *ui.Context, f *flow.Flow) {
 		a.comment.draft = f.Comment
 	}
 	ui.Column(c).Fill().Padding(inset).Gap(8).Children(func() {
-		ui.TextArea(c, &a.comment.draft).Placeholder("Write a note about this flow").Grow(1).Label("Comment")
+		ui.TextArea(c, &a.comment.draft).Placeholder(locales.WriteANoteAboutThisFlow()).Grow(1).Label(locales.Comment())
 		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, "Comments are saved with the session.").FontSize(11).TextColor(p.muted).Grow(1)
-			if ui.PrimaryButton(c, "Save Comment").Disabled(a.comment.draft == f.Comment).Clicked() {
+			ui.Text(c, locales.CommentsAreSavedWithTheSession()).FontSize(11).TextColor(p.muted).Grow(1)
+			if ui.PrimaryButton(c, locales.SaveComment()).Disabled(a.comment.draft == f.Comment).Clicked() {
 				text := strings.TrimSpace(a.comment.draft)
 				a.store.Update(f.UniqueID, func(s *flow.Flow) { s.Comment = text })
 			}
@@ -429,7 +430,7 @@ func (a *App) timing(c *ui.Context, f *flow.Flow) {
 	p := a.pal
 	t := f.Timing
 	if t.RequestStartedAt == nil {
-		emptyState(c, p, "No timing for this flow")
+		emptyState(c, p, locales.NoTimingForThisFlow())
 		return
 	}
 	start := *t.RequestStartedAt
@@ -440,12 +441,12 @@ func (a *App) timing(c *ui.Context, f *flow.Flow) {
 		annotation string
 	}
 	phases := []phase{
-		{"Client TLS handshake", t.ClientTLSStartedAt, t.ClientTLSEndedAt, p.purple, ""},
-		{"Connect to server", t.UpstreamConnectStartedAt, t.UpstreamConnectEndedAt, p.orange, ""},
-		{"TLS handshake with server", t.UpstreamTLSStartedAt, t.UpstreamTLSEndedAt, p.purple, ""},
-		{"Request sent", t.RequestStartedAt, t.RequestEndedAt, p.blue, ""},
-		{"Waiting (TTFB)", t.RequestEndedAt, t.ResponseStartedAt, p.green, ""},
-		{"Content download", t.ResponseStartedAt, t.ResponseEndedAt, p.accent, ""},
+		{locales.ClientTLSHandshake(), t.ClientTLSStartedAt, t.ClientTLSEndedAt, p.purple, ""},
+		{locales.ConnectToServer(), t.UpstreamConnectStartedAt, t.UpstreamConnectEndedAt, p.orange, ""},
+		{locales.TLSHandshakeWithServer(), t.UpstreamTLSStartedAt, t.UpstreamTLSEndedAt, p.purple, ""},
+		{locales.RequestSent(), t.RequestStartedAt, t.RequestEndedAt, p.blue, ""},
+		{locales.WaitingTTFB(), t.RequestEndedAt, t.ResponseStartedAt, p.green, ""},
+		{locales.ContentDownload(), t.ResponseStartedAt, t.ResponseEndedAt, p.accent, ""},
 	}
 	end := start
 	if t.ResponseEndedAt != nil {
@@ -481,19 +482,19 @@ func (a *App) timing(c *ui.Context, f *flow.Flow) {
 			}
 			ui.Divider(c)
 			ui.Row(c).Gap(10).Children(func() {
-				ui.Text(c, "Total").FontWeight(600).Width(170)
+				ui.Text(c, locales.Total()).FontWeight(600).Width(170)
 				ui.Spacer(c)
 				ui.Text(c, flowDuration(f)).FontWeight(600).FontFeatures("tnum")
 			})
-			note := "New connection to the server"
+			note := locales.NewConnectionToTheServer()
 			switch by := answeredBy(f); {
 			case by != "":
-				note = "Answered by " + by + ": the server was not contacted"
+				note = locales.AnsweredBy(by)
 			case reused:
-				note = "Reused an open connection to the server"
+				note = locales.ReusedAnOpenConnection()
 			}
 			if ms, ok := toolMeta(f, "dnsLookup").(float64); ok {
-				note += fmt.Sprintf(" · DNS lookup %.1f ms", ms)
+				note += " · " + locales.DNSLookupMs(fmt.Sprintf("%.1f", ms))
 			}
 			ui.Text(c, note).FontSize(11).TextColor(p.muted)
 		})
@@ -502,8 +503,8 @@ func (a *App) timing(c *ui.Context, f *flow.Flow) {
 
 func answeredBy(f *flow.Flow) string {
 	for _, t := range []struct{ key, name string }{
-		{"mapLocal", "Map Local"}, {"mockAPI", "a script's mock"}, {"breakpointResponse", "a breakpoint"},
-		{"block", "the Block List"}, {"blockedApp", "Blocked Apps"},
+		{"mapLocal", locales.ToolMapLocal()}, {"mockAPI", locales.AScriptsMock()}, {"breakpointResponse", locales.ABreakpoint()},
+		{"block", locales.TheBlockList()}, {"blockedApp", locales.BlockedApps()},
 	} {
 		if toolMeta(f, t.key) != nil {
 			return t.name
@@ -522,26 +523,26 @@ func (a *App) encryptedPane(c *ui.Context, f *flow.Flow) {
 	host := f.Host()
 	centered(c, 10, func() {
 		glyph(c, "lock", 26, p.faint)
-		ui.Text(c, "Encrypted HTTPS").FontSize(16).FontWeight(650).TextColor(p.text2)
+		ui.Text(c, locales.EncryptedHTTPS()).FontSize(16).FontWeight(650).TextColor(p.text2)
 		if a.rules.Current().ShouldMITM(host) {
-			ui.Text(c, "SSL Proxying is now on for "+host+". New connections are decrypted: reload in the app, or compose a request to "+host+".").TextColor(p.muted).TextAlign(ui.Center).MaxWidth(420)
-			if ui.Button(c, "Compose Request…").Clicked() {
+			ui.Text(c, locales.SSLProxyingIsNowOnFor(host)).TextColor(p.muted).TextAlign(ui.Center).MaxWidth(420)
+			if ui.Button(c, locales.ComposeRequestEllipsis()).Clicked() {
 				a.composeFrom(f)
 			}
 			return
 		}
-		ui.Text(c, "Enable SSL Proxying to see the requests in this tunnel.").TextColor(p.muted).TextAlign(ui.Center)
+		ui.Text(c, locales.EnableSSLProxyingToSeeThe()).TextColor(p.muted).TextAlign(ui.Center)
 		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-			only := ui.PrimaryButton(c, "Enable only "+host).Tooltip("Enable only this domain (⌥↩)")
+			only := ui.PrimaryButton(c, locales.EnableOnlyHost(host)).Tooltip(locales.EnableOnlyThisDomainShortcut())
 			if only.Clicked() || c.Shortcut(ui.Alt, ui.KeyEnter) {
 				a.enableSSL(host, false)
 			}
-			ui.Text(c, "or").TextColor(p.muted)
+			ui.Text(c, locales.Or()).TextColor(p.muted)
 			if name := a.clientLabel(f); name != "System" {
-				if ui.Button(c, "Enable all domains from “"+name+"”").Clicked() {
+				if ui.Button(c, locales.EnableAllDomainsFrom(name)).Clicked() {
 					a.enableSSLForClient(f)
 				}
-			} else if ui.Button(c, "Enable all domains").Clicked() {
+			} else if ui.Button(c, locales.EnableAllDomains()).Clicked() {
 				a.enableSSL(host, true)
 			}
 		})
@@ -549,9 +550,9 @@ func (a *App) encryptedPane(c *ui.Context, f *flow.Flow) {
 			ui.Row(c).Gap(8).Wrap().Justify(ui.Center).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 				ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 					glyph(c, "warning", 12, p.yellow)
-					ui.Text(c, "This Mac does not trust the ProxyGo certificate yet.").FontSize(11).TextColor(p.yellow)
+					ui.Text(c, locales.ThisMacDoesNotTrustTheLabel()).FontSize(11).TextColor(p.yellow)
 				})
-				ui.Button(c, "Install Certificate…").OnClick(func() { a.openWindow("certificate") })
+				ui.Button(c, locales.InstallCertificateEllipsis()).OnClick(func() { a.openWindow("certificate") })
 			})
 		}
 	})
@@ -563,16 +564,16 @@ func (a *App) errorPane(c *ui.Context, f *flow.Flow) {
 	centered(c, 10, func() {
 		if f.IsIncomplete() {
 			glyph(c, "clock", 26, p.faint)
-			ui.Text(c, "Incomplete").FontSize(16).FontWeight(650).TextColor(p.text2)
+			ui.Text(c, locales.Incomplete()).FontSize(16).FontWeight(650).TextColor(p.text2)
 		} else {
 			glyph(c, "warning", 26, p.red)
-			ui.Text(c, "The request failed").FontSize(16).FontWeight(650).TextColor(p.text2)
+			ui.Text(c, locales.TheRequestFailed()).FontSize(16).FontWeight(650).TextColor(p.text2)
 		}
 		ui.Text(c, msg).TextColor(p.muted).TextAlign(ui.Center).Selectable().MaxWidth(520)
 		if t := f.TLS; t != nil && t.Client != nil && t.Client.Error != "" {
 			details := []string{}
 			if t.Client.ServerName != "" {
-				details = append(details, "Server name "+t.Client.ServerName)
+				details = append(details, locales.ServerName(t.Client.ServerName))
 			}
 			if len(t.Client.Offered) > 0 {
 				details = append(details, "ALPN "+strings.Join(t.Client.Offered, ", "))
@@ -582,23 +583,23 @@ func (a *App) errorPane(c *ui.Context, f *flow.Flow) {
 			}
 			if t.Client.PinningLikely {
 				ui.Row(c).Gap(8).Wrap().Justify(ui.Center).Children(func() {
-					if ui.Button(c, "Exclude "+f.Host()+" from SSL Proxying").Tooltip("Tunnel this host without decrypting it, so a pinning app works").Clicked() {
+					if ui.Button(c, locales.ExcludeFromSSLProxying(f.Host())).Tooltip(locales.TunnelThisHostWithoutDecryptingIt()).Clicked() {
 						a.excludeSSL(f.Host())
 					}
 					if !a.certTrusted {
-						ui.Button(c, "Install Certificate…").OnClick(func() { a.openWindow("certificate") })
+						ui.Button(c, locales.InstallCertificateEllipsis()).OnClick(func() { a.openWindow("certificate") })
 					}
 				})
 			}
 		}
 		ui.Row(c).Gap(8).Children(func() {
 			if !f.IsTunnel() && f.MethodName() != http.MethodConnect {
-				if ui.Button(c, "Repeat").Clicked() {
+				if ui.Button(c, locales.Repeat()).Clicked() {
 					a.repeatFlows([]*flow.Flow{f})
 				}
 			}
-			if !f.IsIncomplete() && ui.Button(c, "Copy Error").Clicked() {
-				a.copy(msg, "the error")
+			if !f.IsIncomplete() && ui.Button(c, locales.CopyError()).Clicked() {
+				a.copy(msg, locales.CopiedTheError())
 			}
 		})
 	})
@@ -608,9 +609,9 @@ func (a *App) pausedPane(c *ui.Context, f *flow.Flow) {
 	p := a.pal
 	centered(c, 10, func() {
 		glyph(c, "bug", 26, p.purple)
-		ui.Text(c, "Paused at a "+paused(f)+" breakpoint").FontSize(16).FontWeight(650).TextColor(p.text2)
-		ui.Text(c, "Edit it, then let it go on, in the Breakpoint editor.").TextColor(p.muted).TextAlign(ui.Center)
-		if ui.PrimaryButton(c, "Open Breakpoint Editor").Clicked() {
+		ui.Text(c, map[bool]string{true: locales.PausedAtAResponseBreakpoint(), false: locales.PausedAtARequestBreakpoint()}[paused(f) == "response"]).FontSize(16).FontWeight(650).TextColor(p.text2)
+		ui.Text(c, locales.EditItThenLetItGo()).TextColor(p.muted).TextAlign(ui.Center)
+		if ui.PrimaryButton(c, locales.OpenBreakpointEditor()).Clicked() {
 			a.openWindow("bpedit")
 		}
 	})
@@ -651,16 +652,16 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 	}
 	open := a.proxy.WebSocketOpen(f.UniqueID)
 	ui.Row(c).Height(34).FillWidth().Padding(0, inset).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Segmented(c, &v.direction, "All", "Sent", "Received").Label("Direction")
-		ui.Toggle(c, &v.showPings, fmt.Sprintf("Ping/Pong (%d)", pings)).Tooltip("Show ping and pong frames")
-		box, _ := a.searchField(c, "wsSearch", &v.query, "Search Messages", "Search messages")
+		ui.Segmented(c, &v.direction, locales.All(), locales.Sent(), locales.Received()).Label(locales.Direction())
+		ui.Toggle(c, &v.showPings, locales.PingPongCount(pings)).Tooltip(locales.ShowPingAndPongFrames())
+		box, _ := a.searchField(c, "wsSearch", &v.query, locales.SearchMessages(), locales.SearchMessagesLabel())
 		box.Width(200).MinWidth(80).Shrink(1)
 		ui.Spacer(c)
 		if open {
-			ui.Text(c, "Open").FontSize(10.5).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 7).Radius(5)
-			if ui.Button(c, "Send Ping").Tooltip("Ping the server").Clicked() {
+			ui.Text(c, locales.Open()).FontSize(10.5).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 7).Radius(5)
+			if ui.Button(c, locales.SendPing()).Tooltip(locales.PingTheServer()).Clicked() {
 				if err := a.proxy.SendWebSocket(f.UniqueID, true, "ping", []byte("ProxyGo")); err != nil {
-					a.toast("Ping: " + err.Error())
+					a.toast(locales.PingError(err.Error()))
 				}
 			}
 		}
@@ -668,9 +669,9 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 	ui.Divider(c)
 	if len(msgs) == 0 {
 		if len(all) == 0 {
-			emptyState(c, p, "No messages yet")
+			emptyState(c, p, locales.NoMessagesYet())
 		} else {
-			emptyState(c, p, "No messages match")
+			emptyState(c, p, locales.NoMessagesMatch())
 		}
 		if open {
 			a.wsComposer(c, f)
@@ -681,7 +682,7 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 		a.wsRow = len(msgs) - 1
 	}
 	start := f.RequestTime()
-	cols := []ui.TableColumn{{Title: "", ID: "dir", Width: 18}, {Title: "Type", Width: 56}, {Title: "Data"}, {Title: "Size", Width: 64, Align: ui.End}, {Title: "Time", Width: 80, Align: ui.End}}
+	cols := []ui.TableColumn{{Title: "", ID: "dir", Width: 18}, {Title: locales.Type(), Width: 56}, {Title: locales.Data()}, {Title: locales.Size(), Width: 64, Align: ui.End}, {Title: locales.Time(), Width: 80, Align: ui.End}}
 	list := a.listState("ws:"+f.UniqueID, open || f.IsActive())
 	list.Selected = &a.wsRow
 	ui.SplitVerticalPercent(c, &a.listSplit, func() {
@@ -702,9 +703,9 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 			}
 			switch col {
 			case 0:
-				tip := map[string]string{"client": "From the client", "server": "From the server"}[m.From]
+				tip := map[string]string{"client": locales.FromTheClient(), "server": locales.FromTheServer()}[m.From]
 				if m.Injected {
-					tip += ", sent by ProxyGo"
+					tip = locales.SentByProxyGo(tip)
 				}
 				ui.Box(c).Tooltip(tip).Children(func() {
 					if m.From == "client" {
@@ -718,7 +719,7 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 			case 2:
 				data := m.Data
 				if m.Type == "binary" {
-					data = fmt.Sprintf("<%d bytes of binary>", len(m.RawData))
+					data = locales.BytesOfBinary(len(m.RawData))
 				}
 				if m.Type == "close" {
 					data = fmt.Sprintf("%d %s", m.CloseCode, data)
@@ -737,7 +738,7 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 					ui.Text(c, formatDuration(d)).FontSize(11).TextColor(dim(p.muted)).FontFeatures("tnum")
 				}
 			}
-		}).Grow(1).Label("WebSocket messages")
+		}).Grow(1).Label(locales.WebsocketMessages())
 		if open {
 			a.wsComposer(c, f)
 		}
@@ -761,13 +762,13 @@ func (a *App) wsComposer(c *ui.Context, f *flow.Flow) {
 	composed := a.proxy.Composed(f.UniqueID)
 	ui.Row(c).FillWidth().Padding(6, inset).Gap(8).AlignItems(ui.Center).Children(func() {
 		if !composed {
-			ui.Segmented(c, &v.toClient, "To Server", "To Client").Label("Send to")
+			ui.Segmented(c, &v.toClient, locales.ToServer(), locales.ToClient()).Label(locales.SendTo())
 		}
-		in := ui.TextInput(c.Key("wsDraft"), &v.draft).Placeholder("A text message").Label("Message").Grow(1)
-		send := ui.PrimaryButton(c, "Send").Disabled(v.draft == "").Tooltip("Send the message (↩)").Clicked() || in.Submitted() && v.draft != ""
+		in := ui.TextInput(c.Key("wsDraft"), &v.draft).Placeholder(locales.ATextMessage()).Label(locales.Message()).Grow(1)
+		send := ui.PrimaryButton(c, locales.Send()).Disabled(v.draft == "").Tooltip(locales.SendTheMessage()).Clicked() || in.Submitted() && v.draft != ""
 		if send {
 			if err := a.proxy.SendWebSocket(f.UniqueID, composed || v.toClient == 0, "text", []byte(v.draft)); err != nil {
-				a.toast("Send: " + err.Error())
+				a.toast(locales.SendError(err.Error()))
 			} else {
 				v.draft = ""
 			}
@@ -822,11 +823,11 @@ func bodyForRaw(body []byte, ct string) string {
 		return ""
 	}
 	if !isTextual(ct, body) {
-		return fmt.Sprintf("<%s of binary data>", formatSize(len(body)))
+		return locales.SizeOfBinaryData(formatSize(len(body)))
 	}
 	const limit = 2 << 20
 	if len(body) > limit {
-		return string(body[:limit]) + fmt.Sprintf("\n… %s more", formatSize(len(body)-limit))
+		return string(body[:limit]) + "\n… " + locales.SizeMore(formatSize(len(body)-limit))
 	}
 	return string(body)
 }

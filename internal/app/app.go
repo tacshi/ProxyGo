@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"proxygo/internal/settings"
 	"proxygo/internal/store"
 	"proxygo/internal/systemproxy"
+	"proxygo/locales"
 )
 
 type App struct {
@@ -212,7 +214,7 @@ func New(dir string) (*App, error) {
 	a.folders = saved.Open(filepath.Join(dir, "saved"))
 	cm, err := certs.New(filepath.Join(dir, "certificates"))
 	if err != nil {
-		a.proxyErr = "Certificate authority: " + err.Error()
+		a.proxyErr = locales.CertificateAuthorityError(err.Error())
 	} else {
 		a.certs = cm
 	}
@@ -254,6 +256,9 @@ func Main() {
 		fmt.Fprintln(os.Stderr, "ProxyGo:", err)
 		os.Exit(1)
 	}
+	if a.set.Language != "" {
+		mygo.App.SetLocale(a.set.Language)
+	}
 	mygo.Theme.SetSource(themeSource(a.set.Appearance))
 	mygo.Use(updaterPlugin(a.set.AppIcon))
 	mygo.App.WhenReady(a.start)
@@ -268,7 +273,7 @@ func (a *App) start() {
 	a.proxy = a.newProxy(a.clients)
 	if a.certs != nil {
 		if err := a.proxy.Start(); err != nil {
-			a.proxyErr = fmt.Sprintf("The proxy could not listen on port %d: %v", a.set.Port, err)
+			a.proxyErr = locales.TheProxyCouldNotListen(strconv.Itoa(a.set.Port), err.Error())
 		}
 	}
 
@@ -301,6 +306,7 @@ func (a *App) start() {
 	a.win.OnFocus(func() { go a.refreshTrust() })
 	a.watchUpdates()
 	a.installMenu()
+	a.watchLocale()
 	a.watchMenuDots()
 	a.applyAppIcon()
 	a.setMenuBarIcon(!a.set.HideMenuBarIcon)
@@ -434,7 +440,7 @@ func (a *App) showToasts(c *ui.Context, key string) {
 func (a *App) copy(text, what string) {
 	a.clipboard(text)
 	if what != "" {
-		a.toast("Copied " + what)
+		a.toast(what)
 	}
 }
 
@@ -445,7 +451,7 @@ func (a *App) updateSettings(fn func(*settings.Settings)) {
 		fn(s)
 	})
 	if err != nil {
-		a.toast("Cannot save settings: " + err.Error())
+		a.toast(locales.CannotSaveSettings(err.Error()))
 	}
 	a.set = a.prefs.Get()
 	a.syncAtomics()
@@ -767,9 +773,9 @@ func (a *App) removeHelper() {
 			switch {
 			case errors.Is(err, privileged.ErrCanceled):
 			case err != nil:
-				a.toast("Helper: " + err.Error())
+				a.toast(locales.HelperError(err.Error()))
 			default:
-				a.toast("Removed ProxyGo's helper")
+				a.toast(locales.RemovedProxyGosHelper())
 			}
 		})
 	}()

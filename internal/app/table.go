@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"proxygo/internal/preview"
 	"proxygo/internal/settings"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 var flowColumns = []ui.TableColumn{
@@ -58,6 +60,7 @@ func (a *App) columns() []ui.TableColumn {
 		if a.columnHidden(col.ID) {
 			continue
 		}
+		col.Title = flowColumnTitle(col)
 		if col.ID == "dot" && !a.set.ShowSidebar {
 			col.Width = 40
 		}
@@ -133,7 +136,7 @@ func (a *App) table(c *ui.Context) {
 
 	t := ui.Table(c.Key("flows"), &a.list, cols, len(a.visible), func(row, col int) {
 		a.cell(c, row, cols[col].ID)
-	}).Grow(1).Label("Flows")
+	}).Grow(1).Label(locales.Flows())
 	if t.Changed() {
 		if a.row >= 0 && a.row < len(a.visible) {
 			a.selected = a.visible[a.row].UniqueID
@@ -169,66 +172,66 @@ func (a *App) emptyTable(c *ui.Context) {
 		switch {
 		case len(a.flows) > 0:
 			glyph(c, "filter", 26, p.faint)
-			ui.Text(c, "No flows match the filters").FontSize(14).FontWeight(600).TextColor(p.muted)
-			if ui.Button(c, "Clear Filters").Clicked() {
+			ui.Text(c, locales.NoFlowsMatchTheFilters()).FontSize(14).FontWeight(600).TextColor(p.muted)
+			if ui.Button(c, locales.ClearFilters()).Clicked() {
 				a.clearFilters()
 			}
 		case a.proxyErr != "":
 			glyph(c, "warning", 26, p.red)
-			ui.Text(c, "ProxyGo is not listening").FontSize(14).FontWeight(600).TextColor(p.text2)
+			ui.Text(c, locales.ProxyGoIsNotListening()).FontSize(14).FontWeight(600).TextColor(p.text2)
 			ui.Text(c, a.proxyErr).TextColor(p.muted).MaxWidth(520).TextAlign(ui.Center)
-			if ui.Button(c, "Proxy Settings…").Clicked() {
+			if ui.Button(c, locales.ProxySettingsEllipsis()).Clicked() {
 				a.settingsTab = 1
 				a.openWindow("settings")
 			}
 		default:
 			glyph(c, "network", 28, p.faint)
-			ui.Text(c, "Waiting for traffic").FontSize(15).FontWeight(600).TextColor(p.text2)
-			ui.Text(c, "Point an app or device at "+a.proxyAddress()+", or let macOS use ProxyGo.").TextColor(p.muted)
+			ui.Text(c, locales.WaitingForTraffic()).FontSize(15).FontWeight(600).TextColor(p.text2)
+			ui.Text(c, locales.PointAnAppOrDeviceAt(a.proxyAddress())).TextColor(p.muted)
 			ui.Row(c).Gap(8).Children(func() {
-				if !a.systemProxyOn() && ui.PrimaryButton(c, "Override macOS Proxy").Clicked() {
+				if !a.systemProxyOn() && ui.PrimaryButton(c, locales.OverrideMacOSProxy()).Clicked() {
 					a.setSystemProxy(true)
 				}
-				if ui.Button(c, "Install Certificate…").Clicked() {
+				if ui.Button(c, locales.InstallCertificateEllipsis()).Clicked() {
 					a.openWindow("certificate")
 				}
 			})
 			if a.paused {
-				ui.Text(c, "Recording is paused.").TextColor(p.yellow)
+				ui.Text(c, locales.RecordingIsPaused()).TextColor(p.yellow)
 			}
 		}
 	})
 }
 
 func (a *App) headerMenu(m *ui.Menu) {
-	m.Submenu("Columns", func(m *ui.Menu) {
+	m.Submenu(locales.Columns(), func(m *ui.Menu) {
 		for _, col := range flowColumns {
 			if col.ID == "dot" || col.ID == store.SortURL {
 				continue
 			}
-			name := col.Title
+			name := flowColumnTitle(col)
 			if col.ID == store.SortRow {
-				name = "ID (#)"
+				name = locales.IDColumn()
 			}
 			if m.Item(name).Checked(!a.columnHidden(col.ID)).Chosen() {
 				a.toggleColumn(col.ID)
 			}
 		}
 	})
-	m.Submenu("Custom Columns", func(m *ui.Menu) {
+	m.Submenu(locales.CustomColumns(), func(m *ui.Menu) {
 		for i, c := range a.set.Columns {
-			if m.Item("Remove " + c.Label()).Chosen() {
+			if m.Item(locales.RemoveColumn(columnLabel(c))).Chosen() {
 				a.updateSettings(func(s *settings.Settings) { s.Columns = slices.Delete(s.Columns, i, i+1) })
 			}
 		}
 		if len(a.set.Columns) > 0 {
 			m.Separator()
 		}
-		if m.Item("New Column…").Chosen() {
+		if m.Item(locales.NewColumnEllipsis()).Chosen() {
 			a.newColumn()
 		}
 		if f := a.selectedFlow(); f != nil && f.Request != nil {
-			m.Submenu("Add Request Header", func(m *ui.Menu) {
+			m.Submenu(locales.AddRequestHeader(), func(m *ui.Menu) {
 				for _, e := range f.Request.Header.Entries {
 					if m.Item(e.Key.Name).Chosen() {
 						a.addHeaderColumn(e.Key.Name, false)
@@ -236,7 +239,7 @@ func (a *App) headerMenu(m *ui.Menu) {
 				}
 			})
 			if f.Response != nil {
-				m.Submenu("Add Response Header", func(m *ui.Menu) {
+				m.Submenu(locales.AddResponseHeader(), func(m *ui.Menu) {
 					for _, e := range f.Response.Header.Entries {
 						if m.Item(e.Key.Name).Chosen() {
 							a.addHeaderColumn(e.Key.Name, true)
@@ -245,11 +248,11 @@ func (a *App) headerMenu(m *ui.Menu) {
 				})
 			}
 		} else {
-			m.Item("Select a flow to add its headers").Disabled(true)
+			m.Item(locales.SelectAFlowToAddIts()).Disabled(true)
 		}
 	})
 	m.Separator()
-	if m.Item("Reset Columns").Chosen() {
+	if m.Item(locales.ResetColumns()).Chosen() {
 		a.updateSettings(func(s *settings.Settings) {
 			s.HiddenColumns = slices.Clone(settings.DefaultHiddenColumns)
 			s.HeaderColumns = nil
@@ -323,7 +326,7 @@ func (a *App) cell(c *ui.Context, row int, col string) {
 				chip(c, "WS", fg(p.blue), sel, p.blueSoft)
 			}
 			if a.jwtExpired(f) {
-				chip(c, "JWT expired", fg(p.red), sel, p.redSoft)
+				chip(c, locales.JWTExpired(), fg(p.red), sel, p.redSoft)
 			}
 			color := p.text2
 			if f.IsHTTPS() {
@@ -377,9 +380,9 @@ func (a *App) cell(c *ui.Context, row int, col string) {
 	case "ssl":
 		switch {
 		case f.IsTunnel():
-			ui.Icon(c, icon("lock")).Size(11, 11).TextColor(dim(p.faint)).Tooltip("Encrypted: SSL Proxying is off for this host")
+			ui.Icon(c, icon("lock")).Size(11, 11).TextColor(dim(p.faint)).Tooltip(locales.EncryptedSSLProxyingIsOffFor())
 		case f.IsSSL:
-			ui.Icon(c, icon("lockOpen")).Size(11, 11).TextColor(dim(p.green)).Tooltip("Decrypted by ProxyGo")
+			ui.Icon(c, icon("lockOpen")).Size(11, 11).TextColor(dim(p.green)).Tooltip(locales.DecryptedByProxyGo())
 		}
 	case "edited":
 		ui.Row(c).Gap(3).AlignItems(ui.Center).Children(func() {
@@ -387,7 +390,7 @@ func (a *App) cell(c *ui.Context, row int, col string) {
 				ui.Icon(c, icon(toolIcon(t))).Size(11, 11).TextColor(dim(p.orange)).Tooltip(t)
 			}
 			if f.Saved {
-				ui.Icon(c, icon("bookmark")).Size(11, 11).TextColor(dim(p.accent)).Tooltip("Saved")
+				ui.Icon(c, icon("bookmark")).Size(11, 11).TextColor(dim(p.accent)).Tooltip(locales.Saved())
 			}
 		})
 	case store.SortComment:
@@ -442,13 +445,13 @@ func (a *App) menuFlows(f *flow.Flow) []*flow.Flow {
 func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 	f := fs[0]
 	one := len(fs) == 1
-	if m.Item("Copy URL").Shortcut(ui.Cmd|ui.Shift, ui.KeyU).Chosen() {
+	if m.Item(locales.CopyURL()).Shortcut(ui.Cmd|ui.Shift, ui.KeyU).Chosen() {
 		a.copyURLs(fs)
 	}
-	if m.Item("Copy as cURL").Shortcut(ui.Cmd|ui.Shift, ui.KeyC).Chosen() {
+	if m.Item(locales.CopyAsCURL()).Shortcut(ui.Cmd|ui.Shift, ui.KeyC).Chosen() {
 		a.copyCode(fs, "cURL")
 	}
-	m.Submenu("Copy as", func(m *ui.Menu) {
+	m.Submenu(locales.CopyAs(), func(m *ui.Menu) {
 		for _, l := range codegen.Languages {
 			if m.Item(l.Name).Chosen() {
 				a.copyCode(fs, l.Name)
@@ -458,7 +461,7 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 		if m.Item("Markdown").Chosen() {
 			a.copyMarkdown(fs)
 		}
-		m.Submenu("Export Code to File", func(m *ui.Menu) {
+		m.Submenu(locales.ExportCodeToFile(), func(m *ui.Menu) {
 			for _, l := range codegen.Languages {
 				if m.Item(l.Name + "…").Disabled(!one).Chosen() {
 					a.exportCode(f, l.Name)
@@ -466,155 +469,155 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 			}
 		})
 		m.Separator()
-		if m.Item("Raw Request").Disabled(!one).Chosen() {
+		if m.Item(locales.RawRequestLabel()).Disabled(!one).Chosen() {
 			a.copyRaw(f, false)
 		}
-		if m.Item("Raw Response").Disabled(!one || f.Response == nil).Chosen() {
+		if m.Item(locales.RawResponseLabel()).Disabled(!one || f.Response == nil).Chosen() {
 			a.copyRaw(f, true)
 		}
-		if m.Item("Response Body").Disabled(!one || f.Response == nil).Chosen() {
-			a.copy(string(f.DecodedResponseBody()), "the response body")
+		if m.Item(locales.ResponseBodyLabel()).Disabled(!one || f.Response == nil).Chosen() {
+			a.copy(string(f.DecodedResponseBody()), locales.CopiedTheResponseBody())
 		}
 	})
 	m.Separator()
-	if m.Item("Repeat").Shortcut(ui.Cmd, ui.KeyR).Chosen() {
+	if m.Item(locales.Repeat()).Shortcut(ui.Cmd, ui.KeyR).Chosen() {
 		a.repeatFlows(fs)
 	}
-	if m.Item("Edit and Repeat…").Shortcut(ui.Cmd, ui.KeyE).Disabled(!one).Chosen() {
+	if m.Item(locales.EditAndRepeatEllipsis()).Shortcut(ui.Cmd, ui.KeyE).Disabled(!one).Chosen() {
 		a.composeFrom(f)
 	}
-	if m.Item("Advanced Repeat…").Chosen() {
+	if m.Item(locales.AdvancedRepeatEllipsis()).Chosen() {
 		a.advancedRepeat(fs)
 	}
 	m.Separator()
 	if f.IsHTTPS() && (f.IsTunnel() || !a.rules.Current().ShouldMITM(f.Host())) {
-		if m.Item("Enable SSL Proxying for " + f.Host()).Chosen() {
+		if m.Item(locales.EnableSSLProxyingForHost(f.Host())).Chosen() {
 			a.enableSSL(f.Host(), false)
 		}
 	}
-	m.Submenu("Tools", func(m *ui.Menu) {
-		if m.Item("Breakpoint…").Chosen() {
+	m.Submenu(locales.Tools(), func(m *ui.Menu) {
+		if m.Item(locales.BreakpointEllipsis()).Chosen() {
 			a.breakpointFromFlow(f)
 		}
-		if m.Item("Map Local…").Chosen() {
+		if m.Item(locales.MapLocalEllipsis()).Chosen() {
 			a.mapLocalFromFlow(f)
 		}
-		if m.Item("Map Remote…").Chosen() {
+		if m.Item(locales.MapRemoteEllipsis()).Chosen() {
 			a.mapRemoteFromFlow(f)
 		}
-		if m.Item("Scripting…").Chosen() {
+		if m.Item(locales.ScriptingEllipsis()).Chosen() {
 			a.scriptFromFlow(f)
 		}
-		if m.Item("Network Conditions…").Chosen() {
+		if m.Item(locales.NetworkConditionsEllipsis()).Chosen() {
 			a.throttleFromFlow(f)
 		}
 		m.Separator()
-		if m.Item("Block List").Chosen() {
+		if m.Item(locales.ToolBlockList()).Chosen() {
 			a.blockFromFlow(f, false)
 		}
-		if m.Item("Allow List").Chosen() {
+		if m.Item(locales.ToolAllowList()).Chosen() {
 			a.blockFromFlow(f, true)
 		}
-		if m.Item(map[bool]string{true: "Block this Device (", false: "Block this App ("}[remoteIP(f) != ""] + a.clientLabel(f) + ")").Disabled(f.Client.Name == "" || f.Client.Name == "System").Chosen() {
+		if m.Item(map[bool]string{true: locales.BlockThisDevice(a.clientLabel(f)), false: locales.BlockThisApp(a.clientLabel(f))}[remoteIP(f) != ""]).Disabled(f.Client.Name == "" || f.Client.Name == "System").Chosen() {
 			a.blockApp(f, false)
 		}
-		if m.Item("Protobuf Message Types…").Chosen() {
+		if m.Item(locales.ProtobufMessageTypesEllipsis()).Chosen() {
 			a.openWindow("protobuf")
 		}
 	})
-	m.Submenu("Filter", func(m *ui.Menu) {
-		if m.Item("Only " + f.Host()).Chosen() {
+	m.Submenu(locales.Filter(), func(m *ui.Menu) {
+		if m.Item(locales.OnlyValue(f.Host())).Chosen() {
 			a.filterBy(store.Condition{Enabled: true, Field: store.FieldHost, Op: store.OpEquals, Value: f.Host()})
 		}
-		if m.Item("Only " + a.clientLabel(f)).Chosen() {
+		if m.Item(locales.OnlyValue(a.clientLabel(f))).Chosen() {
 			a.filterBy(store.Condition{Enabled: true, Field: store.FieldClient, Op: store.OpEquals, Value: f.Client.Name})
 		}
-		if m.Item("Only " + f.MethodName() + " Requests").Chosen() {
+		if m.Item(locales.OnlyMethodRequests(f.MethodName())).Chosen() {
 			a.filterBy(store.Condition{Enabled: true, Field: store.FieldMethod, Op: store.OpEquals, Value: f.MethodName()})
 		}
-		if code := f.StatusCode(); code > 0 && m.Item(fmt.Sprintf("Only Status %d", code)).Chosen() {
+		if code := f.StatusCode(); code > 0 && m.Item(locales.OnlyStatus(strconv.Itoa(code))).Chosen() {
 			a.filterBy(store.Condition{Enabled: true, Field: store.FieldStatus, Op: store.OpEquals, Value: fmt.Sprint(code)})
 		}
 	})
-	m.Submenu("Pin", func(m *ui.Menu) {
+	m.Submenu(locales.Pin(), func(m *ui.Menu) {
 		host, app := "host:"+f.Host(), "app:"+clientName(f)
-		if m.Item(map[bool]string{true: "Unpin ", false: "Pin "}[a.pinned(host)] + f.Host()).Chosen() {
+		if m.Item(map[bool]string{true: locales.UnpinValue(f.Host()), false: locales.PinHost(f.Host())}[a.pinned(host)]).Chosen() {
 			a.togglePin(host)
 		}
-		if m.Item(map[bool]string{true: "Unpin ", false: "Pin "}[a.pinned(app)] + a.clientLabel(f)).Chosen() {
+		if m.Item(map[bool]string{true: locales.UnpinValue(a.clientLabel(f)), false: locales.PinHost(a.clientLabel(f))}[a.pinned(app)]).Chosen() {
 			a.togglePin(app)
 		}
 	})
 	m.Separator()
-	if m.Item("Add Comment…").Shortcut(ui.Cmd|ui.Shift, ui.KeyM).Chosen() {
+	if m.Item(locales.AddCommentEllipsis()).Shortcut(ui.Cmd|ui.Shift, ui.KeyM).Chosen() {
 		a.editComment(fs)
 	}
-	m.Submenu("Highlight", func(m *ui.Menu) {
+	m.Submenu(locales.Highlight(), func(m *ui.Menu) {
 		for _, color := range highlightColors {
 			if m.Item(title(color)).Checked(f.Highlight == color).Chosen() {
 				a.setHighlight(fs, color)
 			}
 		}
 		m.Separator()
-		if m.Item("Strikethrough").Checked(f.Strikethrough).Chosen() {
+		if m.Item(locales.Strikethrough()).Checked(f.Strikethrough).Chosen() {
 			a.setStrike(fs, !f.Strikethrough)
 		}
-		if m.Item("Reset").Chosen() {
+		if m.Item(locales.Reset()).Chosen() {
 			a.resetStyle(fs)
 		}
 	})
-	if m.Item("Save Request").Checked(f.Saved).Shortcut(ui.Cmd, ui.KeyD).Chosen() {
+	if m.Item(locales.SaveRequest()).Checked(f.Saved).Shortcut(ui.Cmd, ui.KeyD).Chosen() {
 		a.setSaved(fs, !f.Saved)
 	}
 	m.Separator()
 	if len(fs) == 2 {
-		if m.Item("Compare").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
+		if m.Item(locales.Compare()).Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
 			a.compare(fs[0], fs[1])
 		}
 	} else {
-		m.Submenu("Compare", func(m *ui.Menu) {
-			if m.Item("Set as Left Side").Disabled(!one).Chosen() {
+		m.Submenu(locales.Compare(), func(m *ui.Menu) {
+			if m.Item(locales.SetAsLeftSide()).Disabled(!one).Chosen() {
 				a.setDiffSide(f, false)
 			}
-			if m.Item("Set as Right Side").Disabled(!one).Chosen() {
+			if m.Item(locales.SetAsRightSide()).Disabled(!one).Chosen() {
 				a.setDiffSide(f, true)
 			}
 		})
 	}
-	if m.Item("Open in New Window").Disabled(!one).Chosen() {
+	if m.Item(locales.OpenInNewWindow()).Disabled(!one).Chosen() {
 		a.openFlowWindow(f)
 	}
-	m.Submenu("Export", func(m *ui.Menu) {
-		if m.Item("as ProxyGo Session…").Chosen() {
+	m.Submenu(locales.Export(), func(m *ui.Menu) {
+		if m.Item(locales.AsProxyGoSessionEllipsis()).Chosen() {
 			a.saveSessionDialog(true)
 		}
-		if m.Item("as HAR…").Chosen() {
+		if m.Item(locales.AsHAREllipsis()).Chosen() {
 			a.exportDialog("har", true)
 		}
-		if m.Item("as CSV…").Chosen() {
+		if m.Item(locales.AsCSVEllipsis()).Chosen() {
 			a.exportDialog("csv", true)
 		}
-		if m.Item("Request Body…").Disabled(!one).Chosen() {
+		if m.Item(locales.RequestBodyEllipsis()).Disabled(!one).Chosen() {
 			a.exportBody(f, false)
 		}
-		if m.Item("Response Body…").Disabled(!one || f.Response == nil).Chosen() {
+		if m.Item(locales.ResponseBodyEllipsis()).Disabled(!one || f.Response == nil).Chosen() {
 			a.exportBody(f, true)
 		}
 		m.Separator()
 		for _, fm := range []string{"postman", "openapi", "openapi-html", "raw"} {
-			if m.Item("as " + exportFormats[fm].title + "…").Chosen() {
+			if m.Item(locales.AsFormatEllipsis(exportTitle(fm))).Chosen() {
 				a.exportFlows(fm, fs, "ProxyGo_"+time.Now().Format("2006-01-02_15-04-05"))
 			}
 		}
 	})
-	if m.Item("Save to Folder…").Shortcut(ui.Cmd|ui.Alt, ui.KeyD).Chosen() {
+	if m.Item(locales.SaveToFolderEllipsis()).Shortcut(ui.Cmd|ui.Alt, ui.KeyD).Chosen() {
 		a.saveToFolder(fs)
 	}
-	if m.Item("Add to Diff Pool").Chosen() {
+	if m.Item(locales.AddToDiffPool()).Chosen() {
 		a.addToDiffPool(fs)
 	}
 	m.Separator()
-	if m.Item(fmt.Sprintf("Delete %s", plural(len(fs), "Flow", "Flows"))).Shortcut(0, ui.KeyBackspace).Chosen() {
+	if m.Item(locales.DeleteFlowsMenu(len(fs))).Shortcut(0, ui.KeyBackspace).Chosen() {
 		a.deleteFlows(fs)
 	}
 }

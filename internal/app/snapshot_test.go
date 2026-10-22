@@ -120,7 +120,7 @@ func TestSnapshots(t *testing.T) {
 		spec := windowSpecs[kind]
 		wt := window(kind, spec.width, spec.height)
 		save(wt, "tool-"+kind)
-		if err := wt.Click(k.add); err != nil {
+		if err := wt.Click(k.add()); err != nil {
 			t.Fatalf("%s add: %v", kind, err)
 		}
 		save(wt, "tool-"+kind+"-edit")

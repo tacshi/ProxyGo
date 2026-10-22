@@ -10,6 +10,7 @@ import (
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 type paletteState struct {
@@ -33,101 +34,103 @@ func (a *App) commands() []command {
 	add := func(group, name, keys string, run func()) {
 		out = append(out, command{group, name, keys, run})
 	}
+	flowGroup, sessionGroup, recordingGroup, toolsGroup := locales.GroupFlow(), locales.GroupSession(), locales.GroupRecording(), locales.GroupTools()
+	viewGroup, certGroup, settingsGroup := locales.GroupView(), locales.GroupCertificate(), locales.GroupSettings()
 	if fs := a.chosenFlows(); len(fs) > 0 {
 		f := fs[0]
-		add("Flow", "Repeat", "⌘R", func() { a.repeatFlows(fs) })
-		add("Flow", "Edit and Repeat", "⌘E", func() { a.composeFrom(f) })
-		add("Flow", "Advanced Repeat", "⌥⌘R", func() { a.advancedRepeat(fs) })
-		add("Flow", "Copy URL", "⇧⌘U", func() { a.copyURLs(fs) })
+		add(flowGroup, locales.Repeat(), "⌘R", func() { a.repeatFlows(fs) })
+		add(flowGroup, locales.EditAndRepeat(), "⌘E", func() { a.composeFrom(f) })
+		add(flowGroup, locales.AdvancedRepeat(), "⌥⌘R", func() { a.advancedRepeat(fs) })
+		add(flowGroup, locales.CopyURL(), "⇧⌘U", func() { a.copyURLs(fs) })
 		for _, l := range codegen.Languages {
-			add("Flow", "Copy as "+l.Name, "", func() { a.copyCode(fs, l.Name) })
+			add(flowGroup, locales.CopyAsFormat(l.Name), "", func() { a.copyCode(fs, l.Name) })
 		}
-		add("Flow", "Add Comment", "⇧⌘M", func() { a.editComment(fs) })
-		add("Flow", "Save Request", "⌘D", func() { a.setSaved(fs, !f.Saved) })
+		add(flowGroup, locales.AddComment(), "⇧⌘M", func() { a.editComment(fs) })
+		add(flowGroup, locales.SaveRequest(), "⌘D", func() { a.setSaved(fs, !f.Saved) })
 		for _, color := range highlightColors {
-			add("Flow", "Highlight "+title(color), "", func() { a.setHighlight(fs, color) })
+			add(flowGroup, locales.HighlightColor(colorName(color)), "", func() { a.setHighlight(fs, color) })
 		}
-		add("Flow", "Open in New Window", "↩", func() { a.openFlowWindow(f) })
-		add("Flow", "Map Local from This Response", "", func() { a.mapLocalFromFlow(f) })
-		add("Flow", "Map Remote This URL", "", func() { a.mapRemoteFromFlow(f) })
-		add("Flow", "Breakpoint on This URL", "", func() { a.breakpointFromFlow(f) })
-		add("Flow", "Script for This URL", "", func() { a.scriptFromFlow(f) })
-		add("Flow", "Block This URL", "", func() { a.blockFromFlow(f, false) })
-		add("Flow", "Enable SSL Proxying for "+f.Host(), "", func() { a.enableSSL(f.Host(), false) })
-		add("Flow", "Pin "+f.Host(), "", func() { a.togglePin("host:" + f.Host()) })
-		add("Flow", "Compare", "⇧⌘D", a.compareChosen)
-		add("Flow", "Add to Diff Pool", "", func() { a.addToDiffPool(fs) })
-		add("Flow", "Save to Folder…", "⌥⌘D", func() { a.saveToFolder(fs) })
-		add("Flow", "Copy as Markdown", "", func() { a.copyMarkdown(fs) })
+		add(flowGroup, locales.OpenInNewWindow(), "↩", func() { a.openFlowWindow(f) })
+		add(flowGroup, locales.MapLocalFromThisResponse(), "", func() { a.mapLocalFromFlow(f) })
+		add(flowGroup, locales.MapRemoteThisURL(), "", func() { a.mapRemoteFromFlow(f) })
+		add(flowGroup, locales.BreakpointOnThisURL(), "", func() { a.breakpointFromFlow(f) })
+		add(flowGroup, locales.ScriptForThisURL(), "", func() { a.scriptFromFlow(f) })
+		add(flowGroup, locales.BlockThisURL(), "", func() { a.blockFromFlow(f, false) })
+		add(flowGroup, locales.EnableSSLProxyingForHost(f.Host()), "", func() { a.enableSSL(f.Host(), false) })
+		add(flowGroup, locales.PinHost(f.Host()), "", func() { a.togglePin("host:" + f.Host()) })
+		add(flowGroup, locales.Compare(), "⇧⌘D", a.compareChosen)
+		add(flowGroup, locales.AddToDiffPool(), "", func() { a.addToDiffPool(fs) })
+		add(flowGroup, locales.SaveToFolderEllipsis(), "⌥⌘D", func() { a.saveToFolder(fs) })
+		add(flowGroup, locales.CopyAsMarkdown(), "", func() { a.copyMarkdown(fs) })
 		if name := a.clientLabel(f); name != "" {
-			add("Flow", "Block "+name, "", func() { a.blockApp(f, false) })
+			add(flowGroup, locales.BlockApp(name), "", func() { a.blockApp(f, false) })
 		}
-		add("Flow", "Delete", "⌘⌫", func() { a.deleteFlows(fs) })
+		add(flowGroup, locales.Delete(), "⌘⌫", func() { a.deleteFlows(fs) })
 	}
-	add("Session", "Clear Session", "⌘K", a.clearFlows)
-	add("Session", "New Session", "⌘N", a.newSession)
-	add("Session", "Open Session…", "⌘O", func() { a.openSessionDialog(false) })
-	add("Session", "Import HAR or Session…", "⇧⌘O", func() { a.openSessionDialog(true) })
-	add("Session", "Save Session", "⌘S", a.saveSession)
-	add("Session", "Export as HAR…", "⇧⌘E", func() { a.exportDialog("har", false) })
-	add("Session", "Export as CSV…", "", func() { a.exportDialog("csv", false) })
-	for _, f := range []string{"postman", "openapi", "openapi-html", "raw"} {
-		add("Session", "Export as "+exportFormats[f].title+"…", "", func() { a.exportDialog(f, false) })
+	add(sessionGroup, locales.ClearSession(), "⌘K", a.clearFlows)
+	add(sessionGroup, locales.NewSession(), "⌘N", a.newSession)
+	add(sessionGroup, locales.OpenSessionEllipsis(), "⌘O", func() { a.openSessionDialog(false) })
+	add(sessionGroup, locales.ImportHAROrSessionEllipsis(), "⇧⌘O", func() { a.openSessionDialog(true) })
+	add(sessionGroup, locales.SaveSession(), "⌘S", a.saveSession)
+	add(sessionGroup, locales.ExportAsFormat(exportTitle("har")), "⇧⌘E", func() { a.exportDialog("har", false) })
+	for _, f := range []string{"csv", "postman", "openapi", "openapi-html", "raw"} {
+		add(sessionGroup, locales.ExportAsFormat(exportTitle(f)), "", func() { a.exportDialog(f, false) })
 	}
-	add("Session", "Open in New Window…", "⌥⌘O", a.openSessionWindowDialog)
-	add("Recording", map[bool]string{true: "Resume Recording", false: "Pause Recording"}[a.paused], "⇧⌘R", func() { a.setPaused(!a.paused) })
-	add("Recording", map[bool]string{true: "Stop Overriding macOS Proxy", false: "Override macOS Proxy"}[a.systemProxyOn()], "", func() { a.setSystemProxy(!a.systemProxyOn()) })
-	add("Recording", "Copy Proxy Address", "", func() { a.copy(a.proxyAddress(), "the proxy address") })
-	add("Tools", "Compose New Request", "⇧⌘N", func() { a.composeFrom(nil) })
-	add("Tools", "Import from cURL", "", func() { a.composeFrom(nil); a.openCurlSheet() })
+	add(sessionGroup, locales.OpenInNewWindowEllipsis(), "⌥⌘O", a.openSessionWindowDialog)
+	add(recordingGroup, map[bool]string{true: locales.ResumeRecording(), false: locales.PauseRecording()}[a.paused], "⇧⌘R", func() { a.setPaused(!a.paused) })
+	add(recordingGroup, map[bool]string{true: locales.StopOverridingMacOSProxy(), false: locales.OverrideMacOSProxy()}[a.systemProxyOn()], "", func() { a.setSystemProxy(!a.systemProxyOn()) })
+	add(recordingGroup, locales.CopyProxyAddress(), "", func() { a.copy(a.proxyAddress(), locales.CopiedTheProxyAddress()) })
+	add(toolsGroup, locales.ComposeNewRequest(), "⇧⌘N", func() { a.composeFrom(nil) })
+	add(toolsGroup, locales.ImportFromCURL(), "", func() { a.composeFrom(nil); a.openCurlSheet() })
 	for _, w := range []struct{ kind, name, keys string }{
-		{"ssl", "SSL Proxying List", "⌥⌘P"}, {"breakpoint", "Breakpoint Rules", "⌥⌘B"}, {"bpedit", "Breakpoint Editor", ""},
-		{"maplocal", "Map Local", "⌥⌘L"}, {"mapremote", "Map Remote", "⌥⌘M"}, {"scripting", "Scripting", "⌥⌘J"},
-		{"block", "Block List", ""}, {"allow", "Allow List", ""}, {"network", "Network Conditions", "⌥⌘N"},
-		{"dns", "DNS Spoofing", ""}, {"reverse", "Reverse Proxy", ""}, {"clientcerts", "Client Certificates", ""},
-		{"certificate", "Certificate", ""}, {"diff", "Diff", ""}, {"settings", "Settings", "⌘,"}, {"help", "Help", ""},
-		{"bptemplates", "Breakpoint Templates", ""}, {"blockedapps", "Blocked Apps", ""}, {"protobuf", "Protobuf", ""},
-		{"servercerts", "Custom Server Certificates", ""}, {"setup", "Automatic Setup", ""},
+		{"ssl", locales.SSLProxyingList(), "⌥⌘P"}, {"breakpoint", locales.BreakpointRules(), "⌥⌘B"}, {"bpedit", locales.BreakpointEditor(), ""},
+		{"maplocal", locales.ToolMapLocal(), "⌥⌘L"}, {"mapremote", locales.ToolMapRemote(), "⌥⌘M"}, {"scripting", locales.ToolScripting(), "⌥⌘J"},
+		{"block", locales.ToolBlockList(), ""}, {"allow", locales.ToolAllowList(), ""}, {"network", locales.ToolNetworkConditions(), "⌥⌘N"},
+		{"dns", locales.ToolDNSSpoofing(), ""}, {"reverse", locales.ToolReverseProxy(), ""}, {"clientcerts", locales.ClientCertificates(), ""},
+		{"certificate", locales.Certificate(), ""}, {"diff", locales.Diff(), ""}, {"settings", locales.Settings(), "⌘,"}, {"help", locales.Help(), ""},
+		{"bptemplates", locales.BreakpointTemplates(), ""}, {"blockedapps", locales.BlockedApps(), ""}, {"protobuf", "Protobuf", ""},
+		{"servercerts", locales.CustomServerCertificates(), ""}, {"setup", locales.AutomaticSetup(), ""},
 	} {
-		add("Tools", "Open "+w.name, w.keys, func() { a.openWindow(w.kind) })
+		add(toolsGroup, locales.OpenWindowNamed(w.name), w.keys, func() { a.openWindow(w.kind) })
 	}
 	d := a.rules.Current()
 	for _, t := range rules.AllTools {
 		on := d.ToolOn(t.ID)
-		add("Tools", map[bool]string{true: "Turn Off ", false: "Turn On "}[on]+t.Name, "", func() { a.setTool(t.ID, !on) })
+		name := map[bool]string{true: locales.TurnOffTool(toolName(t.ID)), false: locales.TurnOnTool(toolName(t.ID))}[on]
+		add(toolsGroup, name, "", func() { a.setTool(t.ID, !on) })
 	}
-	add("Tools", map[bool]string{true: "Turn Off No Caching", false: "Turn On No Caching"}[d.NoCaching], "", func() { a.setNoCaching(!d.NoCaching) })
-	add("View", "Toggle Sidebar", "⌥⌘S", func() { a.setSidebar(!a.set.ShowSidebar) })
-	add("View", "Toggle Inspector", "⌥⌘I", func() { a.setDetail(!a.set.ShowDetail) })
-	add("View", "Dock Inspector Right", "", func() { a.setDetailRight(true) })
-	add("View", "Dock Inspector Below", "", func() { a.setDetailRight(false) })
-	add("View", "Overview", "⌘0", func() { a.section = "overview" })
-	add("View", "Advanced Filter", "⌥⌘F", func() { a.setAdvanced(true) })
-	add("View", "Clear Filters", "", a.clearFilters)
-	add("View", "Appearance: System", "", func() { a.setAppearance(settings.AppearanceSystem) })
-	add("View", "Appearance: Light", "", func() { a.setAppearance(settings.AppearanceLight) })
-	add("View", "Appearance: Dark", "", func() { a.setAppearance(settings.AppearanceDark) })
-	add("Certificate", "Install Certificate on this Mac", "", a.installCertificate)
-	add("Certificate", "Export Root Certificate as PEM", "", func() { a.exportCertificate("pem") })
-	add("Certificate", "Use Your Own Root Certificate", "", func() { a.rootImport = rootImport{open: true}; a.certTab = 0; a.openWindow("certificate") })
-	add("Settings", "MCP Server and Command-Line Tool", "", func() { a.settingsTab = 4; a.openWindow("settings") })
-	add("Settings", "Check for Updates", "", updater.CheckForUpdates)
+	add(toolsGroup, map[bool]string{true: locales.TurnOffTool(locales.NoCaching()), false: locales.TurnOnTool(locales.NoCaching())}[d.NoCaching], "", func() { a.setNoCaching(!d.NoCaching) })
+	add(viewGroup, locales.ToggleSidebar(), "⌥⌘S", func() { a.setSidebar(!a.set.ShowSidebar) })
+	add(viewGroup, locales.ToggleInspector(), "⌥⌘I", func() { a.setDetail(!a.set.ShowDetail) })
+	add(viewGroup, locales.DockInspectorRight(), "", func() { a.setDetailRight(true) })
+	add(viewGroup, locales.DockInspectorBelow(), "", func() { a.setDetailRight(false) })
+	add(viewGroup, locales.Overview(), "⌘0", func() { a.section = "overview" })
+	add(viewGroup, locales.AdvancedFilter(), "⌥⌘F", func() { a.setAdvanced(true) })
+	add(viewGroup, locales.ClearFilters(), "", a.clearFilters)
+	add(viewGroup, locales.AppearanceIs(locales.System()), "", func() { a.setAppearance(settings.AppearanceSystem) })
+	add(viewGroup, locales.AppearanceIs(locales.Light()), "", func() { a.setAppearance(settings.AppearanceLight) })
+	add(viewGroup, locales.AppearanceIs(locales.Dark()), "", func() { a.setAppearance(settings.AppearanceDark) })
+	add(certGroup, locales.InstallCertificateOnThisMac(), "", a.installCertificate)
+	add(certGroup, locales.ExportRootCertificateAsPEM(), "", func() { a.exportCertificate("pem") })
+	add(certGroup, locales.UseYourOwnRootCertificate(), "", func() { a.rootImport = rootImport{open: true}; a.certTab = 0; a.openWindow("certificate") })
+	add(settingsGroup, locales.MCPServerAndCommandLineTool(), "", func() { a.settingsTab = 4; a.openWindow("settings") })
+	add(settingsGroup, locales.CheckForUpdates(), "", updater.CheckForUpdates)
 	for _, pr := range a.set.FilterPresets {
-		add("Saved Filter", pr.Name, "", func() { a.applyPreset(pr) })
+		add(locales.GroupSavedFilter(), pr.Name, "", func() { a.applyPreset(pr) })
 	}
 	if a.folders != nil {
 		for _, fd := range a.folders.Folders() {
-			add("Saved Folder", fd.Path, "", func() { a.openFolder(fd.Path) })
+			add(locales.GroupSavedFolder(), fd.Path, "", func() { a.openFolder(fd.Path) })
 		}
 	}
 	for i, name := range store.ByCount(store.Domains(a.flows)) {
 		if i >= 50 {
 			break
 		}
-		add("Go to Domain", name, "", func() { a.section = "domain:" + name })
+		add(locales.GroupGoToDomain(), name, "", func() { a.section = "domain:" + name })
 	}
 	for _, name := range store.ByCount(store.Apps(a.flows)) {
-		add("Go to App", name, "", func() { a.section = "app:" + name })
+		add(locales.GroupGoToApp(), name, "", func() { a.section = "app:" + name })
 	}
 	return out
 }
@@ -176,7 +179,7 @@ func (a *App) paletteOverlay(c *ui.Context) {
 		ui.Column(c).FillWidth().Children(func() {
 			ui.Row(c).FillWidth().Padding(10, 14).Gap(8).AlignItems(ui.Center).Children(func() {
 				glyph(c, "command", 15, p.muted)
-				in := ui.TextInput(c.Key("paletteQuery"), &st.query).Placeholder("Type a command, a domain or an app").Label("Command").AutoFocus().Grow(1)
+				in := ui.TextInput(c.Key("paletteQuery"), &st.query).Placeholder(locales.TypeACommandADomainOrAnApp()).Label(locales.Command()).AutoFocus().Grow(1)
 				if in.Changed() {
 					st.row = 0
 				}
@@ -194,7 +197,7 @@ func (a *App) paletteOverlay(c *ui.Context) {
 			})
 			ui.Divider(c)
 			if len(cmds) == 0 {
-				ui.Text(c, "No commands match").TextColor(p.muted).Padding(16)
+				ui.Text(c, locales.NoCommandsMatch()).TextColor(p.muted).Padding(16)
 				return
 			}
 			ui.List(c.Key("paletteList"), &st.list, len(cmds), func(i int) {

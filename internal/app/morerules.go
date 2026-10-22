@@ -18,6 +18,7 @@ import (
 
 	"proxygo/internal/certs"
 	"proxygo/internal/rules"
+	"proxygo/locales"
 )
 
 func tplID(r *rules.BreakpointTemplate) string { return r.ID }
@@ -27,15 +28,17 @@ func scID(r *rules.ServerCertificate) string   { return r.ID }
 
 func init() {
 	ruleKinds["bptemplates"] = &ruleKind{
-		title: "Breakpoint Templates", add: "New Template",
-		about: "Requests and responses to apply at a breakpoint: answer a paused request at once, or replace what was paused.",
-		empty: "No templates yet", hint: "Add one here, or save a paused request or response as one.",
-		columns: []ui.TableColumn{{Title: "Name", Width: 200}, {Title: "Kind", Width: 90}, {Title: "Message"}},
-		ids:     func(d *rules.Data) []string { return ids(d.BreakpointTemplates, tplID) },
+		title: locales.BreakpointTemplates, add: locales.NewTemplate,
+		about: locales.RequestsAndResponsesToApplyAt,
+		empty: locales.NoTemplatesYet, hint: locales.AddOneHereOrSaveA,
+		columns: func() []ui.TableColumn {
+			return []ui.TableColumn{{Title: locales.ColumnName(), Width: 200}, {Title: locales.Kind(), Width: 90}, {Title: locales.Message()}}
+		},
+		ids: func(d *rules.Data) []string { return ids(d.BreakpointTemplates, tplID) },
 		cells: func(d *rules.Data, id string) []string {
 			r := byID(d.BreakpointTemplates, id, tplID)
 			first, _, _ := strings.Cut(strings.TrimSpace(r.Raw), "\n")
-			return []string{r.Name, map[bool]string{true: "Response", false: "Request"}[r.Response], first}
+			return []string{r.Name, map[bool]string{true: locales.PhaseResponse(), false: locales.PhaseRequest()}[r.Response], first}
 		},
 		fresh: func() any {
 			return &rules.BreakpointTemplate{ID: rules.NewID(), Response: true, Raw: "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\n  \n}"}
@@ -48,15 +51,17 @@ func init() {
 		remove: func(d *rules.Data, id string) { d.BreakpointTemplates = dropByID(d.BreakpointTemplates, id, tplID) },
 	}
 	ruleKinds["blockedapps"] = &ruleKind{
-		title: "Blocked Apps", add: "Block an App",
-		about:   "Stop an app's traffic, whatever it asks for, as a flow's Block this App. The Block List's switch turns these off too.",
-		hint:    "Add one here, or from a flow's menu › Block this App.",
-		columns: []ui.TableColumn{{Title: "App", Width: 180}, {Title: "Bundle Identifier"}, {Title: "Action", Width: 140}},
+		title: locales.BlockedApps, add: locales.BlockAnApp,
+		about: locales.StopAnAppsTrafficWhateverIt,
+		hint:  locales.AddOneHereOrFromA,
+		columns: func() []ui.TableColumn {
+			return []ui.TableColumn{{Title: locales.App(), Width: 180}, {Title: locales.BundleIdentifier()}, {Title: locales.ColumnAction(), Width: 140}}
+		},
 		ids:     func(d *rules.Data) []string { return ids(d.BlockedApps, appID) },
 		enabled: func(d *rules.Data, id string) *bool { return &byID(d.BlockedApps, id, appID).Enabled },
 		cells: func(d *rules.Data, id string) []string {
 			r := byID(d.BlockedApps, id, appID)
-			return []string{r.AppName, cmp.Or(r.BundleID, "(by name)"), map[string]string{rules.BlockDisplay: "Block & Display", rules.BlockHide: "Block & Hide"}[cmp.Or(r.Action, rules.BlockDisplay)]}
+			return []string{r.AppName, cmp.Or(r.BundleID, locales.ByName()), map[string]string{rules.BlockDisplay: locales.BlockAndDisplay(), rules.BlockHide: locales.BlockAndHide()}[cmp.Or(r.Action, rules.BlockDisplay)]}
 		},
 		fresh:  func() any { return &rules.AppRule{ID: rules.NewID(), Enabled: true, Action: rules.BlockDisplay} },
 		copyOf: func(d *rules.Data, id string) any { return clone(byID(d.BlockedApps, id, appID)) },
@@ -65,10 +70,12 @@ func init() {
 		remove: func(d *rules.Data, id string) { d.BlockedApps = dropByID(d.BlockedApps, id, appID) },
 	}
 	ruleKinds["protobuf"] = &ruleKind{
-		title: "Protobuf", add: "New Rule", noun: "Protobuf Rule",
-		about:   "Decode matching flows' protobuf bodies as their message types, from the .proto files or descriptor sets imported.",
-		hint:    "Add one here, or choose a message type on a protobuf body.",
-		columns: []ui.TableColumn{{Title: "Name", Width: 150}, {Title: "Matching Rule"}, {Title: "Request", Width: 150}, {Title: "Response", Width: 150}},
+		title: locales.Protobuf, add: locales.NewRule, noun: locales.ProtobufRule,
+		about: locales.DecodeMatchingFlowsProtobufBodiesAs,
+		hint:  locales.AddOneHereOrChooseA,
+		columns: func() []ui.TableColumn {
+			return []ui.TableColumn{{Title: locales.ColumnName(), Width: 150}, {Title: locales.ColumnMatchingRule()}, {Title: locales.PhaseRequest(), Width: 150}, {Title: locales.PhaseResponse(), Width: 150}}
+		},
 		ids:     func(d *rules.Data) []string { return ids(d.Protobuf, pbID) },
 		enabled: func(d *rules.Data, id string) *bool { return &byID(d.Protobuf, id, pbID).Enabled },
 		matcher: func(d *rules.Data, id string) *rules.Matcher { return &byID(d.Protobuf, id, pbID).Matcher },
@@ -86,15 +93,17 @@ func init() {
 		remove: func(d *rules.Data, id string) { d.Protobuf = dropByID(d.Protobuf, id, pbID) },
 	}
 	ruleKinds["servercerts"] = &ruleKind{
-		title: "Custom Server Certificates", add: "Add Certificate",
-		about: "Present a server's own certificate to clients for its hosts, instead of one ProxyGo signs: for apps that pin it.",
-		empty: "No certificates yet", hint: "Add a server's certificate and its key, as PEM files or a .p12.",
-		columns: []ui.TableColumn{{Title: "Hosts", Width: 220}, {Title: "Certificate"}, {Title: "Format", Width: 80}},
+		title: locales.CustomServerCertificates, add: locales.AddCertificate,
+		about: locales.PresentAServersOwnCertificateTo,
+		empty: locales.NoCertificatesYet, hint: locales.AddAServersCertificateAndIts,
+		columns: func() []ui.TableColumn {
+			return []ui.TableColumn{{Title: locales.Hosts(), Width: 220}, {Title: locales.ColumnCertificate()}, {Title: locales.Format(), Width: 80}}
+		},
 		ids:     func(d *rules.Data) []string { return ids(d.ServerCerts, scID) },
 		enabled: func(d *rules.Data, id string) *bool { return &byID(d.ServerCerts, id, scID).Enabled },
 		cells: func(d *rules.Data, id string) []string {
 			r := byID(d.ServerCerts, id, scID)
-			hosts := cmp.Or(strings.Join(r.Hosts, ", "), "(the certificate's names)")
+			hosts := cmp.Or(strings.Join(r.Hosts, ", "), locales.TheCertificatesNames())
 			if r.P12Path != "" {
 				return []string{hosts, r.P12Path, "P12"}
 			}
@@ -111,16 +120,16 @@ func init() {
 			d.ServerCerts = dropByID(d.ServerCerts, id, scID)
 		},
 	}
-	windowSpecs["bptemplates"] = windowSpec{"Breakpoint Templates", 860, 600}
-	windowSpecs["blockedapps"] = windowSpec{"Blocked Apps", 760, 500}
-	windowSpecs["protobuf"] = windowSpec{"Protobuf", 900, 600}
-	windowSpecs["servercerts"] = windowSpec{"Custom Server Certificates", 820, 540}
+	windowSpecs["bptemplates"] = windowSpec{locales.BreakpointTemplates, 860, 600}
+	windowSpecs["blockedapps"] = windowSpec{locales.BlockedApps, 760, 500}
+	windowSpecs["protobuf"] = windowSpec{locales.Protobuf, 900, 600}
+	windowSpecs["servercerts"] = windowSpec{locales.CustomServerCertificates, 820, 540}
 }
 
 func templateTitle(r *rules.BreakpointTemplate) string {
 	first, _, _ := strings.Cut(strings.TrimSpace(r.Raw), "\n")
 	first = strings.TrimPrefix(strings.TrimPrefix(first, "HTTP/1.1 "), "HTTP/2 ")
-	return cmp.Or(shorten(strings.TrimSuffix(first, " HTTP/1.1"), 60), "Template")
+	return cmp.Or(shorten(strings.TrimSuffix(first, " HTTP/1.1"), 60), locales.Template())
 }
 
 func templateForm(a *App, c *ui.Context, t *toolState) string {
@@ -128,17 +137,17 @@ func templateForm(a *App, c *ui.Context, t *toolState) string {
 	r := t.draft.(*rules.BreakpointTemplate)
 	kind := map[bool]int{true: 1}[r.Response]
 	ui.Form(c, func() {
-		ui.Field(c, "Name", func() {
-			ui.TextInput(c, &r.Name).Placeholder("Named after its first line when empty").Label("Name").AutoFocus()
+		ui.Field(c, locales.ColumnName(), func() {
+			ui.TextInput(c, &r.Name).Placeholder(locales.NamedAfterItsFirstLineWhen()).Label(locales.ColumnName()).AutoFocus()
 		})
-		ui.Field(c, "Kind", func() {
-			if ui.Segmented(c, &kind, "Request", "Response").Label("Template kind").AlignSelf(ui.Start).Changed() {
+		ui.Field(c, locales.Kind(), func() {
+			if ui.Segmented(c, &kind, locales.PhaseRequest(), locales.PhaseResponse()).Label(locales.TemplateKind()).AlignSelf(ui.Start).Changed() {
 				r.Response = kind == 1
 				if text := strings.TrimSpace(t.body.Buffer.String()); text == "" || strings.HasPrefix(text, "HTTP/") != r.Response {
 					t.body.Buffer.Set(map[bool]string{true: "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\n  \n}", false: "POST /path HTTP/1.1\nContent-Type: application/json\n\n{\n  \n}"}[r.Response])
 				}
 			}
-		}).Description(map[bool]string{true: "At a paused request, answers it without the server; at a paused response, replaces it.", false: "Replaces a paused request. A path keeps the request's scheme and host."}[r.Response])
+		}).Description(map[bool]string{true: locales.AtAPausedRequestAnswersIt(), false: locales.ReplacesAPausedRequestAPath()}[r.Response])
 	})
 	ui.Column(c).FillWidth().Height(260).Radius(6).Border(1, p.border).Clip().Children(func() {
 		editor.View(c.Key("template"), t.body).Fill()
@@ -154,27 +163,28 @@ func templateForm(a *App, c *ui.Context, t *toolState) string {
 
 func blockedAppForm(a *App, c *ui.Context, t *toolState) string {
 	r := t.draft.(*rules.AppRule)
-	action := map[string]string{rules.BlockDisplay: "Block & Display (answer 403)", rules.BlockHide: "Block & Hide (drop the connection)"}[cmp.Or(r.Action, rules.BlockDisplay)]
+	display, hide := locales.BlockAndDisplayAnswer403(), locales.BlockAndHideDropTheConnection()
+	action := map[string]string{rules.BlockDisplay: display, rules.BlockHide: hide}[cmp.Or(r.Action, rules.BlockDisplay)]
 	var seen []string
 	for name := range a.sourceTree().apps {
 		seen = append(seen, name)
 	}
 	slices.Sort(seen)
 	ui.Form(c, func() {
-		ui.Field(c, "App", func() {
-			ui.Autocomplete(c, &r.AppName, seen).Placeholder("Safari").Label("App name").AutoFocus()
+		ui.Field(c, locales.App(), func() {
+			ui.Autocomplete(c, &r.AppName, seen).Placeholder("Safari").Label(locales.AppName()).AutoFocus()
 		})
-		ui.Field(c, "Bundle Identifier", func() {
-			ui.TextInput(c, &r.BundleID).Placeholder("com.apple.Safari (optional)").Label("Bundle identifier")
-		}).Description("With one, the app is blocked whatever its process is called; without, by its name.")
-		ui.Field(c, "Action", func() {
-			if ui.Select(c, &action, []string{"Block & Display (answer 403)", "Block & Hide (drop the connection)"}).Label("Action").Changed() {
-				r.Action = map[bool]string{true: rules.BlockHide, false: rules.BlockDisplay}[strings.HasPrefix(action, "Block & Hide")]
+		ui.Field(c, locales.BundleIdentifier(), func() {
+			ui.TextInput(c, &r.BundleID).Placeholder(locales.ComAppleSafariOptional()).Label(locales.BundleIdentifierLabel())
+		}).Description(locales.WithOneTheAppIsBlocked())
+		ui.Field(c, locales.ColumnAction(), func() {
+			if ui.Select(c, &action, []string{display, hide}).Label(locales.ColumnAction()).Changed() {
+				r.Action = map[bool]string{true: rules.BlockHide, false: rules.BlockDisplay}[action == hide]
 			}
 		})
 	})
 	if strings.TrimSpace(r.AppName) == "" && strings.TrimSpace(r.BundleID) == "" {
-		return "Enter the app's name or bundle identifier."
+		return locales.EnterTheAppsNameOrBundle()
 	}
 	return ""
 }
@@ -182,7 +192,7 @@ func blockedAppForm(a *App, c *ui.Context, t *toolState) string {
 func protobufForm(a *App, c *ui.Context, t *toolState) string {
 	r := t.draft.(*rules.ProtobufRule)
 	invalid := a.matcherForm(c, t, &r.Name, &r.Matcher)
-	const raw = "Raw fields"
+	raw := locales.RawFields()
 	types := append([]string{raw}, a.schemas.Messages()...)
 	picker := func(label string, v *string) {
 		choice := cmp.Or(*v, raw)
@@ -196,48 +206,48 @@ func protobufForm(a *App, c *ui.Context, t *toolState) string {
 			}
 		}
 	}
-	payloads := []string{"Automatic", "Single message", "Length-delimited messages", "gRPC frames"}
+	payloads := []string{locales.PayloadAutomatic(), locales.SingleMessage(), locales.LengthDelimitedMessages(), locales.GRPCFrames()}
 	values := []string{"", "single", "delimited", "grpc"}
 	payload := payloads[max(slices.Index(values, r.Payload), 0)]
 	ui.Form(c, func() {
-		ui.Field(c, "Request Type", func() { picker("Request message type", &r.RequestType) })
-		ui.Field(c, "Response Type", func() { picker("Response message type", &r.ResponseType) }).Description("For WebSocket messages, the request type is what the client sends, the response type what the server does.")
-		ui.Field(c, "Payload", func() {
-			if ui.Select(c, &payload, payloads).Label("Payload").Width(240).Changed() {
+		ui.Field(c, locales.RequestType(), func() { picker(locales.RequestMessageType(), &r.RequestType) })
+		ui.Field(c, locales.ResponseType(), func() { picker(locales.ResponseMessageType(), &r.ResponseType) }).Description(locales.ForWebSocketMessagesTheRequestType())
+		ui.Field(c, locales.Payload(), func() {
+			if ui.Select(c, &payload, payloads).Label(locales.Payload()).Width(240).Changed() {
 				r.Payload = values[slices.Index(payloads, payload)]
 			}
-		}).Description("Automatic reads gRPC's frames for gRPC, and one message otherwise.")
+		}).Description(locales.AutomaticReadsGRPCsFramesForGRPC())
 	})
 	if len(a.schemas.Messages()) == 0 {
-		ui.Text(c, "Import a .proto file or a descriptor set to choose message types.").FontSize(11).TextColor(a.pal.yellow)
+		ui.Text(c, locales.ImportAProtoFileOrA()).FontSize(11).TextColor(a.pal.yellow)
 	}
 	return invalid
 }
 
 func protobufSchemasMenu(a *App, c *ui.Context) {
 	list := a.schemas.List()
-	if ui.Button(c, "Import Schema…").Tooltip("Import a .proto file, with the files it imports beside it, or a descriptor set (protoc --descriptor_set_out)").Clicked() {
+	if ui.Button(c, locales.ImportSchemaEllipsis()).Tooltip(locales.ImportAProtoFileWithThe()).Clicked() {
 		a.importSchema()
 	}
-	ui.MenuButton(c, fmt.Sprintf("Schemas (%d)", len(list)), func(m *ui.Menu) {
+	ui.MenuButton(c, locales.SchemasCount(len(list)), func(m *ui.Menu) {
 		if len(list) == 0 {
-			m.Item("No schemas imported").Disabled(true)
+			m.Item(locales.NoSchemasImported()).Disabled(true)
 		}
 		for _, s := range list {
 			m.Submenu(s.Name, func(m *ui.Menu) {
 				m.Item(s.Source).Disabled(true)
-				m.Item("Imported " + s.Imported.Format(time.DateTime)).Disabled(true)
+				m.Item(locales.ImportedAt(s.Imported)).Disabled(true)
 				m.Separator()
-				if m.Item("Remove").Chosen() {
+				if m.Item(locales.Remove()).Chosen() {
 					if err := a.schemas.Remove(s.ID); err != nil {
-						a.toast("Cannot remove " + s.Name + ": " + err.Error())
+						a.toast(locales.CannotRemove(s.Name, err.Error()))
 					}
 				}
 			})
 		}
 		if err := a.schemas.Err(); err != nil {
 			m.Separator()
-			m.Item("The schemas do not link: " + err.Error()).Disabled(true)
+			m.Item(locales.TheSchemasDoNotLink(err.Error())).Disabled(true)
 		}
 	})
 }
@@ -246,10 +256,10 @@ func (a *App) importSchema() {
 	parent := a.windows["protobuf"]
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Parent: parent, Title: "Import a Protobuf Schema", Multiple: true,
+			Parent: parent, Title: locales.ImportAProtobufSchema(), Multiple: true,
 			Filters: []mygo.FileFilter{
-				{Name: "Protobuf Schemas", Extensions: []string{"proto", "desc", "pb", "binpb", "protoset"}},
-				{Name: "All Files", Extensions: []string{"*"}},
+				{Name: locales.ProtobufSchemas(), Extensions: []string{"proto", "desc", "pb", "binpb", "protoset"}},
+				{Name: locales.AllFiles(), Extensions: []string{"*"}},
 			},
 		})
 		if err != nil {
@@ -259,10 +269,10 @@ func (a *App) importSchema() {
 			s, err := a.schemas.Import(path)
 			a.do(func() {
 				if err != nil {
-					a.toast("Cannot import " + filepath.Base(path) + ": " + err.Error())
+					a.toast(locales.CannotImport(filepath.Base(path), err.Error()))
 					return
 				}
-				a.toast("Imported " + s.Name)
+				a.toast(locales.ImportedName(s.Name))
 			})
 		}
 	}()
@@ -272,8 +282,8 @@ func serverCertForm(a *App, c *ui.Context, t *toolState) string {
 	r := t.draft.(*rules.ServerCertificate)
 	hosts := strings.Join(r.Hosts, ", ")
 	return a.certFields(c, t, "servercerts", func() {
-		ui.Field(c, "Hosts", func() {
-			if ui.TextInput(c, &hosts).Placeholder("api.example.com, *.example.com").Label("Hosts").AutoFocus().Changed() {
+		ui.Field(c, locales.Hosts(), func() {
+			if ui.TextInput(c, &hosts).Placeholder("api.example.com, *.example.com").Label(locales.Hosts()).AutoFocus().Changed() {
 				r.Hosts = nil
 				for h := range strings.SplitSeq(hosts, ",") {
 					if h = strings.TrimSpace(h); h != "" {
@@ -281,7 +291,7 @@ func serverCertForm(a *App, c *ui.Context, t *toolState) string {
 					}
 				}
 			}
-		}).Description("Empty uses the names the certificate is valid for.")
+		}).Description(locales.EmptyUsesTheNamesTheCertificate())
 	}, &r.CertPath, &r.KeyPath, &r.P12Path, &r.PasswordRef, r.Hosts)
 }
 
@@ -290,8 +300,8 @@ func (a *App) certFields(c *ui.Context, t *toolState, kind string, lead func(), 
 	format := min(t.tab, 1)
 	ui.Form(c, func() {
 		lead()
-		ui.Field(c, "Format", func() {
-			if ui.Segmented(c, &format, "PEM Files", "PKCS#12 (.p12)").Label("Format").AlignSelf(ui.Start).Changed() {
+		ui.Field(c, locales.Format(), func() {
+			if ui.Segmented(c, &format, locales.PEMFiles(), "PKCS#12 (.p12)").Label(locales.Format()).AlignSelf(ui.Start).Changed() {
 				t.tab = format
 			}
 		})
@@ -299,35 +309,35 @@ func (a *App) certFields(c *ui.Context, t *toolState, kind string, lead func(), 
 			ui.Field(c, label, func() {
 				ui.Row(c).Gap(6).Children(func() {
 					ui.TextInput(c, v).Placeholder(placeholder).Label(label).Grow(1)
-					if ui.Button(c, "Choose…").Clicked() {
+					if ui.Button(c, locales.ChooseEllipsis()).Clicked() {
 						a.choosePath(kind, false, func(p string) { *v = p })
 					}
 				})
 			})
 		}
 		if format == 0 {
-			file("Certificate", "server.pem, the chain after the certificate", certPath)
-			file("Private Key", "server-key.pem, if not in the certificate file", keyPath)
+			file(locales.Certificate(), locales.ServerPEMTheChainAfterThe(), certPath)
+			file(locales.PrivateKey(), locales.ServerKeyPEMIfNotIn(), keyPath)
 			return
 		}
-		file("Bundle", "server.p12", p12Path)
-		ui.Field(c, "Password", func() {
-			placeholder := "The bundle's password"
+		file(locales.Bundle(), "server.p12", p12Path)
+		ui.Field(c, locales.Password(), func() {
+			placeholder := locales.TheBundlesPassword()
 			if *ref != "" {
-				placeholder = "Kept in the keychain; type to change it"
+				placeholder = locales.KeptInTheKeychainTypeTo()
 			}
-			ui.TextInput(c, &t.secret).Placeholder(placeholder).Label("Bundle password").Password()
-		}).Description("Kept in the macOS keychain, never in ProxyGo's rules or their exports.")
+			ui.TextInput(c, &t.secret).Placeholder(placeholder).Label(locales.BundlePassword()).Password()
+		}).Description(locales.KeptInTheMacOSKeychainNever())
 	})
 	if format == 0 {
 		*p12Path = ""
 		if *certPath == "" {
-			return "Choose the certificate."
+			return locales.ChooseTheCertificate()
 		}
 	} else {
 		*certPath, *keyPath = "", ""
 		if *p12Path == "" {
-			return "Choose the bundle."
+			return locales.ChooseTheBundle()
 		}
 	}
 	cert, err := a.loadDraftCert(t, *certPath, *keyPath, *p12Path, *ref)
@@ -341,14 +351,14 @@ func (a *App) certFields(c *ui.Context, t *toolState, kind string, lead func(), 
 	}
 	if leaf != nil {
 		names := strings.Join(leaf.DNSNames, ", ")
-		ui.Text(c, fmt.Sprintf("%s · valid for %s · until %s", leaf.Subject.CommonName, cmp.Or(names, "no names"), leaf.NotAfter.Format(time.DateOnly))).FontSize(11).TextColor(p.muted).Wrap()
+		ui.Text(c, locales.CertificateSummary(leaf.Subject.CommonName, cmp.Or(names, locales.NoNames()), leaf.NotAfter)).FontSize(11).TextColor(p.muted).Wrap()
 		for _, h := range hosts {
 			if !certs.Covers(cert, strings.TrimPrefix(h, "*.")) && leaf.VerifyHostname(h) != nil {
-				ui.Text(c, "The certificate is not valid for "+h+": clients will refuse it.").FontSize(11).TextColor(p.yellow).Wrap()
+				ui.Text(c, locales.CertificateNotValidFor(h)).FontSize(11).TextColor(p.yellow).Wrap()
 			}
 		}
 		if time.Now().After(leaf.NotAfter) {
-			ui.Text(c, "The certificate has expired.").FontSize(11).TextColor(p.yellow)
+			ui.Text(c, locales.TheCertificateHasExpired()).FontSize(11).TextColor(p.yellow)
 		}
 	}
 	return ""
@@ -382,15 +392,15 @@ func pemError(err error) error {
 	case err == nil:
 		return nil
 	case strings.Contains(err.Error(), "may have been switched"):
-		return errors.New("the certificate file holds a key: the two files may be switched")
+		return errors.New(locales.TheCertificateFileHoldsAKey())
 	case strings.Contains(err.Error(), "found a certificate rather than a key"):
-		return errors.New("the certificate file holds no private key: choose the key's file")
+		return errors.New(locales.TheCertificateFileHoldsNoPrivate())
 	case strings.Contains(err.Error(), "does not match"):
-		return errors.New("the private key is not the certificate's")
+		return errors.New(locales.ThePrivateKeyIsNotThe())
 	case strings.Contains(err.Error(), "failed to find any PEM data in key"):
-		return errors.New("the key file holds no PEM private key")
+		return errors.New(locales.TheKeyFileHoldsNoPEM())
 	case strings.Contains(err.Error(), "failed to find any PEM data in certificate"), strings.Contains(err.Error(), "failed to find certificate PEM data"):
-		return errors.New("the certificate file holds no PEM certificate")
+		return errors.New(locales.TheCertificateFileHoldsNoPEM())
 	}
 	return err
 }
@@ -434,9 +444,12 @@ func (a *App) folderField(c *ui.Context, inUse []string, folder *string) string 
 	}
 	slices.Sort(folders)
 	_, problem := rules.CleanFolder(*folder)
-	ui.Field(c, "Folder", func() {
-		ui.Autocomplete(c, folder, folders).Placeholder("None").Label("Folder")
-	}).Description(fmt.Sprintf("Group rules, as API/v1, to switch them on and off together. Folders nest %d deep.", rules.MaxFolderDepth)).Error(problem)
+	if problem != "" {
+		problem = locales.FoldersNestDeepAtMost(rules.MaxFolderDepth)
+	}
+	ui.Field(c, locales.ColumnFolder(), func() {
+		ui.Autocomplete(c, folder, folders).Placeholder(locales.None()).Label(locales.ColumnFolder())
+	}).Description(locales.FolderDescription(rules.MaxFolderDepth)).Error(problem)
 	return problem
 }
 

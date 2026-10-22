@@ -12,6 +12,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
+	"proxygo/locales"
 )
 
 func remoteIP(f *flow.Flow) string {
@@ -71,14 +72,14 @@ func (a *App) deviceSheetView(c *ui.Context) {
 	}
 	ui.Modal(c, &s.open, func() {
 		ui.Column(c).Width(sheetWidth(c, 400)).Gap(10).Children(func() {
-			ui.Text(c, "Set Device Nickname").FontSize(15).FontWeight(650)
-			ui.Text(c, "ProxyGo shows "+s.ip+" by this name. Leave it empty to show the address.").TextColor(a.pal.muted).Wrap()
-			in := ui.TextInput(c, &s.name).Placeholder("My iPhone").Label("Nickname").AutoFocus()
+			ui.Text(c, locales.SetDeviceNickname()).FontSize(15).FontWeight(650)
+			ui.Text(c, locales.ProxyGoShowsByThisName(s.ip)).TextColor(a.pal.muted).Wrap()
+			in := ui.TextInput(c, &s.name).Placeholder(locales.MyIPhone()).Label(locales.Nickname()).AutoFocus()
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() || in.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
+				if ui.PrimaryButton(c, locales.Save()).Clicked() || in.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 					a.setDeviceName(s.ip, s.name)
 					s.open = false
 				}
@@ -88,18 +89,18 @@ func (a *App) deviceSheetView(c *ui.Context) {
 }
 
 func (a *App) deviceMenu(m *ui.Menu, ip string) {
-	if m.Item("Set Device Nickname…").Chosen() {
+	if m.Item(locales.SetDeviceNicknameEllipsis()).Chosen() {
 		a.renameDevice(ip)
 	}
 	key := "app:" + ip
-	if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[a.pinned(key)]).Chosen() {
+	if m.Item(map[bool]string{true: locales.Unpin(), false: locales.Pin()}[a.pinned(key)]).Chosen() {
 		a.togglePin(key)
 	}
-	if m.Item("Copy IP Address").Chosen() {
-		a.copy(ip, "the address")
+	if m.Item(locales.CopyIPAddress()).Chosen() {
+		a.copy(ip, locales.CopiedTheAddress())
 	}
 	m.Separator()
-	if m.Item("Delete All from " + a.deviceName(ip)).Chosen() {
+	if m.Item(locales.DeleteAllFrom(a.deviceName(ip))).Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return remoteIP(f) == ip })
 	}
 }
@@ -120,13 +121,13 @@ func (a *App) askDevice(ip string) bool {
 	a.win.FlashFrame(true)
 	r, err := mygo.Dialog.Message(mygo.MessageOptions{
 		Type:    mygo.MessageQuestion,
-		Message: "Allow " + name + " to connect to ProxyGo?",
-		Detail:  "A device on your network wants to send its traffic through ProxyGo. Allow only devices you know.\n\nYou can change who may connect in Settings › Proxy › Access Control.",
-		Buttons: []string{"Allow", "Deny"}, DefaultButton: 1, CancelButton: 1,
+		Message: locales.AllowToConnect(name),
+		Detail:  locales.ADeviceOnYourNetworkWants(),
+		Buttons: []string{locales.Allow(), locales.Deny()}, DefaultButton: 1, CancelButton: 1,
 	})
 	a.win.FlashFrame(false)
 	if err != nil || r.Button != 0 {
-		a.do(func() { a.toast("Turned " + name + " away until ProxyGo quits") })
+		a.do(func() { a.toast(locales.TurnedAway(name)) })
 		return false
 	}
 	a.rules.Update(func(d *rules.Data) {
@@ -134,6 +135,6 @@ func (a *App) askDevice(ip string) bool {
 			d.Access.IPs = append(d.Access.IPs, ip)
 		}
 	})
-	a.do(func() { a.toast("Allowed " + name + ": it is on the Access Control list") })
+	a.do(func() { a.toast(locales.AllowedOnList(name)) })
 	return true
 }

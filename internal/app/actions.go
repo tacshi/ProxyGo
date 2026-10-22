@@ -22,6 +22,7 @@ import (
 	"proxygo/internal/rules"
 	"proxygo/internal/session"
 	"proxygo/internal/settings"
+	"proxygo/locales"
 )
 
 func (a *App) setPaused(p bool) {
@@ -32,9 +33,9 @@ func (a *App) setPaused(p bool) {
 		a.menu.pause.SetChecked(p)
 	}
 	if p {
-		a.toast("Recording paused: traffic still flows, unrecorded")
+		a.toast(locales.RecordingPausedTrafficStillFlowsUnrecorded())
 	} else {
-		a.toast("Recording")
+		a.toast(locales.GroupRecording())
 	}
 }
 
@@ -83,7 +84,7 @@ func (a *App) deleteMatching(match func(*flow.Flow) bool) {
 		}
 	}
 	a.deleteFlows(fs)
-	a.toast("Deleted " + plural(len(fs), "flow", "flows"))
+	a.toast(locales.DeletedFlows(len(fs)))
 	if s, ok := parseSource(a.section); ok && !slices.ContainsFunc(a.store.Snapshot(), s.match) {
 		a.section = "all"
 	}
@@ -144,9 +145,9 @@ func (a *App) togglePin(key string) {
 	a.updateSettings(func(s *settings.Settings) { pinned = s.TogglePin(key) })
 	name := strings.SplitN(key, ":", 2)[1]
 	if pinned {
-		a.toast("Pinned " + name)
+		a.toast(locales.PinnedName(name))
 	} else {
-		a.toast("Unpinned " + name)
+		a.toast(locales.UnpinnedName(name))
 		if a.section == "pin:"+key {
 			a.section = "all"
 		}
@@ -160,7 +161,7 @@ func (a *App) copyURLs(fs []*flow.Flow) {
 	for i, f := range fs {
 		urls[i] = f.URL()
 	}
-	a.copy(strings.Join(urls, "\n"), "URL")
+	a.copy(strings.Join(urls, "\n"), locales.CopiedURL())
 }
 
 func (a *App) copyCode(fs []*flow.Flow, language string) {
@@ -172,7 +173,7 @@ func (a *App) copyCode(fs []*flow.Flow, language string) {
 	for i, f := range fs {
 		parts[i] = gen(codegen.Of(f))
 	}
-	a.copy(strings.Join(parts, "\n\n"), "as "+cmp.Or(language, "cURL"))
+	a.copy(strings.Join(parts, "\n\n"), locales.CopiedAs(cmp.Or(language, "cURL")))
 	if language != "" && language != a.set.CodeLanguage {
 		a.updateSettings(func(s *settings.Settings) { s.CodeLanguage = language })
 	}
@@ -192,11 +193,11 @@ func (a *App) copyRaw(f *flow.Flow, response bool) {
 func (a *App) repeatFlows(fs []*flow.Flow) {
 	for _, f := range fs {
 		if f.IsTunnel() {
-			a.toast("An encrypted tunnel cannot be repeated: enable SSL Proxying for " + f.Host())
+			a.toast(locales.AnEncryptedTunnelCannotBeRepeated(f.Host()))
 			continue
 		}
 		if f.IsWebSocket() {
-			a.toast("A WebSocket request cannot be repeated: open it in Compose to connect again")
+			a.toast(locales.AWebSocketRequestCannotBeRepeated())
 			continue
 		}
 		msg := proxy.MessageOf(f)
@@ -204,7 +205,7 @@ func (a *App) repeatFlows(fs []*flow.Flow) {
 			nf, err := a.proxy.Replay(context.Background(), msg)
 			a.do(func() {
 				if err != nil {
-					a.toast("Repeat: " + err.Error())
+					a.toast(locales.RepeatError(err.Error()))
 					return
 				}
 				if a.set.AutoSelect && nf != nil {
@@ -255,9 +256,9 @@ func (a *App) runAdvancedRepeat() {
 		a.do(func() {
 			a.repeat.running = false
 			if failed > 0 {
-				a.toast(fmt.Sprintf("Repeated %d requests, %d failed", total, failed))
+				a.toast(locales.RepeatedRequestsFailed(total, failed))
 			} else {
-				a.toast(fmt.Sprintf("Repeated %s", plural(total, "request", "requests")))
+				a.toast(locales.RepeatedRequests(total))
 			}
 		})
 	}()
@@ -275,9 +276,9 @@ func (a *App) enableSSL(host string, all bool) {
 	}
 	a.rules.Update(func(d *rules.Data) { includeSSL(d, target) })
 	if all {
-		a.toast("SSL Proxying is on for every domain: new connections are decrypted")
+		a.toast(locales.SSLProxyingIsOnForEvery())
 	} else {
-		a.toast("SSL Proxying is on for " + host + ": repeat the request or reload to see it")
+		a.toast(locales.SSLProxyingIsOnForHost(host))
 	}
 }
 
@@ -306,7 +307,7 @@ func (a *App) enableSSLForClient(f *flow.Flow) {
 			includeSSL(d, host)
 		}
 	})
-	a.toast("SSL Proxying is on for " + plural(len(hosts), "domain", "domains") + " of " + a.clientLabel(f) + ": reload to see them")
+	a.toast(locales.SSLProxyingIsOnForDomainsOf(len(hosts), a.clientLabel(f)))
 }
 
 func (a *App) excludeSSL(host string) {
@@ -319,7 +320,7 @@ func (a *App) excludeSSL(host string) {
 		}
 		d.SSL.Rules = append(d.SSL.Rules, &rules.SSLRule{ID: rules.NewID(), Enabled: true, List: "exclude", Target: host, TargetType: "domain"})
 	})
-	a.toast("ProxyGo no longer decrypts " + host)
+	a.toast(locales.ProxyGoNoLongerDecrypts(host))
 }
 
 func (a *App) mapLocalFromFlow(f *flow.Flow) {
@@ -354,7 +355,7 @@ func (a *App) breakpointFromFlow(f *flow.Flow) {
 		d.Breakpoints = append(d.Breakpoints, r)
 		delete(d.DisabledTools, rules.ToolBreakpoint)
 	})
-	a.toast("Breakpoint added for " + shorten(ruleURL(f), 60))
+	a.toast(locales.BreakpointAddedFor(shorten(ruleURL(f), 60)))
 	a.toolState("breakpoint").pick = r.ID
 	a.openWindow("breakpoint")
 }
@@ -376,9 +377,9 @@ func (a *App) blockFromFlow(f *flow.Flow, allow bool) {
 		}
 	})
 	if allow {
-		a.toast("Added to the Allow List")
+		a.toast(locales.AddedToTheAllowList())
 	} else {
-		a.toast("Added to the Block List")
+		a.toast(locales.AddedToTheBlockList())
 	}
 }
 
@@ -410,16 +411,16 @@ func (a *App) setNoCaching(on bool) {
 }
 
 func (a *App) openSessionDialog(add bool) {
-	title := "Open Session"
+	title := locales.OpenSession()
 	if add {
-		title = "Import"
+		title = locales.Import()
 	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: a.win, Title: title,
 			Filters: []mygo.FileFilter{
-				{Name: "Sessions and Archives", Extensions: session.Extensions},
-				{Name: "All Files", Extensions: []string{"*"}},
+				{Name: locales.SessionsAndArchives(), Extensions: session.Extensions},
+				{Name: locales.AllFiles(), Extensions: []string{"*"}},
 			},
 		})
 		if err != nil || len(paths) == 0 {
@@ -433,20 +434,20 @@ func (a *App) openPath(path string, add bool) {
 	b, err := session.Open(path)
 	a.do(func() {
 		if errors.Is(err, fs.ErrNotExist) {
-			a.toast(filepath.Base(path) + " is no longer there: it was moved or deleted")
+			a.toast(locales.IsNoLongerThere(filepath.Base(path)))
 			a.updateSettings(func(s *settings.Settings) { s.RemoveRecent(path) })
 			a.refreshRecentMenu()
 			return
 		}
 		if err != nil {
-			a.toast("Cannot open " + filepath.Base(path) + ": " + err.Error())
+			a.toast(locales.CannotOpen(filepath.Base(path), err.Error()))
 			return
 		}
 		a.loadBundle(b, path, add)
 		a.updateSettings(func(s *settings.Settings) { s.AddRecent(path) })
 		a.refreshRecentMenu()
 		if add {
-			a.toast("Imported " + plural(len(b.Flows), "flow", "flows"))
+			a.toast(locales.ImportedFlows(len(b.Flows)))
 		} else if a.win != nil {
 			a.win.SetTitle("ProxyGo — " + filepath.Base(path))
 		}
@@ -463,8 +464,8 @@ func (a *App) saveSessionDialog(selection bool) {
 	icons := a.iconStrings()
 	go func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Parent: a.win, Title: "Save Session", DefaultPath: filepath.Join(dir, name),
-			Filters: []mygo.FileFilter{{Name: "ProxyGo Session", Extensions: []string{strings.TrimPrefix(session.Ext, ".")}}},
+			Parent: a.win, Title: locales.SaveSession(), DefaultPath: filepath.Join(dir, name),
+			Filters: []mygo.FileFilter{{Name: locales.ProxyGoSession(), Extensions: []string{strings.TrimPrefix(session.Ext, ".")}}},
 		})
 		if err != nil || path == "" {
 			return
@@ -472,7 +473,7 @@ func (a *App) saveSessionDialog(selection bool) {
 		err = session.Write(path, flows, icons)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot save: " + err.Error())
+				a.toast(locales.CannotSave(err.Error()))
 				return
 			}
 			if !selection {
@@ -480,7 +481,7 @@ func (a *App) saveSessionDialog(selection bool) {
 			}
 			a.updateSettings(func(s *settings.Settings) { s.AddRecent(path) })
 			a.refreshRecentMenu()
-			a.toast("Saved " + filepath.Base(path))
+			a.toast(locales.SavedName(filepath.Base(path)))
 		})
 	}()
 }
@@ -492,10 +493,10 @@ func (a *App) saveSession() {
 	}
 	path := a.sessionPath
 	if err := session.Write(path, a.store.Snapshot(), a.iconStrings()); err != nil {
-		a.toast("Cannot save: " + err.Error())
+		a.toast(locales.CannotSave(err.Error()))
 		return
 	}
-	a.toast("Saved " + filepath.Base(path))
+	a.toast(locales.SavedName(filepath.Base(path)))
 }
 
 func (a *App) lastDir() string {
@@ -536,8 +537,8 @@ func (a *App) exportFlows(format string, flows []*flow.Flow, name string) {
 	}
 	go func() {
 		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Parent: a.win, Title: "Export as " + ef.title, DefaultPath: filepath.Join(dir, name+"."+ef.ext),
-			Filters: []mygo.FileFilter{{Name: ef.title, Extensions: []string{ext}}},
+			Parent: a.win, Title: locales.ExportAsTitle(exportTitle(format)), DefaultPath: filepath.Join(dir, name+"."+ef.ext),
+			Filters: []mygo.FileFilter{{Name: exportTitle(format), Extensions: []string{ext}}},
 		})
 		if err != nil || path == "" {
 			return
@@ -545,10 +546,10 @@ func (a *App) exportFlows(format string, flows []*flow.Flow, name string) {
 		err = session.Export(path, format, flows, icons)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot export: " + err.Error())
+				a.toast(locales.CannotExport(err.Error()))
 				return
 			}
-			a.toast("Exported " + plural(len(flows), "flow", "flows") + " to " + filepath.Base(path))
+			a.toast(locales.ExportedFlowsTo(len(flows), filepath.Base(path)))
 		})
 	}()
 }
@@ -561,16 +562,16 @@ func (a *App) exportCode(f *flow.Flow, language string) {
 	ext := codegen.Extension(language)
 	dir := a.lastDir()
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, Title: "Export " + language, DefaultPath: filepath.Join(dir, "request."+ext)})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, Title: locales.ExportLanguage(language), DefaultPath: filepath.Join(dir, "request."+ext)})
 		if err != nil || path == "" {
 			return
 		}
 		err = os.WriteFile(path, []byte(code+"\n"), 0o644)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot save: " + err.Error())
+				a.toast(locales.CannotSave(err.Error()))
 			} else {
-				a.toast("Saved " + filepath.Base(path))
+				a.toast(locales.SavedName(filepath.Base(path)))
 			}
 		})
 	}()
@@ -588,7 +589,7 @@ func (a *App) blockApp(f *flow.Flow, hide bool) {
 		d.BlockedApps = append(d.BlockedApps, r)
 		delete(d.DisabledTools, rules.ToolBlock)
 	})
-	a.toast("Blocked " + cmp.Or(a.clientLabel(f), r.BundleID) + "'s traffic: see Tools › Blocked Apps")
+	a.toast(locales.BlockedAppsTraffic(cmp.Or(a.clientLabel(f), r.BundleID)))
 }
 
 func (a *App) exportBody(f *flow.Flow, response bool) {
@@ -605,16 +606,16 @@ func (a *App) exportBody(f *flow.Flow, response bool) {
 	}
 	dir := a.lastDir()
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, Title: "Save Body", DefaultPath: filepath.Join(dir, name)})
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, Title: locales.SaveBody(), DefaultPath: filepath.Join(dir, name)})
 		if err != nil || path == "" {
 			return
 		}
 		err = os.WriteFile(path, body, 0o644)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot save: " + err.Error())
+				a.toast(locales.CannotSave(err.Error()))
 			} else {
-				a.toast("Saved " + filepath.Base(path))
+				a.toast(locales.SavedName(filepath.Base(path)))
 			}
 		})
 	}()
@@ -624,7 +625,7 @@ func (a *App) exportRules() {
 	dir := a.lastDir()
 	parent := a.dialogParent("settings")
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: "Export Settings",
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: locales.ExportSettings(),
 			DefaultPath: filepath.Join(dir, "ProxyGo Settings "+time.Now().Format("2006-01-02")+".json"),
 			Filters:     []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}}})
 		if err != nil || path == "" {
@@ -633,9 +634,9 @@ func (a *App) exportRules() {
 		err = a.rules.Export(path)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot export: " + err.Error())
+				a.toast(locales.CannotExport(err.Error()))
 			} else {
-				a.toast("Exported the tools' rules and settings")
+				a.toast(locales.ExportedTheToolsRulesAndSettings())
 			}
 		})
 	}()
@@ -644,21 +645,21 @@ func (a *App) exportRules() {
 func (a *App) importRules() {
 	parent := a.dialogParent("settings")
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: "Import Settings",
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: locales.ImportSettings(),
 			Filters: []mygo.FileFilter{{Name: "JSON", Extensions: []string{"json"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		r, err := confirm(parent, "Replace every rule and setting with the file's?", "The current rules are replaced. Export them first to keep a copy.", "Replace", "Cancel")
+		r, err := confirm(parent, locales.ReplaceEveryRuleAndSettingWith(), locales.TheCurrentRulesAreReplacedExport(), locales.Replace(), locales.Cancel())
 		if err != nil || r != 0 {
 			return
 		}
 		err = a.rules.Import(paths[0])
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot import: " + err.Error())
+				a.toast(locales.CannotImportError(err.Error()))
 			} else {
-				a.toast("Imported settings")
+				a.toast(locales.ImportedSettings())
 			}
 		})
 	}()
@@ -682,7 +683,7 @@ func confirm(parent *mygo.Window, message, detail string, buttons ...string) (in
 func confirmDelete(parent *mygo.Window, message, detail string) (bool, error) {
 	r, err := mygo.Dialog.Message(mygo.MessageOptions{
 		Parent: parent, Type: mygo.MessageWarning, Message: message, Detail: detail,
-		Buttons: []string{"Delete", "Cancel"}, DefaultButton: 1, CancelButton: 1,
+		Buttons: []string{locales.Delete(), locales.Cancel()}, DefaultButton: 1, CancelButton: 1,
 	})
 	return r.Button == 0, err
 }
@@ -701,11 +702,11 @@ func (a *App) installCertificate() {
 			a.certTrusted = trusted
 			switch {
 			case err != nil:
-				a.toast("Cannot install the certificate: " + err.Error())
+				a.toast(locales.CannotInstallTheCertificate(err.Error()))
 			case trusted:
-				a.toast("The ProxyGo certificate is installed and trusted")
+				a.toast(locales.TheProxyGoCertificateIsInstalledAnd())
 			default:
-				a.toast("The certificate is installed, but macOS does not trust it yet: choose Check Again in a moment")
+				a.toast(locales.TheCertificateIsInstalledButMacOS())
 			}
 		})
 	}()
@@ -720,9 +721,9 @@ func (a *App) checkTrust() {
 		a.do(func() {
 			a.certTrusted = trusted
 			if trusted {
-				a.toast("macOS trusts the ProxyGo certificate")
+				a.toast(locales.MacOSTrustsTheProxyGoCertificate())
 			} else {
-				a.toast("macOS does not trust the ProxyGo certificate yet")
+				a.toast(locales.MacOSDoesNotTrustTheProxyGo())
 			}
 		})
 	}()
@@ -750,9 +751,9 @@ func (a *App) uninstallCertificate() {
 		a.do(func() {
 			a.certTrusted = trusted
 			if err != nil {
-				a.toast("Cannot remove the certificate: " + err.Error())
+				a.toast(locales.CannotRemoveTheCertificate(err.Error()))
 			} else {
-				a.toast("Removed the ProxyGo certificate from the keychain")
+				a.toast(locales.RemovedTheProxyGoCertificateFromThe())
 			}
 		})
 	}()
@@ -764,7 +765,7 @@ func (a *App) regenerateCertificate() {
 	}
 	parent := a.dialogParent("certificate")
 	go func() {
-		r, err := confirm(parent, "Reset the ProxyGo certificate?", "A new root certificate replaces the current one. Every device must install and trust the new one.", "Reset", "Cancel")
+		r, err := confirm(parent, locales.ResetTheProxyGoCertificate(), locales.ANewRootCertificateReplacesThe(), locales.Reset(), locales.Cancel())
 		if err != nil || r != 0 {
 			return
 		}
@@ -772,11 +773,11 @@ func (a *App) regenerateCertificate() {
 		err = a.certs.Regenerate()
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot reset: " + err.Error())
+				a.toast(locales.CannotReset(err.Error()))
 				return
 			}
 			a.certTrusted = false
-			a.toast("Made a new root certificate: install it again")
+			a.toast(locales.MadeANewRootCertificateInstall())
 		})
 	}()
 }
@@ -788,7 +789,7 @@ func (a *App) exportCertificate(format string) {
 	ext := map[string]string{"pem": "pem", "der": "cer", "key": "key", "p12": "p12"}[format]
 	parent := a.dialogParent("certificate")
 	go func() {
-		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: "Export Certificate",
+		path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: parent, Title: locales.ExportCertificate(),
 			DefaultPath: filepath.Join(a.lastDir(), "ProxyGo CA."+ext)})
 		if err != nil || path == "" {
 			return
@@ -801,11 +802,11 @@ func (a *App) exportCertificate(format string) {
 		a.do(func() {
 			switch {
 			case err != nil:
-				a.toast("Cannot export: " + err.Error())
+				a.toast(locales.CannotExport(err.Error()))
 			case format == "p12":
-				a.toast("Exported " + filepath.Base(path) + " (password: proxygo)")
+				a.toast(locales.ExportedWithPassword(filepath.Base(path)))
 			default:
-				a.toast("Exported " + filepath.Base(path))
+				a.toast(locales.ExportedName(filepath.Base(path)))
 			}
 		})
 	}()
@@ -817,10 +818,10 @@ func parseURL(s string) (*url.URL, error) {
 		return nil, err
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, errors.New("the URL must start with http:// or https://")
+		return nil, errors.New(locales.TheURLMustStartWithHTTP())
 	}
 	if u.Host == "" {
-		return nil, errors.New("the URL has no host")
+		return nil, errors.New(locales.TheURLHasNoHost())
 	}
 	return u, nil
 }

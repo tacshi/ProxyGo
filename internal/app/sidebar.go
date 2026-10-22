@@ -12,6 +12,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/saved"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 const maxSidebarItems = 300
@@ -28,26 +29,26 @@ func (a *App) sidebar(c *ui.Context) {
 	ui.Column(c).FillHeight().Background(p.sidebar).Children(func() {
 		ui.Row(c).Height(max(bar.Height, 52)).FillWidth().Padding(0, 8, 0, bar.Left+14).AlignItems(ui.Center).DragWindow().Children(func() {
 			ui.Spacer(c)
-			if plainIconButton(c, "sidebar", "Hide Sidebar (⌥⌘S)", 15, p.text2, p.hover).Clicked() {
+			if plainIconButton(c, "sidebar", locales.HideSidebarS(), 15, p.text2, p.hover).Clicked() {
 				a.setSidebar(false)
 			}
 		})
 		sb := ui.Sidebar(c, &a.section, func() {
-			ui.SidebarSection(c, "Capture", nil, func() {
-				ui.SidebarItem(c, "overview", icon("chart"), "Overview")
-				ui.SidebarItem(c, "all", icon("list"), "All").Children(func() {
+			ui.SidebarSection(c, locales.Capture(), nil, func() {
+				ui.SidebarItem(c, "overview", icon("chart"), locales.Overview())
+				ui.SidebarItem(c, "all", icon("list"), locales.All()).Children(func() {
 					if len(a.flows) > 0 {
 						ui.Badge(c, fmt.Sprint(len(a.flows)))
 					}
 				})
 			})
-			ui.SidebarSection(c, "Favorites", nil, func() {
-				ui.SidebarItem(c, "saved", icon("bookmark"), "Saved").Children(func() {
+			ui.SidebarSection(c, locales.Favorites(), nil, func() {
+				ui.SidebarItem(c, "saved", icon("bookmark"), locales.Saved()).Children(func() {
 					if n := countSaved(a.flows); n > 0 {
 						ui.Badge(c, fmt.Sprint(n))
 					}
 				})
-				ui.SidebarItem(c, "pinned", icon("pin"), "Pinned Domains")
+				ui.SidebarItem(c, "pinned", icon("pin"), locales.PinnedDomains())
 				for _, key := range a.set.Pinned {
 					kind, name, _ := strings.Cut(key, ":")
 					ic, n, label := "globe", domains[name], name
@@ -64,14 +65,14 @@ func (a *App) sidebar(c *ui.Context) {
 						}
 					})
 					it.ContextMenu(func(m *ui.Menu) {
-						if m.Item("Unpin").Chosen() {
+						if m.Item(locales.Unpin()).Chosen() {
 							a.togglePin(key)
 						}
 					})
 				}
 			})
 			if len(tree.devices) > 0 {
-				ui.SidebarSection(c, fmt.Sprintf("Remote Devices (%d)", len(tree.devices)), &a.devicesOpen, func() {
+				ui.SidebarSection(c, locales.RemoteDevicesCount(len(tree.devices)), &a.devicesOpen, func() {
 					for _, ip := range store.ByCount(tree.devices) {
 						var only func(source) bool
 						if q != "" && !match(ip) && !match(a.deviceName(ip)) {
@@ -86,7 +87,7 @@ func (a *App) sidebar(c *ui.Context) {
 				})
 			}
 			if folders := a.folders.Folders(); len(folders) > 0 {
-				ui.SidebarSection(c, "Saved Folders", &a.foldersOpen, func() {
+				ui.SidebarSection(c, locales.SavedFolders(), &a.foldersOpen, func() {
 					for _, f := range folders {
 						if match(f.Path) {
 							a.folderItem(c, f)
@@ -94,7 +95,7 @@ func (a *App) sidebar(c *ui.Context) {
 					}
 				})
 			}
-			ui.SidebarSection(c, fmt.Sprintf("Apps (%d)", len(tree.apps)), &a.appsOpen, func() {
+			ui.SidebarSection(c, locales.AppsCount(len(tree.apps)), &a.appsOpen, func() {
 				for i, name := range store.ByCount(tree.apps) {
 					if i >= maxSidebarItems {
 						break
@@ -111,7 +112,7 @@ func (a *App) sidebar(c *ui.Context) {
 					a.sourceItem(c, tree, app, 0, tree.apps[name], only)
 				}
 			})
-			ui.SidebarSection(c, fmt.Sprintf("Domains (%d)", len(tree.domains)), &a.domainsOpen, func() {
+			ui.SidebarSection(c, locales.DomainsCount(len(tree.domains)), &a.domainsOpen, func() {
 				for i, host := range store.ByCount(tree.domains) {
 					if i >= maxSidebarItems {
 						break
@@ -122,7 +123,7 @@ func (a *App) sidebar(c *ui.Context) {
 					a.sourceItem(c, tree, source{host: host}, 0, tree.domains[host], nil)
 				}
 			})
-		}).Grow(1).Label("Sources").Bind(&a.sidebarHandle)
+		}).Grow(1).Label(locales.Sources()).Bind(&a.sidebarHandle)
 		if sb.Shortcut(0, ui.KeyRight) {
 			if a.srcExpandable[a.section] {
 				a.expanded[a.section] = true
@@ -137,7 +138,7 @@ func (a *App) sidebar(c *ui.Context) {
 		}
 		ui.Divider(c)
 		ui.Row(c).Height(footerHeight).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
-			box, _ := a.searchField(c, "sidebarFilter", &a.sidebarQuery, "Filter Domain or App", "Filter domains and apps")
+			box, _ := a.searchField(c, "sidebarFilter", &a.sidebarQuery, locales.FilterDomainOrApp(), locales.FilterDomainsAndApps())
 			box.Grow(1).Background(p.bg)
 		})
 	})
@@ -191,7 +192,7 @@ func (a *App) sourceItem(c *ui.Context, tree *sourceTree, s source, depth, count
 			if a.section == id && a.sidebarHandle.Focused(c) {
 				color = p.onAccent
 			}
-			name := map[bool]string{true: "Collapse ", false: "Expand "}[open] + label
+			name := map[bool]string{true: locales.CollapseName(label), false: locales.ExpandName(label)}[open]
 			arrow := ui.ButtonBase(c).Absolute().Left(indent - 17).Top(0).Bottom(0).Width(16).Label(name).KeepFocus()
 			arrow.Children(func() {
 				ui.Column(c).Fill().Center().Children(func() {
@@ -241,48 +242,48 @@ func (a *App) sourceMenu(m *ui.Menu, s source) {
 	}
 	if s.path == "" {
 		key := "host:" + s.host
-		if m.Item(map[bool]string{true: "Unpin ", false: "Pin "}[a.pinned(key)] + s.host).Chosen() {
+		if m.Item(map[bool]string{true: locales.UnpinValue(s.host), false: locales.PinHost(s.host)}[a.pinned(key)]).Chosen() {
 			a.togglePin(key)
 		}
-		if !a.rules.Current().ShouldMITM(s.host) && m.Item("Enable SSL Proxying for "+s.host).Chosen() {
+		if !a.rules.Current().ShouldMITM(s.host) && m.Item(locales.EnableSSLProxyingForHost(s.host)).Chosen() {
 			a.enableSSL(s.host, false)
 		}
 	}
-	if m.Item("Copy URL Pattern").Chosen() {
-		a.copy(s.pattern(), "the URL pattern")
+	if m.Item(locales.CopyURLPattern()).Chosen() {
+		a.copy(s.pattern(), locales.CopiedTheURLPattern())
 	}
-	m.Submenu("Tools", func(m *ui.Menu) {
+	m.Submenu(locales.Tools(), func(m *ui.Menu) {
 		probe := &flow.Flow{Request: &flow.Request{Scheme: "https", Host: s.host, FullPath: "https://" + s.pattern(), Method: flow.Method{Name: "GET"}}}
-		if m.Item("Breakpoint…").Chosen() {
+		if m.Item(locales.BreakpointEllipsis()).Chosen() {
 			a.breakpointFromFlow(probe)
 		}
-		if m.Item("Map Remote…").Chosen() {
+		if m.Item(locales.MapRemoteEllipsis()).Chosen() {
 			a.mapRemoteFromFlow(probe)
 		}
-		if m.Item("Network Conditions…").Chosen() {
+		if m.Item(locales.NetworkConditionsEllipsis()).Chosen() {
 			a.throttleFromFlow(probe)
 		}
-		if m.Item("Block List").Chosen() {
+		if m.Item(locales.ToolBlockList()).Chosen() {
 			a.blockFromFlow(probe, false)
 		}
 	})
 	m.Separator()
 	where := s.host + s.path
 	if s.app != "" {
-		where += " in " + s.app
+		where = locales.PathInApp(where, s.app)
 	}
-	if m.Item("Delete All from " + where).Chosen() {
+	if m.Item(locales.DeleteAllFrom(where)).Chosen() {
 		a.deleteMatching(s.match)
 	}
 }
 
 func (a *App) appMenu(m *ui.Menu, name string) {
 	key := "app:" + name
-	if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[a.pinned(key)]).Chosen() {
+	if m.Item(map[bool]string{true: locales.Unpin(), false: locales.Pin()}[a.pinned(key)]).Chosen() {
 		a.togglePin(key)
 	}
-	if m.Item("Copy Name").Chosen() {
-		a.copy(name, "the app's name")
+	if m.Item(locales.CopyNameLabel()).Chosen() {
+		a.copy(name, locales.CopiedTheAppsName())
 	}
 	var some, secure *flow.Flow
 	for _, f := range a.flows {
@@ -297,49 +298,49 @@ func (a *App) appMenu(m *ui.Menu, name string) {
 	if secure != nil || some != nil && name != "System" {
 		m.Separator()
 	}
-	if secure != nil && m.Item("Enable SSL Proxying for Its Domains").Chosen() {
+	if secure != nil && m.Item(locales.EnableSSLProxyingForItsDomains()).Chosen() {
 		a.enableSSLForClient(secure)
 	}
-	if some != nil && name != "System" && m.Item("Block this App").Chosen() {
+	if some != nil && name != "System" && m.Item(locales.BlockThisAppLabel()).Chosen() {
 		a.blockApp(some, false)
 	}
 	m.Separator()
-	if m.Item("Delete All from " + name).Chosen() {
+	if m.Item(locales.DeleteAllFrom(name)).Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return clientName(f) == name })
 	}
 }
 
 func (a *App) domainMenu(m *ui.Menu, host string) {
 	key := "host:" + host
-	if m.Item(map[bool]string{true: "Unpin", false: "Pin"}[a.pinned(key)]).Chosen() {
+	if m.Item(map[bool]string{true: locales.Unpin(), false: locales.Pin()}[a.pinned(key)]).Chosen() {
 		a.togglePin(key)
 	}
-	if m.Item("Copy Domain").Chosen() {
-		a.copy(host, "the domain")
+	if m.Item(locales.CopyDomain()).Chosen() {
+		a.copy(host, locales.CopiedTheDomain())
 	}
 	m.Separator()
 	if a.rules.Current().ShouldMITM(host) {
-		m.Item("SSL Proxying Is On").Disabled(true)
-	} else if m.Item("Enable SSL Proxying").Chosen() {
+		m.Item(locales.SSLProxyingIsOn()).Disabled(true)
+	} else if m.Item(locales.EnableSSLProxying()).Chosen() {
 		a.enableSSL(host, false)
 	}
-	m.Submenu("Tools", func(m *ui.Menu) {
+	m.Submenu(locales.Tools(), func(m *ui.Menu) {
 		probe := &flow.Flow{Request: &flow.Request{Scheme: "https", Host: host, FullPath: "https://" + host + "/*", Method: flow.Method{Name: "GET"}}}
-		if m.Item("Map Remote…").Chosen() {
+		if m.Item(locales.MapRemoteEllipsis()).Chosen() {
 			a.mapRemoteFromFlow(probe)
 		}
-		if m.Item("Breakpoint…").Chosen() {
+		if m.Item(locales.BreakpointEllipsis()).Chosen() {
 			a.breakpointFromFlow(probe)
 		}
-		if m.Item("Network Conditions…").Chosen() {
+		if m.Item(locales.NetworkConditionsEllipsis()).Chosen() {
 			a.throttleFromFlow(probe)
 		}
-		if m.Item("Block List").Chosen() {
+		if m.Item(locales.ToolBlockList()).Chosen() {
 			a.blockFromFlow(probe, false)
 		}
 	})
 	m.Separator()
-	if m.Item("Delete All from " + host).Chosen() {
+	if m.Item(locales.DeleteAllFrom(host)).Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return strings.EqualFold(f.Host(), host) })
 	}
 }
@@ -357,7 +358,7 @@ func countSaved(flows []*flow.Flow) int {
 func (a *App) folderItem(c *ui.Context, f saved.Folder) {
 	p := a.pal
 	depth := float32(strings.Count(f.Path, "/"))
-	b := ui.ButtonBase(c.Key("folder:"+f.Path)).Label("Open "+f.Path).Padding(5, 8, 5, 8+depth*14).Radius(6).FillWidth()
+	b := ui.ButtonBase(c.Key("folder:"+f.Path)).Label(locales.OpenWindowNamed(f.Path)).Padding(5, 8, 5, 8+depth*14).Radius(6).FillWidth()
 	if b.Hovered() {
 		b.Background(p.hover)
 	}
@@ -374,20 +375,20 @@ func (a *App) folderItem(c *ui.Context, f saved.Folder) {
 		a.openFolder(f.Path)
 	}
 	b.ContextMenu(func(m *ui.Menu) {
-		if m.Item("Open in New Window").Chosen() {
+		if m.Item(locales.OpenInNewWindow()).Chosen() {
 			a.openFolder(f.Path)
 		}
-		if m.Item("Import into Session").Chosen() {
+		if m.Item(locales.ImportIntoSession()).Chosen() {
 			a.importFolder(f.Path)
 		}
-		if m.Item("Export as HAR…").Chosen() {
+		if m.Item(locales.ExportAsHAREllipsis()).Chosen() {
 			a.exportFolder(f.Path)
 		}
 		m.Separator()
-		if m.Item("Rename…").Chosen() {
+		if m.Item(locales.RenameEllipsis()).Chosen() {
 			a.folderSave = folderSheet{open: true, path: f.Path, rename: f.Path}
 		}
-		if m.Item("Delete " + f.Name() + "…").Chosen() {
+		if m.Item(locales.DeleteNameEllipsis(f.Name())).Chosen() {
 			a.deleteFolder(f)
 		}
 	})
