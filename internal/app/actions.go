@@ -566,7 +566,7 @@ func (a *App) exportCode(f *flow.Flow, language string) {
 		if err != nil || path == "" {
 			return
 		}
-		err = os.WriteFile(path, []byte(code+"\n"), 0o644)
+		err = os.WriteFile(path, []byte(code+"\n"), 0o644) // #nosec G306 -- a file the user saves, readable like any other they save.
 		a.do(func() {
 			if err != nil {
 				a.toast(locales.CannotSave(err.Error()))
@@ -610,7 +610,7 @@ func (a *App) exportBody(f *flow.Flow, response bool) {
 		if err != nil || path == "" {
 			return
 		}
-		err = os.WriteFile(path, body, 0o644)
+		err = os.WriteFile(path, body, 0o644) // #nosec G306 -- a file the user saves, readable like any other they save.
 		a.do(func() {
 			if err != nil {
 				a.toast(locales.CannotSave(err.Error()))
@@ -688,8 +688,8 @@ func confirmDelete(parent *mygo.Window, message, detail string) (bool, error) {
 	return r.Button == 0, err
 }
 
-func revealInFinder(path string) { _ = exec.Command("open", "-R", path).Start() }
-func openPath(path string)       { _ = exec.Command("open", path).Start() }
+func revealInFinder(path string) { _ = exec.Command("open", "-R", path).Start() } // #nosec G204 -- open gets the path as an argument, not shell text.
+func openPath(path string)       { _ = exec.Command("open", path).Start() }       // #nosec G204 -- open gets the path as an argument, not shell text.
 
 func (a *App) installCertificate() {
 	if a.certs == nil {

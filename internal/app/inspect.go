@@ -338,7 +338,7 @@ func (a *App) tlsView(c *ui.Context, f *flow.Flow) {
 		})
 		for i, cert := range t.Certificates {
 			ui.Column(c.Key(title+fmt.Sprint(i))).FillWidth().Padding(10, 12).Gap(3).Radius(6).Background(p.surface).Children(func() {
-				label := locales.Certificate()
+				var label string
 				switch {
 				case i == 0:
 					label = locales.Leaf()

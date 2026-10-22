@@ -158,7 +158,7 @@ func toolIcon(name string) string {
 
 var primaryIP = sync.OnceValue(func() string {
 	if conn, err := net.Dial("udp", "8.8.8.8:80"); err == nil {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok && addr.IP != nil {
 			return addr.IP.String()
 		}
@@ -212,7 +212,7 @@ func parseHeaderLines(s string) flow.Header {
 }
 
 func residentMemory() int64 {
-	out, err := exec.Command("ps", "-o", "rss=", "-p", strconv.Itoa(os.Getpid())).Output()
+	out, err := exec.Command("ps", "-o", "rss=", "-p", strconv.Itoa(os.Getpid())).Output() // #nosec G204 -- ps, asked about this process.
 	if err != nil {
 		return 0
 	}

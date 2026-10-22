@@ -39,7 +39,7 @@ func resolver(src string) (*Resolver, *int) {
 
 func TestFindProxy(t *testing.T) {
 	r, fetches := resolver(script)
-	for rawURL, want := range map[string]string{
+	for rawURL, want := range map[string]string{ // #nosec G101 -- PAC test URLs, not credentials.
 		"http://printer/":                        "DIRECT",
 		"http://nas.local/x":                     "DIRECT",
 		"https://a.corp.example.com/x":           "PROXY corp-proxy:8080; DIRECT",

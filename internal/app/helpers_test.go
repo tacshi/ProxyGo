@@ -38,7 +38,7 @@ func newEcho(t *testing.T) string {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "%s %s %s", r.Method, r.URL.RequestURI(), b)
+		_, _ = fmt.Fprintf(w, "%s %s %s", r.Method, r.URL.RequestURI(), b)
 	}))
 	t.Cleanup(ts.Close)
 	return ts.URL

@@ -21,7 +21,7 @@ func shortDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
 
@@ -66,7 +66,7 @@ func TestSocket(t *testing.T) {
 		t.Error("a second server took the socket of a running one")
 	}
 	var st control.Status
-	json.Unmarshal(call(t, path, "status", nil), &st)
+	_ = json.Unmarshal(call(t, path, "status", nil), &st)
 	if st.Version != "test" || st.Port != 9090 || !st.Recording || st.HTTPVersion != rules.PreferHTTP2 {
 		t.Errorf("%+v", st)
 	}
@@ -87,7 +87,7 @@ func TestSocket(t *testing.T) {
 	call(t, path, "tool.set", map[string]any{"tool": "map-remote", "on": false})
 	call(t, path, "tool.set", map[string]any{"tool": "no-caching", "on": true})
 	var tools map[string]bool
-	json.Unmarshal(call(t, path, "tool.status", nil), &tools)
+	_ = json.Unmarshal(call(t, path, "tool.status", nil), &tools)
 	if tools["map-remote"] || !tools["no-caching"] || !tools["breakpoint"] {
 		t.Errorf("tools %v", tools)
 	}
@@ -95,11 +95,11 @@ func TestSocket(t *testing.T) {
 	h.S.Upsert(&flow.Flow{UniqueID: "B", Request: &flow.Request{Host: "cdn.dev", FullPath: "https://cdn.dev/b", Method: flow.Method{Name: "GET"}}})
 	out := filepath.Join(t.TempDir(), "s.har")
 	var exported map[string]any
-	json.Unmarshal(call(t, path, "session.export", map[string]any{"path": out, "format": "har", "domains": []string{"api.dev"}}), &exported)
+	_ = json.Unmarshal(call(t, path, "session.export", map[string]any{"path": out, "format": "har", "domains": []string{"api.dev"}}), &exported)
 	if exported["flows"] != float64(1) {
 		t.Errorf("export %v", exported)
 	}
-	if b, _ := os.ReadFile(out); !strings.Contains(string(b), "https://api.dev/a") || strings.Contains(string(b), "cdn.dev") {
+	if b, _ := os.ReadFile(out); !strings.Contains(string(b), "https://api.dev/a") || strings.Contains(string(b), "cdn.dev") { // #nosec G304 -- a file of the test's directory.
 		t.Errorf("har %s", b)
 	}
 	call(t, path, "session.clear", nil)
@@ -151,7 +151,7 @@ func TestRuleCalls(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "rules.json")
-	control.Call(h, "rules.create", mustJSON(map[string]any{"tool": "block-list", "rule": map[string]any{"url": "ads.example.com"}}))
+	_, _ = control.Call(h, "rules.create", mustJSON(map[string]any{"tool": "block-list", "rule": map[string]any{"url": "ads.example.com"}}))
 	if _, err := control.Call(h, "rules.export", mustJSON(map[string]any{"path": path, "enabledOnly": true})); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestRuleCalls(t *testing.T) {
 	if len(d.MapLocal) != 0 || len(d.Block) != 1 {
 		t.Errorf("imported %d map local, %d block", len(d.MapLocal), len(d.Block))
 	}
-	control.Call(other, "rules.import", mustJSON(map[string]any{"path": path}))
+	_, _ = control.Call(other, "rules.import", mustJSON(map[string]any{"path": path}))
 	if d := other.R.Current(); len(d.Block) != 2 || d.Block[0].ID == d.Block[1].ID {
 		t.Errorf("append twice: %+v", d.Block)
 	}

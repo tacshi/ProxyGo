@@ -107,10 +107,10 @@ func (s *Schemas) Import(path string) (Schema, error) {
 	if err != nil {
 		return Schema{}, err
 	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
+	if err := os.MkdirAll(s.dir, 0o750); err != nil {
 		return Schema{}, err
 	}
-	if err := os.WriteFile(s.setPath(sc.ID), b, 0o644); err != nil {
+	if err := os.WriteFile(s.setPath(sc.ID), b, 0o600); err != nil {
 		return Schema{}, err
 	}
 	s.mu.Lock()
@@ -145,7 +145,7 @@ func (s *Schemas) saveLocked() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.index(), b, 0o644)
+	return os.WriteFile(s.index(), b, 0o600)
 }
 
 func (s *Schemas) link() {
@@ -367,7 +367,7 @@ func GRPCFrames(b []byte) ([]Frame, error) {
 }
 
 func readSet(path string) (*descriptorpb.FileDescriptorSet, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- a descriptor set the user imports, or ProxyGo's copy of one.
 	if err != nil {
 		return nil, err
 	}

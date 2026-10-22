@@ -150,7 +150,7 @@ func (r *Resolver) fetch(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s", resp.Status)
 	}
@@ -275,7 +275,7 @@ var myIP = func() string {
 	if err != nil {
 		return "127.0.0.1"
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	return c.LocalAddr().(*net.UDPAddr).IP.String()
 }
 

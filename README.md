@@ -171,6 +171,8 @@ signing key; `scripts/build-mac-release.sh --help` explains each one.
 ```sh
 CGO_ENABLED=0 go test ./...
 go tool mygo vet .
+make check   # gofmt, golangci-lint, govulncheck and gosec
+make clean   # remove build/ and the binaries go build leaves
 ```
 
 ### Data

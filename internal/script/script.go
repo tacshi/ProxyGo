@@ -596,7 +596,7 @@ func (e *Engine) installRuntime(vm *goja.Runtime, name string) {
 		return string(b), err
 	})
 	_ = vm.Set("writeToFile", func(content, path string) error {
-		return os.WriteFile(expandHome(path), []byte(content), 0o644)
+		return os.WriteFile(expandHome(path), []byte(content), 0o644) // #nosec G306 -- a script writes the files its author asks for, like any program the user runs.
 	})
 	_ = vm.Set("btoa", func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) })
 	_ = vm.Set("atob", func(s string) (string, error) {
@@ -627,7 +627,7 @@ func httpJSON(method, u string, body any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	var out any
 	if json.Unmarshal(data, &out) == nil {

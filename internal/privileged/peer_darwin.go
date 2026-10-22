@@ -46,7 +46,7 @@ func ownCDHash() ([]byte, error) {
 		return nil, err
 	}
 	hash := make([]byte, cdhashLen)
-	if csops(int32(os.Getpid()), csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen) != 0 {
+	if csops(int32(os.Getpid()), csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen) != 0 { // #nosec G103 -- passes a buffer for the system call to fill.
 		return nil, errors.New("this copy of ProxyGo is not code signed")
 	}
 	return hash, nil
@@ -64,7 +64,7 @@ func peerOf(c *net.UnixConn) (peer, error) {
 	ok := false
 	if err := raw.Control(func(fd uintptr) {
 		size := uint32(unsafe.Sizeof(tok))
-		ok = getsockopt(int32(fd), unix.SOL_LOCAL, unix.LOCAL_PEERTOKEN, unsafe.Pointer(&tok), &size) == 0
+		ok = getsockopt(int32(fd), unix.SOL_LOCAL, unix.LOCAL_PEERTOKEN, unsafe.Pointer(&tok), &size) == 0 // #nosec G103 -- passes a buffer for the system call to fill.
 	}); err != nil {
 		return peer{}, err
 	}
@@ -73,15 +73,15 @@ func peerOf(c *net.UnixConn) (peer, error) {
 	}
 	pid := int32(tok[5])
 	var status uint32
-	if csopsAuditToken(pid, csOpsStatus, unsafe.Pointer(&status), unsafe.Sizeof(status), &tok) != 0 || status&csValid == 0 {
+	if csopsAuditToken(pid, csOpsStatus, unsafe.Pointer(&status), unsafe.Sizeof(status), &tok) != 0 || status&csValid == 0 { // #nosec G103 -- passes a buffer for the system call to fill.
 		return peer{}, errors.New("the peer's code signature is not valid")
 	}
 	hash := make([]byte, cdhashLen)
-	if csopsAuditToken(pid, csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen, &tok) != 0 {
+	if csopsAuditToken(pid, csOpsCDHash, unsafe.Pointer(&hash[0]), cdhashLen, &tok) != 0 { // #nosec G103 -- passes a buffer for the system call to fill.
 		return peer{}, errors.New("the peer has no code directory hash")
 	}
 	buf := make([]byte, 4096)
-	n := procPidpath(pid, unsafe.Pointer(&buf[0]), uint32(len(buf)))
+	n := procPidpath(pid, unsafe.Pointer(&buf[0]), uint32(len(buf))) // #nosec G103 -- passes a buffer for the system call to fill.
 	if n <= 0 {
 		return peer{}, errors.New("no path for the peer")
 	}

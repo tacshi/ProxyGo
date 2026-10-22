@@ -109,7 +109,7 @@ type Store struct {
 
 func Open(path string) *Store {
 	st := &Store{path: path, s: Defaults()}
-	if b, err := os.ReadFile(path); err == nil {
+	if b, err := os.ReadFile(path); err == nil { // #nosec G304 -- ProxyGo's own settings file.
 		_ = json.Unmarshal(b, &st.s)
 	}
 	st.s.normalize()
@@ -179,11 +179,11 @@ func (st *Store) Update(fn func(*Settings)) error {
 	if err != nil || path == "" {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

@@ -229,14 +229,14 @@ func ExportRules(s *rules.Store, path string, enabledOnly bool) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o644) // #nosec G306 -- rules exported to the path the user chose.
 }
 
 func ImportRules(s *rules.Store, path string, override bool) error {
 	if override {
 		return s.Import(path)
 	}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- the rules file the user imports.
 	if err != nil {
 		return err
 	}

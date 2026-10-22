@@ -94,7 +94,7 @@ func (a *App) externalDiff(tool string, l, r *flow.Flow) {
 			if err = os.WriteFile(lp, []byte(left), 0o600); err == nil {
 				if err = os.WriteFile(rp, []byte(right), 0o600); err == nil {
 					name := map[string]string{"filemerge": "opendiff", "kaleidoscope": "ksdiff"}[tool]
-					cmd := exec.Command(name, lp, rp)
+					cmd := exec.Command(name, lp, rp) // #nosec G204 -- opendiff or ksdiff, given two temporary files.
 					if err = cmd.Start(); err == nil {
 						go func() {
 							_ = cmd.Wait()

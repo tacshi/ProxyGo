@@ -232,7 +232,7 @@ func isText(mimeType string, body []byte) bool {
 }
 
 func ReadHAR(path string) ([]*flow.Flow, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- the HAR file the user imports.
 	if err != nil {
 		return nil, err
 	}

@@ -115,7 +115,7 @@ func TestSharedStateAndFiles(t *testing.T) {
 	e := New()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "body.json")
-	if err := os.WriteFile(file, []byte(`{"from":"file"}`), 0o644); err != nil {
+	if err := os.WriteFile(file, []byte(`{"from":"file"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	r := rule(`function onRequest(ctx, url, req) {

@@ -31,8 +31,6 @@ const (
 	bodyMultipart
 )
 
-var bodyKinds = []string{"Text", "JSON", "Form", "Multipart"}
-
 const maxFilePart = 64 << 20
 
 type partRow struct {
@@ -230,11 +228,11 @@ func (a *App) chooseFilePart(e *messageEditor, id int) {
 }
 
 func readCapped(path string, limit int64) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- a file the user picked for the request body.
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err

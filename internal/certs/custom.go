@@ -62,7 +62,7 @@ func (m *Manager) ImportRoot(certPEM, keyPEM []byte) error {
 	if err := os.WriteFile(m.keyPath, keyPEM, 0o600); err != nil {
 		return err
 	}
-	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil {
+	if err := os.WriteFile(m.certPath, certPEM, 0o644); err != nil { // #nosec G306 -- the public CA certificate, which other tools read.
 		return err
 	}
 	m.rootCert, m.rootKey, m.rootPEM = cert, key, certPEM
@@ -88,7 +88,7 @@ func (m *Manager) ImportRootP12(data []byte, password string) error {
 }
 
 func LoadP12(path, password string) (*tls.Certificate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- the PKCS #12 file the user imports.
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func run(name string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var out bytes.Buffer
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- security, run with fixed subcommands.
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()
 	return out.String(), err

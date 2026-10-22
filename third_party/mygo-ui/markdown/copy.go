@@ -6,9 +6,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/proxygoui"
 	"github.com/egoist/mygo/proxygoui/markdown/parser"
+	"github.com/egoist/mygo/transfer"
 )
 
 // Copying: as text, a view joins its paragraphs with blank lines, a code

@@ -299,7 +299,7 @@ func TestFlowContextMenu(t *testing.T) {
 	if a.selected != "A1" {
 		t.Fatalf("right click did not select the row: %q", a.selected)
 	}
-	tt.RightClick(url)
+	_ = tt.RightClick(url)
 	if err := tt.ChooseMenuItem("Highlight", "Green"); err != nil {
 		t.Fatal(err)
 	}
@@ -307,14 +307,14 @@ func TestFlowContextMenu(t *testing.T) {
 	if f, _ := a.store.Lookup("A1"); f.Highlight != "green" {
 		t.Fatal("highlight")
 	}
-	tt.RightClick(url)
-	tt.ChooseMenuItem("Save Request")
+	_ = tt.RightClick(url)
+	_ = tt.ChooseMenuItem("Save Request")
 	tt.Frame()
 	if f, _ := a.store.Lookup("A1"); !f.Saved || !tt.HasText("1") {
 		t.Fatal("save request")
 	}
-	tt.RightClick(url)
-	tt.ChooseMenuItem("Add Comment…")
+	_ = tt.RightClick(url)
+	_ = tt.ChooseMenuItem("Add Comment…")
 	tt.Frame()
 	if !a.comment.open || !tt.HasText("Comment") {
 		t.Fatal("comment sheet")
@@ -324,8 +324,8 @@ func TestFlowContextMenu(t *testing.T) {
 	if f, _ := a.store.Lookup("A1"); f.Comment != "look at this" {
 		t.Fatal("comment saved")
 	}
-	tt.RightClick(url)
-	tt.ChooseMenuItem("Delete 1 Flow")
+	_ = tt.RightClick(url)
+	_ = tt.ChooseMenuItem("Delete 1 Flow")
 	tt.Frame()
 	if _, ok := a.store.Lookup("A1"); ok {
 		t.Fatal("delete")

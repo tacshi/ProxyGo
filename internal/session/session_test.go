@@ -57,7 +57,7 @@ func TestBundleRoundTrip(t *testing.T) {
 	for _, f := range zr.File {
 		names[f.Name] = true
 	}
-	zr.Close()
+	_ = zr.Close()
 	for _, n := range []string{"SharedFlowStorage", "SourceListData", "AppIconStorage", "Overview"} {
 		if !names[n] {
 			t.Fatalf("missing %s", n)
@@ -94,7 +94,7 @@ func TestHARRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var doc map[string]any
-	raw, _ := os.ReadFile(path)
+	raw, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +140,8 @@ func TestCSV(t *testing.T) {
 	if err := WriteCSV(path, flows); err != nil {
 		t.Fatal(err)
 	}
-	f, _ := os.Open(path)
-	defer f.Close()
+	f, _ := os.Open(path) // #nosec G304 -- a file of the test's directory.
+	defer func() { _ = f.Close() }()
 	rows, err := csv.NewReader(f).ReadAll()
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestCharles(t *testing.T) {
 	"request":{"header":{"headers":[{"name":"Accept","value":"*/*"}]}},
 	"response":{"status":200,"header":{"headers":[{"name":"Content-Type","value":"text/plain"}]},"body":{"text":"aGVsbG8=","encoded":true}}},
 	{"status":"FAILED","method":"GET","scheme":"http","host":"down.dev","path":"/","errorMessage":"refused"}]`
-	os.WriteFile(path, []byte(doc), 0o644)
+	_ = os.WriteFile(path, []byte(doc), 0o600)
 	b, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -248,7 +248,7 @@ func TestHARWebSocketMessages(t *testing.T) {
 	if err := WriteHAR(path, []*flow.Flow{f}); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ := os.ReadFile(path)
+	raw, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if !strings.Contains(string(raw), `"_webSocketMessages"`) || !strings.Contains(string(raw), `"type": "send"`) && !strings.Contains(string(raw), `"type":"send"`) {
 		t.Fatalf("no WebSocket messages in %s", raw)
 	}

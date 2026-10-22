@@ -265,7 +265,7 @@ func (x *exchange) run(r *http.Request, body []byte, rest io.Reader) {
 		x.cond = c
 		f.IsUnderNetworkCondition = true
 		mark(f, "network", cmp.Or(c.Name, "Custom"))
-		if c.PacketLoss > 0 && rand.Float64()*100 < c.PacketLoss {
+		if c.PacketLoss > 0 && rand.Float64()*100 < c.PacketLoss { // #nosec G404 -- simulated packet loss needs no unpredictable numbers.
 			x.fail(fmt.Errorf("request dropped by Network Conditions (%s, %.0f%% loss)", cmp.Or(c.Name, "Custom"), c.PacketLoss))
 			return
 		}
@@ -288,7 +288,7 @@ func (x *exchange) run(r *http.Request, body []byte, rest io.Reader) {
 		x.fail(err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	x.serverTLS(resp.TLS)
 
 	needsBody := slices.ContainsFunc(scripts, func(r *rules.ScriptRule) bool { return r.OnResponse })
@@ -727,7 +727,7 @@ func mapLocal(m *rules.MapLocalRule, req *script.Request) (*script.Response, err
 				p = filepath.Join(p, "index.html")
 			}
 		}
-		body, err = os.ReadFile(p)
+		body, err = os.ReadFile(p) // #nosec G304 -- Map Local serves the file or folder the user's rule names.
 		if err != nil {
 			return nil, fmt.Errorf("ProxyGo Map Local: %w", err)
 		}

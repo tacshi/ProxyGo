@@ -63,7 +63,7 @@ func Read(path string) (*Bundle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("not a session file: %w", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	b := &Bundle{Icons: map[string]string{}}
 	for _, f := range zr.File {
@@ -111,7 +111,7 @@ func readZipFile(f *zip.File) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	return io.ReadAll(io.LimitReader(rc, 1<<30))
 }
 
@@ -184,7 +184,7 @@ func Write(path string, flows []*flow.Flow, icons map[string]string) error {
 }
 
 func writeAtomic(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
@@ -192,15 +192,15 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
+		_ = os.Remove(tmp.Name())
 		return err
 	}
-	_ = os.Chmod(tmp.Name(), 0o644)
+	_ = os.Chmod(tmp.Name(), 0o644) // #nosec G302 -- a saved session reads like any other file the user saves.
 	return os.Rename(tmp.Name(), path)
 }
 

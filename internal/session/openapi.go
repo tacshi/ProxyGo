@@ -68,7 +68,7 @@ func WriteOpenAPIHTML(path, title string, flows []*flow.Flow) error {
 		return err
 	}
 	var b strings.Builder
-	err = swaggerPage.Execute(&b, map[string]any{"Title": title, "Spec": template.JS(spec)})
+	err = swaggerPage.Execute(&b, map[string]any{"Title": title, "Spec": template.JS(spec)}) // #nosec G203 -- json.Marshal escapes <, > and &, so the spec cannot close the script.
 	if err != nil {
 		return err
 	}

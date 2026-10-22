@@ -70,9 +70,9 @@ func TestMapLocal(t *testing.T) {
 	ts := httptest.NewServer(echoServer())
 	defer ts.Close()
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log(1)"), 0o644)
-	os.MkdirAll(filepath.Join(dir, "static", "css"), 0o755)
-	os.WriteFile(filepath.Join(dir, "static", "css", "site.css"), []byte("body{}"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log(1)"), 0o600)
+	_ = os.MkdirAll(filepath.Join(dir, "static", "css"), 0o750)
+	_ = os.WriteFile(filepath.Join(dir, "static", "css", "site.css"), []byte("body{}"), 0o600)
 	e.update(func(d *rules.Data) {
 		d.MapLocal = append(d.MapLocal,
 			&rules.MapLocalRule{ID: "f", Enabled: true, Name: "file", Matcher: rules.Matcher{URL: ts.URL + "/app.js"}, Path: filepath.Join(dir, "app.js")},
@@ -108,7 +108,7 @@ func TestMapLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatal("method not matched")
 	}
@@ -116,7 +116,7 @@ func TestMapLocal(t *testing.T) {
 
 func TestMapRemote(t *testing.T) {
 	e := newEnv(t)
-	prod := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "prod") }))
+	prod := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "prod") }))
 	defer prod.Close()
 	staging := httptest.NewServer(echoServer())
 	defer staging.Close()
@@ -146,13 +146,13 @@ func TestScripting(t *testing.T) {
 	e := newEnv(t, func(o *Options) { o.Scripts = script.New() })
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
-	zw.Write([]byte(`{"items":[1,2]}`))
-	zw.Close()
+	_, _ = zw.Write([]byte(`{"items":[1,2]}`))
+	_ = zw.Close()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("X-Seen", r.Header.Get("X-Script"))
-		w.Write(gz.Bytes())
+		_, _ = w.Write(gz.Bytes())
 	}))
 	defer ts.Close()
 	e.update(func(d *rules.Data) {
@@ -169,7 +169,7 @@ func TestScripting(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.Header.Get("X-Seen") != "on" || resp.Header.Get("X-Res") != "on" {
 		t.Fatalf("headers %v", resp.Header)
 	}
@@ -222,7 +222,7 @@ func TestBreakpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if !strings.Contains(string(body), `"method":"PUT"`) || !strings.Contains(string(body), `"body":"edited request"`) || resp.Header.Get("X-Seen-Header") != "from breakpoint" {
 		t.Fatalf("request edits lost: %s %v", body, resp.Header)
 	}
@@ -261,20 +261,20 @@ func TestStreamingResponse(t *testing.T) {
 	next := make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		io.WriteString(w, "data: one\n\n")
+		_, _ = io.WriteString(w, "data: one\n\n")
 		w.(http.Flusher).Flush()
 		select {
 		case <-next:
 		case <-time.After(5 * time.Second):
 		}
-		io.WriteString(w, "data: two\n\n")
+		_, _ = io.WriteString(w, "data: two\n\n")
 	}))
 	defer ts.Close()
 	resp, err := e.client(false).Get(ts.URL + "/events")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	br := bufio.NewReader(resp.Body)
 	got := make(chan string, 1)
 	go func() {
@@ -312,10 +312,10 @@ func TestNetworkConditions(t *testing.T) {
 	payload := strings.Repeat("x", 20*1024)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/tiny" {
-			io.WriteString(w, "tiny")
+			_, _ = io.WriteString(w, "tiny")
 			return
 		}
-		io.WriteString(w, payload)
+		_, _ = io.WriteString(w, payload)
 	}))
 	defer ts.Close()
 	e.update(func(d *rules.Data) {
@@ -376,7 +376,7 @@ func TestNoCaching(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", `"abc"`)
 		w.Header().Set("X-Conditional", r.Header.Get("If-None-Match"))
-		io.WriteString(w, "fresh")
+		_, _ = io.WriteString(w, "fresh")
 	}))
 	defer ts.Close()
 	e.update(func(d *rules.Data) { d.NoCaching = true })
@@ -386,7 +386,7 @@ func TestNoCaching(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.Header.Get("X-Conditional") != "" || resp.Header.Get("ETag") != "" || !strings.Contains(resp.Header.Get("Cache-Control"), "no-store") {
 		t.Fatalf("caching headers kept: %v", resp.Header)
 	}
@@ -398,7 +398,7 @@ func TestReplayAndRepeat(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
 		b, _ := io.ReadAll(r.Body)
-		fmt.Fprintf(w, "%s %s %s", r.Method, r.Header.Get("X-Test"), b)
+		_, _ = fmt.Fprintf(w, "%s %s %s", r.Method, r.Header.Get("X-Test"), b)
 	}))
 	defer ts.Close()
 	var h flow.Header
@@ -439,20 +439,20 @@ func TestRepeatEncodedBody(t *testing.T) {
 	e := newEnv(t)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		fmt.Fprintf(w, "%q %s", r.Header.Get("Content-Encoding"), b)
+		_, _ = fmt.Fprintf(w, "%q %s", r.Header.Get("Content-Encoding"), b)
 	}))
 	defer ts.Close()
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
-	zw.Write([]byte(`{"event":"track"}`))
-	zw.Close()
+	_, _ = zw.Write([]byte(`{"event":"track"}`))
+	_ = zw.Close()
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/batch", bytes.NewReader(gz.Bytes()))
 	req.Header.Set("Content-Encoding", "gzip")
 	resp, err := e.client(false).Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	f := e.waitFlow(byPath("/batch"))
 	again, err := e.proxy.Replay(t.Context(), MessageOf(f))
 	if err != nil {
@@ -510,7 +510,7 @@ func TestTLSKeyLog(t *testing.T) {
 	})
 	get(t, e.client(false), ts.URL+"/logged")
 	e.waitFlow(byPath("/logged"))
-	b, err := os.ReadFile(keyLog)
+	b, err := os.ReadFile(keyLog) // #nosec G304 -- a file of the test's directory.
 	if err != nil || !bytes.Contains(b, []byte("CLIENT_")) && !bytes.Contains(b, []byte("TRAFFIC_SECRET")) {
 		t.Fatalf("key log %q %v", b, err)
 	}

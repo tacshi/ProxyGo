@@ -67,16 +67,16 @@ func run(args []string, dir string, stdin io.Reader, stdout, stderr io.Writer) i
 	}
 	t := &tool{dir: dir, stdin: stdin, stdout: stdout, stderr: stderr}
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
-		fmt.Fprint(stdout, usage)
+		_, _ = fmt.Fprint(stdout, usage)
 		return 0
 	}
 	if err := t.dispatch(args[0], args[1:]); err != nil {
 		var u usageError
 		if errors.As(err, &u) {
-			fmt.Fprintf(stderr, "%s: %v\n\n%s", Name, err, usage)
+			_, _ = fmt.Fprintf(stderr, "%s: %v\n\n%s", Name, err, usage)
 			return 2
 		}
-		fmt.Fprintf(stderr, "%s: %v\n", Name, err)
+		_, _ = fmt.Fprintf(stderr, "%s: %v\n", Name, err)
 		return 1
 	}
 	return 0
@@ -146,7 +146,7 @@ func (t *tool) call(method string, params any) error {
 		if json.Indent(&b, out, "", "  ") == nil {
 			out = b.Bytes()
 		}
-		fmt.Fprintln(t.stdout, string(out))
+		_, _ = fmt.Fprintln(t.stdout, string(out))
 	}
 	return nil
 }
@@ -307,7 +307,7 @@ func (t *tool) rules(args []string) error {
 	p := map[string]any{"tool": tool}
 	readRule := func(s string) (json.RawMessage, error) {
 		if path, ok := strings.CutPrefix(s, "@"); ok {
-			b, err := os.ReadFile(path)
+			b, err := os.ReadFile(path) // #nosec G304 -- the rule file named on the command line.
 			return b, err
 		}
 		if s == "-" {
@@ -361,18 +361,18 @@ func (t *tool) rules(args []string) error {
 
 func (t *tool) mcp(args []string) error {
 	if len(args) == 1 && args[0] == "config" {
-		fmt.Fprint(t.stdout, MCPConfig())
+		_, _ = fmt.Fprint(t.stdout, MCPConfig())
 		return nil
 	}
 	if len(args) == 1 && args[0] == "status" {
 		on := settings.Open(filepath.Join(t.dir, "settings.json")).Get().MCP
 		running := false
 		if c, err := net.Dial("unix", control.MCPSocketPath(t.dir)); err == nil {
-			c.Close()
+			_ = c.Close()
 			running = true
 		}
 		b, _ := json.MarshalIndent(map[string]bool{"enabled": on, "serving": running}, "", "  ")
-		fmt.Fprintln(t.stdout, string(b))
+		_, _ = fmt.Fprintln(t.stdout, string(b))
 		return nil
 	}
 	mode, err := onOff(args, "status", "config")
@@ -455,7 +455,7 @@ func (t *tool) bridge() error {
 			return errors.New("ProxyGo did not start its MCP server: open ProxyGo and check Settings › Automation")
 		}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	go func() {
 		_, _ = io.Copy(conn, t.stdin)
 		if uc, ok := conn.(*net.UnixConn); ok {
@@ -469,7 +469,7 @@ func (t *tool) bridge() error {
 var launch = func() error {
 	exe := executable()
 	if i := strings.Index(exe, ".app/"); i >= 0 {
-		return exec.Command("open", "-g", exe[:i+4]).Run()
+		return exec.Command("open", "-g", exe[:i+4]).Run() // #nosec G204 -- open, given the app bundle this tool lives in.
 	}
 	return exec.Command("open", "-g", "-a", "ProxyGo").Run()
 }

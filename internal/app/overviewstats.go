@@ -67,14 +67,6 @@ func (s *overviewStats) peakRequests() (int, time.Duration) {
 	return peak, s.step
 }
 
-func (s *overviewStats) peakRate() int64 {
-	var peak int64
-	for _, b := range s.buckets {
-		peak = max(peak, b.down, b.up)
-	}
-	return int64(float64(peak) / s.step.Seconds())
-}
-
 var bucketSteps = []time.Duration{
 	100 * time.Millisecond, 250 * time.Millisecond, 500 * time.Millisecond,
 	time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second, 30 * time.Second,

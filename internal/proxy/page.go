@@ -47,7 +47,7 @@ func (s *Server) servePage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, certPage, html.EscapeString(s.opts.Certs.CommonName()), s.Port())
+	_, _ = fmt.Fprintf(w, certPage, html.EscapeString(s.opts.Certs.CommonName()), s.Port())
 }
 
 func writeCert(w http.ResponseWriter, name string, b []byte) {

@@ -39,11 +39,11 @@ func newLive(t *testing.T) *live {
 		b, _ := io.ReadAll(r.Body)
 		w.Header().Set("Content-Type", "text/plain")
 		w.Header().Set("X-If-None-Match", r.Header.Get("If-None-Match"))
-		fmt.Fprintf(w, "%s %s %s", r.Method, r.URL.RequestURI(), b)
+		_, _ = fmt.Fprintf(w, "%s %s %s", r.Method, r.URL.RequestURI(), b)
 	})
 	l := &live{t: t, a: a, plain: httptest.NewServer(echo), secure: httptest.NewTLSServer(echo),
 		other: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "other %s", r.URL.RequestURI())
+			_, _ = fmt.Fprintf(w, "other %s", r.URL.RequestURI())
 		}))}
 	t.Cleanup(l.plain.Close)
 	t.Cleanup(l.secure.Close)
@@ -79,7 +79,7 @@ func (l *live) do(method, rawURL, body string, header ...string) (int, string, h
 	if err != nil {
 		l.t.Fatalf("%s %s: %v", method, rawURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(b), resp.Header
 }
@@ -406,7 +406,7 @@ function onResponse(ctx, url, req, res) { res.body = "scripted " + res.headers["
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		l.flow(withPath("/via-socks"))
 	})
 
@@ -428,7 +428,7 @@ function onResponse(ctx, url, req, res) { res.body = "scripted " + res.headers["
 			t.Fatal(err)
 		}
 		b, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if string(b) != "GET /reversed " {
 			t.Fatalf("%q", b)
 		}
@@ -476,6 +476,6 @@ func freePort(t *testing.T) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	return ln.Addr().(*net.TCPAddr).Port
 }

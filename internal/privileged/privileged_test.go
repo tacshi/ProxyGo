@@ -18,13 +18,13 @@ func TestDaemonPlist(t *testing.T) {
 		t.Skip("plutil is macOS only")
 	}
 	path := filepath.Join(t.TempDir(), "helper.plist")
-	if err := os.WriteFile(path, []byte(daemonPlist("com.example.proxygo.helper", "/Library/PrivilegedHelperTools/com.example.proxygo.helper", 501)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(daemonPlist("com.example.proxygo.helper", "/Library/PrivilegedHelperTools/com.example.proxygo.helper", 501)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.Command("plutil", "-lint", path).CombinedOutput(); err != nil {
+	if out, err := exec.Command("plutil", "-lint", path).CombinedOutput(); err != nil { // #nosec G204 -- plutil, given the plist the test wrote.
 		t.Fatalf("plutil -lint: %v\n%s", err, out)
 	}
-	out, err := exec.Command("plutil", "-extract", "ProgramArguments", "json", "-o", "-", path).Output()
+	out, err := exec.Command("plutil", "-extract", "ProgramArguments", "json", "-o", "-", path).Output() // #nosec G204 -- plutil, given the plist the test wrote.
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +66,12 @@ func TestPeerIsThisProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	ln, err := net.Listen("unix", filepath.Join(dir, "s"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	got := make(chan peer, 1)
 	errs := make(chan error, 1)
 	go func() {
@@ -80,7 +80,7 @@ func TestPeerIsThisProcess(t *testing.T) {
 			errs <- err
 			return
 		}
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 		p, err := peerOf(c.(*net.UnixConn))
 		if err != nil {
 			errs <- err
@@ -92,7 +92,7 @@ func TestPeerIsThisProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	select {
 	case err := <-errs:
 		t.Fatal(err)

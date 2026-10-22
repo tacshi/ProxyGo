@@ -7,9 +7,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- scripts ask for MD5 and SHA-1 by name, as Node's crypto offers them.
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- scripts ask for MD5 and SHA-1 by name, as Node's crypto offers them.
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -78,9 +78,9 @@ func installNatives(vm *goja.Runtime) {
 func hasher(alg string) (gohash.Hash, error) {
 	switch strings.ToLower(alg) {
 	case "md5":
-		return md5.New(), nil
+		return md5.New(), nil // #nosec G401 -- scripts ask for MD5 and SHA-1 by name, as Node's crypto offers them.
 	case "sha1":
-		return sha1.New(), nil
+		return sha1.New(), nil // #nosec G401 -- scripts ask for MD5 and SHA-1 by name, as Node's crypto offers them.
 	case "sha256":
 		return sha256.New(), nil
 	case "sha512":
@@ -102,7 +102,7 @@ func decodeBase64(s string) ([]byte, error) {
 func evpBytesToKey(pass, salt []byte, keyLen, ivLen int) ([]byte, []byte) {
 	var out, prev []byte
 	for len(out) < keyLen+ivLen {
-		h := md5.New()
+		h := md5.New() // #nosec G401 -- scripts ask for MD5 and SHA-1 by name, as Node's crypto offers them.
 		h.Write(prev)
 		h.Write(pass)
 		h.Write(salt)
@@ -183,7 +183,7 @@ func decompress(kind, b64 string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	out, err := io.ReadAll(io.LimitReader(r, 64<<20))
 	return string(out), err
 }

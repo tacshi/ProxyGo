@@ -173,7 +173,7 @@ type App struct {
 }
 
 func New(dir string) (*App, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, err
 	}
 	a := &App{

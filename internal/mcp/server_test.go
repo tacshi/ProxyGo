@@ -29,7 +29,7 @@ func connect(t *testing.T, s *Server) *mcp.ClientSession {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
 
@@ -155,7 +155,7 @@ func TestComposeTools(t *testing.T) {
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte(r.Method + " " + r.Header.Get("X-Test")))
+		_, _ = w.Write([]byte(r.Method + " " + r.Header.Get("X-Test")))
 	}))
 	defer ts.Close()
 	c := connect(t, New(h, t.TempDir()))
@@ -163,7 +163,7 @@ func TestComposeTools(t *testing.T) {
 	var draft struct {
 		ID string `json:"compose_id"`
 	}
-	json.Unmarshal([]byte(out), &draft)
+	_ = json.Unmarshal([]byte(out), &draft)
 	callTool(t, c, "update_compose_http", map[string]any{"compose_id": draft.ID, "headers": map[string]string{"X-Test": "2"}}, false)
 	sent := callTool(t, c, "send_compose_http", map[string]any{"compose_id": draft.ID}, false)
 	if !strings.Contains(sent, `"body": "POST 2"`) {
@@ -178,7 +178,7 @@ func TestSocketAndHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	h, _ := hosttest.New(t.TempDir())
 	s := New(h, dir)
 	if err := s.Start(true); err != nil {
@@ -189,7 +189,7 @@ func TestSocketAndHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	var hs Handshake
-	json.Unmarshal(b, &hs)
+	_ = json.Unmarshal(b, &hs)
 	if fi, _ := os.Stat(HandshakePath(dir)); fi.Mode().Perm() != 0o600 || !strings.HasPrefix(hs.URL, "http://127.0.0.1:") || len(hs.Token) != 64 {
 		t.Fatalf("handshake %+v", hs)
 	}
@@ -208,7 +208,7 @@ func TestSocketAndHTTP(t *testing.T) {
 	if st := callTool(t, cs, "get_proxy_status", map[string]any{}, false); !strings.Contains(st, `"version": "test"`) {
 		t.Errorf("status %s", st)
 	}
-	cs.Close()
+	_ = cs.Close()
 
 	conn, err := net.Dial("unix", control.MCPSocketPath(dir))
 	if err != nil {

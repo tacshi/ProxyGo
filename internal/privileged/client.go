@@ -75,7 +75,7 @@ func call(label string, req Request) error {
 	if err != nil {
 		return errUnreachable
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(time.Minute))
 	if err := json.NewEncoder(c).Encode(req); err != nil {
 		return errUnreachable
@@ -126,7 +126,7 @@ func removeCommands(label string) []string {
 
 func runAdmin(script, prompt string) error {
 	esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace
-	out, err := exec.Command("osascript", "-e", `do shell script "`+esc(script)+`" with prompt "`+esc(prompt)+`" with administrator privileges`).CombinedOutput()
+	out, err := exec.Command("osascript", "-e", `do shell script "`+esc(script)+`" with prompt "`+esc(prompt)+`" with administrator privileges`).CombinedOutput() // #nosec G204 -- ProxyGo's own install commands, quoted for the shell and escaped for AppleScript.
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "User canceled") || strings.Contains(msg, "-128") {

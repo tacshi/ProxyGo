@@ -59,11 +59,11 @@ func Listen(path string) (net.Listener, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := os.Chmod(dir, 0o700); err != nil { // #nosec G302 -- a directory needs its search bit; only this user gets it.
 		return nil, err
 	}
 	if c, err := net.DialTimeout("unix", path, 300*time.Millisecond); err == nil {
-		c.Close()
+		_ = c.Close()
 		return nil, fmt.Errorf("another ProxyGo is listening on %s", path)
 	}
 	_ = os.Remove(path)
@@ -72,7 +72,7 @@ func Listen(path string) (net.Listener, error) {
 		return nil, err
 	}
 	if err := os.Chmod(path, 0o600); err != nil {
-		ln.Close()
+		_ = ln.Close()
 		return nil, err
 	}
 	return ln, nil
@@ -112,7 +112,7 @@ func (s *Server) accept() {
 }
 
 func (s *Server) serve(c net.Conn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(5 * time.Minute))
 	var req Request
 	if err := json.NewDecoder(io.LimitReader(c, 16<<20)).Decode(&req); err != nil {
@@ -140,7 +140,7 @@ func Dial(ctx context.Context, path, method string, params any) (json.RawMessage
 	if err != nil {
 		return nil, ErrNotRunning
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = c.SetDeadline(deadline)
 	}

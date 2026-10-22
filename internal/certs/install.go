@@ -20,7 +20,7 @@ type Simulator struct {
 }
 
 var Command = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- callers name a fixed tool and pass arguments, never shell text.
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()
@@ -104,7 +104,7 @@ const AndroidCertPath = "/sdcard/Download/proxygo-ca.crt"
 
 func (m *Manager) InstallAndroid(ctx context.Context, serial string) error {
 	der := filepath.Join(m.dir, "proxygo-ca.crt")
-	if err := os.WriteFile(der, m.CertDER(), 0o644); err != nil {
+	if err := os.WriteFile(der, m.CertDER(), 0o644); err != nil { // #nosec G306 -- the public CA certificate, which other tools read.
 		return err
 	}
 	adb := func(args ...string) error {
@@ -207,7 +207,7 @@ func TrustInFirefox() ([]string, error) {
 	var changed []string
 	for _, p := range FirefoxProfiles() {
 		path := filepath.Join(p, "user.js")
-		b, err := os.ReadFile(path)
+		b, err := os.ReadFile(path) // #nosec G304 -- a Firefox profile's own user.js.
 		if err != nil && !os.IsNotExist(err) {
 			return changed, err
 		}
@@ -218,7 +218,7 @@ func TrustInFirefox() ([]string, error) {
 			b = append(b, '\n')
 		}
 		b = append(b, "// Added by ProxyGo: trust the certificates macOS trusts.\n"+firefoxPref+"\n"...)
-		if err := os.WriteFile(path, b, 0o644); err != nil {
+		if err := os.WriteFile(path, b, 0o644); err != nil { // #nosec G306 -- Firefox's own profile file, kept readable as Firefox writes it.
 			return changed, err
 		}
 		changed = append(changed, filepath.Base(p))
@@ -245,7 +245,7 @@ func (m *Manager) Bundle() (string, error) {
 	}
 	b.WriteString("# ProxyGo\n")
 	b.Write(m.CertPEM())
-	if err := os.WriteFile(path, b.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(path, b.Bytes(), 0o644); err != nil { // #nosec G306 -- public certificates that other tools read as their CA bundle.
 		return "", err
 	}
 	return path, nil

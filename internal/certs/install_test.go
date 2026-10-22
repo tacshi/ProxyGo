@@ -84,14 +84,14 @@ func TestTrustInFirefox(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	profiles := filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles")
-	os.MkdirAll(filepath.Join(profiles, "a.default"), 0o755)
-	os.MkdirAll(filepath.Join(profiles, "b.dev"), 0o755)
-	os.WriteFile(filepath.Join(profiles, "b.dev", "user.js"), []byte(`user_pref("x", 1);`), 0o644)
+	_ = os.MkdirAll(filepath.Join(profiles, "a.default"), 0o750)
+	_ = os.MkdirAll(filepath.Join(profiles, "b.dev"), 0o750)
+	_ = os.WriteFile(filepath.Join(profiles, "b.dev", "user.js"), []byte(`user_pref("x", 1);`), 0o600)
 	changed, err := TrustInFirefox()
 	if err != nil || len(changed) != 2 {
 		t.Fatalf("%v %v", changed, err)
 	}
-	b, _ := os.ReadFile(filepath.Join(profiles, "b.dev", "user.js"))
+	b, _ := os.ReadFile(filepath.Join(profiles, "b.dev", "user.js")) // #nosec G304 -- a file of the test's directory.
 	if !strings.HasPrefix(string(b), `user_pref("x", 1);`+"\n") || !strings.Contains(string(b), firefoxPref) {
 		t.Errorf("user.js %q", b)
 	}
@@ -106,7 +106,7 @@ func TestBundle(t *testing.T) {
 	if err != nil {
 		t.Skip(err)
 	}
-	b, _ := os.ReadFile(path)
+	b, _ := os.ReadFile(path) // #nosec G304 -- a file of the test's directory.
 	if strings.Count(string(b), "BEGIN CERTIFICATE") < 10 || !strings.HasSuffix(string(b), string(m.CertPEM())) {
 		t.Errorf("bundle of %d certificates", strings.Count(string(b), "BEGIN CERTIFICATE"))
 	}

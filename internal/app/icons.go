@@ -6,7 +6,7 @@ import (
 	ui "github.com/egoist/mygo/proxygoui"
 )
 
-var iconSources = map[string]string{
+var iconSources = map[string]string{ // #nosec G101 -- SVG icon paths, not credentials.
 	"blank":        ``,
 	"record":       `<circle cx="12" cy="12" r="6.5" fill="currentColor" stroke="none"/>`,
 	"compose":      `<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/>`,
