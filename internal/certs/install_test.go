@@ -17,19 +17,25 @@ func fakeCommands(t *testing.T, answers map[string]string, fail map[string]strin
 	Command = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		line := filepath.Base(name) + " " + strings.Join(args, " ")
 		ran = append(ran, line)
-		for prefix, out := range fail {
-			if strings.HasPrefix(line, prefix) {
-				return []byte(out), errors.New("exit status 1")
-			}
+		if out, ok := longestPrefix(fail, line); ok {
+			return []byte(out), errors.New("exit status 1")
 		}
-		for prefix, out := range answers {
-			if strings.HasPrefix(line, prefix) {
-				return []byte(out), nil
-			}
+		if out, ok := longestPrefix(answers, line); ok {
+			return []byte(out), nil
 		}
 		return nil, nil
 	}
 	return &ran
+}
+
+func longestPrefix(m map[string]string, line string) (string, bool) {
+	best, found := "", false
+	for prefix := range m {
+		if strings.HasPrefix(line, prefix) && len(prefix) >= len(best) {
+			best, found = prefix, true
+		}
+	}
+	return m[best], found
 }
 
 func TestInstallTargets(t *testing.T) {
