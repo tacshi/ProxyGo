@@ -587,6 +587,7 @@ func (a *App) duplicateRule(kind, id string) {
 		r.ID, r.ListenPort = rules.NewID(), r.ListenPort+1
 	case *rules.ClientCertificate:
 		r.ID = rules.NewID()
+		r.PasswordRef = copySecret(r.PasswordRef, "client-"+r.ID)
 	case *rules.BreakpointTemplate:
 		r.ID, r.Name = rules.NewID(), locales.CopyName(r.Name)
 	case *rules.AppRule:
@@ -595,10 +596,22 @@ func (a *App) duplicateRule(kind, id string) {
 		r.ID, r.Name = rules.NewID(), locales.CopyName(r.Name)
 	case *rules.ServerCertificate:
 		r.ID = rules.NewID()
+		r.PasswordRef = copySecret(r.PasswordRef, "server-"+r.ID)
 	}
 	before := k.ids(&d)
 	a.rules.Update(func(d *rules.Data) { k.save(d, draft) })
 	a.toolState(kind).pick = addedRule(before, k.ids(a.rules.Current()))
+}
+
+func copySecret(ref, newRef string) string {
+	if ref == "" {
+		return ""
+	}
+	secret, err := certs.Keychain.Get(ref)
+	if err != nil || certs.Keychain.Set(newRef, secret) != nil {
+		return ""
+	}
+	return newRef
 }
 
 func (a *App) ruleEditor(c *ui.Context, kind string, k *ruleKind, t *toolState) {

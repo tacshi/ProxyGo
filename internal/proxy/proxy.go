@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -400,6 +401,53 @@ var executablePath = sync.OnceValue(func() string {
 	p, _ := os.Executable()
 	return p
 })
+
+func requestTarget(r *http.Request) string {
+	if t := targetOf(r.RequestURI); validTarget(t) {
+		return t
+	}
+	return r.URL.RequestURI()
+}
+
+func targetOf(raw string) string {
+	if strings.HasPrefix(raw, "/") {
+		return raw
+	}
+	_, rest, ok := strings.Cut(raw, "://")
+	if !ok {
+		return ""
+	}
+	i := strings.IndexAny(rest, "/?#")
+	if i < 0 {
+		return "/"
+	}
+	t, _, _ := strings.Cut(rest[i:], "#")
+	if strings.HasPrefix(t, "?") || t == "" {
+		t = "/" + t
+	}
+	return t
+}
+
+func validTarget(t string) bool {
+	return strings.HasPrefix(t, "/") && !strings.ContainsFunc(t, func(r rune) bool { return r <= ' ' || r == 0x7f || r == '#' })
+}
+
+func setTarget(u *url.URL, target string, absolute bool) bool {
+	if !validTarget(target) {
+		return false
+	}
+	p, q, hasQuery := strings.Cut(target, "?")
+	switch {
+	case absolute:
+		u.Opaque = "//" + u.Host + p
+	case strings.HasPrefix(p, "//"):
+		return false
+	default:
+		u.Opaque = p
+	}
+	u.RawQuery, u.ForceQuery = q, hasQuery && q == ""
+	return true
+}
 
 func splitHostPort(hostport string, defaultPort int) (string, int) {
 	if hostport == "" {

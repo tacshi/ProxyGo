@@ -81,6 +81,7 @@ func newFlow(r *http.Request, body []byte, truncated bool, client flow.Client, i
 			f.TLS = &flow.TLSDetails{Client: info.clientTLS.Clone()}
 		}
 	}
+	target := requestTarget(r)
 	header, sent := requestHeader(r)
 	h := flow.NewHeaderOrdered(header, sent)
 	if h.Get(":authority") == "" {
@@ -97,9 +98,9 @@ func newFlow(r *http.Request, body []byte, truncated bool, client flow.Client, i
 		Port:               port,
 		IsSSL:              scheme == "https",
 		Version:            version,
-		FullPath:           strings.Replace(fullURL(scheme, host, port, r.URL.RequestURI()), scheme+"://", display+"://", 1),
+		FullPath:           strings.Replace(fullURL(scheme, host, port, target), scheme+"://", display+"://", 1),
 		BodyData:           body,
-		URI:                r.URL.RequestURI(),
+		URI:                target,
 		Header:             h,
 		Host:               host,
 		IsWebSocketUpgrade: ws,
@@ -194,7 +195,7 @@ func (x *exchange) run(r *http.Request, body []byte, rest io.Reader) {
 		Scheme: f.Request.Scheme,
 		Host:   f.Request.Host,
 		Port:   f.Request.Port,
-		Path:   r.URL.RequestURI(),
+		Path:   f.Request.URI,
 		Header: f.Request.Header.Clone(),
 		Body:   body,
 	}
@@ -299,9 +300,23 @@ func (x *exchange) run(r *http.Request, body []byte, rest io.Reader) {
 		x.stream(resp)
 		return
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyCapture))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyCapture+1))
 	if err != nil && len(raw) == 0 {
 		x.fail(err)
+		return
+	}
+	if len(raw) > maxBodyCapture {
+		mark(f, "bodyTooLarge", maxBodyCapture)
+		for _, r := range scripts {
+			if r.OnResponse && s.opts.Scripts != nil {
+				s.opts.Scripts.Warn(r.Name, fmt.Sprintf("onResponse skipped for %s: the response is larger than %d MB", rawURL, maxBodyCapture>>20))
+			}
+		}
+		resp.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(raw), resp.Body), resp.Body}
+		x.stream(resp)
 		return
 	}
 	hdr := flow.NewHeaderOrdered(resp.Header, x.responseHeaders(out, resp))
@@ -584,6 +599,7 @@ func (x *exchange) pause(rule *rules.BreakpointRule, response bool, m Message) (
 func (x *exchange) mapRemote(m *rules.MapRemoteRule, req *script.Request) {
 	u, err := url.Parse(req.URL())
 	if err != nil {
+		mark(x.f, "mapRemoteError", err.Error())
 		return
 	}
 	nu, err := m.Rewrite(u)
@@ -591,7 +607,11 @@ func (x *exchange) mapRemote(m *rules.MapRemoteRule, req *script.Request) {
 		mark(x.f, "mapRemoteError", err.Error())
 		return
 	}
+	target := req.Path
 	setURL(req, nu)
+	if nu.RequestURI() == u.RequestURI() {
+		req.Path = target
+	}
 	if m.PreserveHost {
 		x.preserveHost = true
 	} else {
@@ -668,10 +688,19 @@ func hostPort(scheme, host string, port int) string {
 	return joinHostPort(host, port)
 }
 
+type upstreamKey struct{}
+
 func (x *exchange) outbound(req *script.Request, rest io.Reader) (*http.Request, error) {
 	u, err := url.Parse(req.URL())
 	if err != nil {
-		return nil, err
+		if !validTarget(req.Path) {
+			return nil, err
+		}
+		u = &url.URL{Scheme: req.Scheme, Host: hostPort(req.Scheme, req.Host, req.Port), Path: "/"}
+	}
+	var via *url.URL
+	if x.data.Upstream.Enabled {
+		via = x.s.externalProxy(x.ctx, u)
 	}
 	var body io.Reader = bytes.NewReader(req.Body)
 	length := int64(len(req.Body))
@@ -682,11 +711,12 @@ func (x *exchange) outbound(req *script.Request, rest io.Reader) (*http.Request,
 		body = &rateReader{ctx: x.ctx, r: body, rate: x.cond.UploadKBps * 1024, start: time.Now()}
 	}
 	x.trace.set(func() { x.trace.plan = headerNames(req.Header) })
-	ctx := httptrace.WithClientTrace(x.ctx, x.trace.hooks())
+	ctx := httptrace.WithClientTrace(context.WithValue(x.ctx, upstreamKey{}, via), x.trace.hooks())
 	out, err := http.NewRequestWithContext(ctx, req.Method, u.String(), body)
 	if err != nil {
 		return nil, err
 	}
+	setTarget(out.URL, req.Path, via != nil && u.Scheme == "http")
 	out.ContentLength = length
 	if length == 0 && rest == nil {
 		out.Body = http.NoBody

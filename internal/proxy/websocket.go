@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -66,6 +67,10 @@ func (x *exchange) webSocket(r *http.Request, body []byte) {
 	for _, k := range []string{"Proxy-Connection", "Proxy-Authorization", "Keep-Alive"} {
 		out.Header.Del(k)
 	}
+	if _, ok := out.Header["User-Agent"]; !ok {
+		out.Header["User-Agent"] = []string{""}
+	}
+	setTarget(out.URL, f.Request.URI, false)
 	out.Body = io.NopCloser(bytes.NewReader(body))
 	out.ContentLength = int64(len(body))
 	if len(body) == 0 {
@@ -454,7 +459,7 @@ func (s *Server) OpenWebSocket(ctx context.Context, m Message) (*flow.Flow, erro
 	}
 	req.Header.Del("Host")
 	req.RemoteAddr = "127.0.0.1:0"
-	req.RequestURI = u.RequestURI()
+	req.RequestURI = cmp.Or(targetOf(strings.TrimSpace(m.URL)), u.RequestURI())
 	req.Proto, req.ProtoMajor, req.ProtoMinor = "HTTP/1.1", 1, 1
 	near, far := net.Pipe()
 	sink := &pipeSink{conn: far, hijacked: make(chan struct{})}
@@ -572,7 +577,7 @@ func (x *exchange) webSocketHook(r *http.Request) func(flow.WebSocketMessage) {
 		return nil
 	}
 	req := &script.Request{Method: f.MethodName(), Scheme: f.Request.Scheme, Host: f.Request.Host, Port: f.Request.Port,
-		Path: r.URL.RequestURI(), Header: f.Request.Header.Clone()}
+		Path: f.Request.URI, Header: f.Request.Header.Clone()}
 	var resp *script.Response
 	if f.Response != nil {
 		resp = &script.Response{StatusCode: f.StatusCode(), Header: f.Response.Header.Clone()}

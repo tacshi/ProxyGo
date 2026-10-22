@@ -1,7 +1,9 @@
 package store
 
 import (
+	"bytes"
 	"cmp"
+	"encoding/json/jsontext"
 	"net/url"
 	"regexp"
 	"slices"
@@ -392,7 +394,29 @@ func queryMatch(f *flow.Flow, q string, deep bool) bool {
 }
 
 func containsFold(b []byte, lowerQ string) bool {
-	return len(b) > 0 && strings.Contains(strings.ToLower(string(b)), lowerQ)
+	if len(b) == 0 {
+		return false
+	}
+	if strings.Contains(strings.ToLower(string(b)), lowerQ) {
+		return true
+	}
+	return bytes.IndexByte(b, '\\') >= 0 && strings.Contains(strings.ToLower(jsonText(b)), lowerQ)
+}
+
+func jsonText(b []byte) string {
+	if !jsontext.Value(b).IsValid() {
+		return ""
+	}
+	dec := jsontext.NewDecoder(bytes.NewReader(b))
+	var out strings.Builder
+	for {
+		tok, err := dec.ReadToken()
+		if err != nil {
+			return out.String()
+		}
+		out.WriteString(tok.String())
+		out.WriteByte(' ')
+	}
 }
 
 func Apply(flows []*flow.Flow, f Filter) []*flow.Flow {

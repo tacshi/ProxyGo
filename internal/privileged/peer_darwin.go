@@ -85,5 +85,10 @@ func peerOf(c *net.UnixConn) (peer, error) {
 	if n <= 0 {
 		return peer{}, errors.New("no path for the peer")
 	}
-	return peer{uid: int(tok[1]), cdhash: hash, path: string(buf[:n])}, nil
+	return peer{uid: int(tok[1]), pid: int(pid), cdhash: hash, path: string(buf[:n])}, nil
+}
+
+func processAlive(pid int) bool {
+	err := unix.Kill(pid, 0)
+	return err == nil || errors.Is(err, unix.EPERM)
 }

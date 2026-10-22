@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"proxygo/internal/systemproxy"
 )
@@ -107,5 +109,45 @@ func TestPeerIsThisProcess(t *testing.T) {
 		if p.path != exe {
 			t.Errorf("path = %q, want %q", p.path, exe)
 		}
+	}
+}
+
+func TestWatchRestoresProxyWhenAppDies(t *testing.T) {
+	var mu sync.Mutex
+	alive, restored := true, make(chan systemproxy.State, 1)
+	cfg := systemproxy.Config{Host: "127.0.0.1", Port: 9090}
+	before := systemproxy.State{HTTP: true, Host: "corp.example", Port: 3128}
+	s := &server{
+		every:   5 * time.Millisecond,
+		alive:   func(int) bool { mu.Lock(); defer mu.Unlock(); return alive },
+		status:  func() systemproxy.State { return systemproxy.State{HTTP: true, Host: "127.0.0.1", Port: 9090} },
+		restore: func(st systemproxy.State) error { restored <- st; return nil },
+	}
+	s.mu.Lock()
+	s.watch(42, cfg, before)
+	s.mu.Unlock()
+	time.Sleep(30 * time.Millisecond)
+	if len(restored) != 0 {
+		t.Fatal("restored while the app runs")
+	}
+	mu.Lock()
+	alive = false
+	mu.Unlock()
+	select {
+	case st := <-restored:
+		if st.Host != before.Host || st.Port != before.Port {
+			t.Fatalf("restored %+v", st)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("not restored after the app died")
+	}
+
+	s.mu.Lock()
+	s.watch(43, cfg, before)
+	s.watched = nil
+	s.mu.Unlock()
+	time.Sleep(30 * time.Millisecond)
+	if len(restored) != 0 {
+		t.Fatal("restored after the app gave the proxy back itself")
 	}
 }

@@ -24,7 +24,9 @@ const installPrompt = "ProxyGo installs a helper so it can change the macOS prox
 
 var installMu sync.Mutex
 
-func EnableProxy(cfg systemproxy.Config) error  { return do(Request{Op: "enable", Config: cfg}) }
+func EnableProxy(cfg systemproxy.Config, before systemproxy.State) error {
+	return do(Request{Op: "enable", Config: cfg, Before: before})
+}
 func DisableProxy() error                       { return do(Request{Op: "disable"}) }
 func RestoreProxy(prev systemproxy.State) error { return do(Request{Op: "restore", State: prev}) }
 func LinkCLI() error                            { return do(Request{Op: "link-cli"}) }

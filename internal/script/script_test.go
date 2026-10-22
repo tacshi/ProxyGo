@@ -156,7 +156,7 @@ func TestFormBody(t *testing.T) {
 	if _, err := e.RunRequest([]*rules.ScriptRule{r}, flow.New("F"), req); err != nil {
 		t.Fatal(err)
 	}
-	if string(req.Body) != "pass=b&user=z" {
+	if string(req.Body) != "user=z&pass=b" {
 		t.Fatalf("form body %s", req.Body)
 	}
 }
@@ -179,5 +179,86 @@ func TestHeadersAnyCase(t *testing.T) {
 	}
 	if got, want := strings.Join(lines, "\n"), "x-trace: t\ncontent-type: text/plain\nX-Seen: t,true"; got != want {
 		t.Fatalf("headers\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestUntouchedBodyKeepsBytes(t *testing.T) {
+	e := New()
+	body := `{"z":1.0,"a":9007199254740993,"html":"<b>&</b>","2":"x","1":"y"}`
+	r := rule(`function onRequest(context, url, request) {
+		request.headers["X-Seen"] = "1";
+		return request;
+	}
+	function onResponse(context, url, request, response) {
+		response.statusCode = 201;
+		return response;
+	}`)
+	req := request()
+	req.Body = []byte(body)
+	if _, err := e.RunRequest([]*rules.ScriptRule{r}, flow.New("F"), req); err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Body) != body || req.Header.Get("X-Seen") != "1" {
+		t.Fatalf("request body %s", req.Body)
+	}
+	resp := &Response{StatusCode: 200, Header: flow.NewHeader(http.Header{"Content-Type": {"application/json"}}), Body: []byte(body)}
+	if err := e.RunResponse([]*rules.ScriptRule{r}, flow.New("F"), request(), resp); err != nil {
+		t.Fatal(err)
+	}
+	if string(resp.Body) != body || resp.StatusCode != 201 {
+		t.Fatalf("response %d %s", resp.StatusCode, resp.Body)
+	}
+}
+
+func TestChangedJSONBodyKeepsKeyOrder(t *testing.T) {
+	e := New()
+	r := rule(`function onRequest(context, url, request) {
+		request.body.name = "<new>";
+		return request;
+	}`)
+	req := request()
+	req.Body = []byte(`{"z":1,"name":"old","a":2}`)
+	if _, err := e.RunRequest([]*rules.ScriptRule{r}, flow.New("F"), req); err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Body) != `{"z":1,"name":"<new>","a":2}` {
+		t.Fatalf("body %s", req.Body)
+	}
+}
+
+func TestFormBodyAndQueryOrder(t *testing.T) {
+	e := New()
+	req := request()
+	req.Path = "/f?z=1&a=2&z=3"
+	req.Header = flow.NewHeader(http.Header{"Content-Type": {"application/x-www-form-urlencoded"}})
+	req.Body = []byte("z=1&tag=a&tag=b&a=x+y")
+	untouched := rule(`function onRequest(context, url, request) { return request; }`)
+	if _, err := e.RunRequest([]*rules.ScriptRule{untouched}, flow.New("F"), req); err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Body) != "z=1&tag=a&tag=b&a=x+y" || req.Path != "/f?z=1&a=2&z=3" {
+		t.Fatalf("untouched %q %q", req.Path, req.Body)
+	}
+	changed := rule(`function onRequest(context, url, request) {
+		request.body.a = "new";
+		request.queries.a = "3";
+		return request;
+	}`)
+	if _, err := e.RunRequest([]*rules.ScriptRule{changed}, flow.New("F"), req); err != nil {
+		t.Fatal(err)
+	}
+	if string(req.Body) != "z=1&tag=a&tag=b&a=new" || req.Path != "/f?z=1&z=3&a=3" {
+		t.Fatalf("changed %q %q", req.Path, req.Body)
+	}
+}
+
+func TestIPv6RequestURL(t *testing.T) {
+	r := &Request{Scheme: "http", Host: "::1", Port: 8080, Path: "/x"}
+	if got := r.URL(); got != "http://[::1]:8080/x" {
+		t.Fatalf("url %q", got)
+	}
+	r.Port = 80
+	if got := r.URL(); got != "http://[::1]/x" {
+		t.Fatalf("url %q", got)
 	}
 }
