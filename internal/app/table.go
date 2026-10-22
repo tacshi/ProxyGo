@@ -554,7 +554,7 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 	}
 	m.Submenu(locales.Highlight(), func(m *ui.Menu) {
 		for _, color := range highlightColors {
-			if m.Item(title(color)).Checked(f.Highlight == color).Chosen() {
+			if m.Item(colorName(color)).Checked(f.Highlight == color).Chosen() {
 				a.setHighlight(fs, color)
 			}
 		}
