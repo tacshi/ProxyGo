@@ -133,19 +133,23 @@ func (e *Engine) file(dir, rel, root string) (*source, error) {
 	if !inside(p, root) {
 		return nil, fmt.Errorf("%q is %w", rel, errOutside)
 	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find %q", rel)
+	}
+	defer func() { _ = r.Close() }()
 	for _, c := range []string{p, p + ".js", p + ".json", filepath.Join(p, "index.js")} {
-		fi, err := os.Stat(c)
-		if err != nil || fi.IsDir() {
+		name, _ := filepath.Rel(root, c)
+		fi, err := r.Stat(name)
+		if errors.Is(err, fs.ErrNotExist) || err == nil && fi.IsDir() {
 			continue
 		}
-		real, err := filepath.EvalSymlinks(c)
-		realRoot, rootErr := filepath.EvalSymlinks(root)
-		if err != nil || rootErr != nil || !inside(real, realRoot) {
-			return nil, fmt.Errorf("%q is %w", rel, errOutside)
+		var b []byte
+		if err == nil {
+			b, err = r.ReadFile(name)
 		}
-		b, err := os.ReadFile(c) // #nosec G304 -- checked above to resolve inside the scripts folder.
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot read %q: %w", rel, err)
 		}
 		return &source{key: c, dir: filepath.Dir(c), code: b, mod: fi.ModTime()}, nil
 	}
@@ -174,8 +178,14 @@ func (e *Engine) pkg(name, root string) (*source, error) {
 	if sub != "" {
 		return e.file(dir, sub, root)
 	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find module %q: install it with npm install in %s", name, root)
+	}
+	defer func() { _ = r.Close() }()
+	pkgDir, _ := filepath.Rel(root, dir)
 	main := "index.js"
-	if b, err := os.ReadFile(filepath.Join(dir, "package.json")); err == nil { // #nosec G304 -- the manifest of a package the script requires.
+	if b, err := r.ReadFile(filepath.Join(pkgDir, "package.json")); err == nil {
 		var pj struct {
 			Main string `json:"main"`
 			Type string `json:"type"`
@@ -189,7 +199,9 @@ func (e *Engine) pkg(name, root string) (*source, error) {
 		if pj.Type == "module" && !strings.HasSuffix(main, ".cjs") {
 			return nil, fmt.Errorf("%s is an ES module, which require() cannot load in ProxyGo scripts", name)
 		}
-	} else if _, err := os.Stat(dir); err != nil {
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("cannot read %s's package.json: %w", name, err)
+	} else if _, err := r.Stat(pkgDir); err != nil {
 		return nil, fmt.Errorf("cannot find module %q: install it with npm install in %s", name, root)
 	}
 	return e.file(dir, main, root)
