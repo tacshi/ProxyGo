@@ -158,7 +158,9 @@ func TestComposeTools(t *testing.T) {
 		_, _ = w.Write([]byte(r.Method + " " + r.Header.Get("X-Test")))
 	}))
 	defer ts.Close()
-	c := connect(t, New(h, t.TempDir()))
+	h.S.Upsert(sampleFlow())
+	srv := New(h, t.TempDir())
+	c := connect(t, srv)
 	out := callTool(t, c, "create_compose_http", map[string]any{"url": ts.URL + "/x", "method": "post", "headers": map[string]string{"X-Test": "1"}}, false)
 	var draft struct {
 		ID string `json:"compose_id"`
@@ -171,6 +173,33 @@ func TestComposeTools(t *testing.T) {
 	}
 	callTool(t, c, "create_compose_http", map[string]any{"url": "ftp://x"}, true)
 	callTool(t, c, "send_compose_http", map[string]any{"compose_id": "nope"}, true)
+
+	captured := callTool(t, c, "create_compose_http_from_flow", map[string]any{"flow_id": "F1"}, false)
+	_ = json.Unmarshal([]byte(captured), &draft)
+	views := []string{captured,
+		callTool(t, c, "get_compose_http", map[string]any{"compose_id": draft.ID}, false),
+		callTool(t, c, "update_compose_http", map[string]any{"compose_id": draft.ID, "method": "put"}, false)}
+	for _, v := range views {
+		for _, leak := range []string{"secret-token", "hunter2", "s=1", "k1"} {
+			if strings.Contains(v, leak) {
+				t.Errorf("compose draft leaks %q:\n%s", leak, v)
+			}
+		}
+		if !strings.Contains(v, "page=2") || !strings.Contains(v, "Bearer <redacted>") {
+			t.Errorf("compose draft over-redacts:\n%s", v)
+		}
+	}
+	d, err := srv.draft(draft.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Msg.Header.Get("Authorization") != "Bearer secret-token" || !strings.Contains(d.Msg.URL, "k1") || !strings.Contains(string(d.Msg.Body), "hunter2") {
+		t.Errorf("the draft lost its credentials: %+v", d.Msg)
+	}
+	srv.Redact = func() bool { return false }
+	if v := callTool(t, c, "get_compose_http", map[string]any{"compose_id": draft.ID}, false); !strings.Contains(v, "hunter2") {
+		t.Errorf("with redaction off, credentials show:\n%s", v)
+	}
 }
 
 func TestSocketAndHTTP(t *testing.T) {
