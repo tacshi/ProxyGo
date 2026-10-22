@@ -190,7 +190,14 @@ func (a *App) applySystemProxy(on, reset bool) error {
 	switch {
 	case on:
 		prev = systemproxy.Status()
-		err = privileged.EnableProxy(cfg)
+		keep := before
+		if first {
+			keep = prev
+			if a.isProxyGo(prev) {
+				keep = systemproxy.State{}
+			}
+		}
+		err = privileged.EnableProxy(cfg, keep)
 	case reset:
 		err = privileged.DisableProxy()
 	default:

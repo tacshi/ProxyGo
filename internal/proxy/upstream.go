@@ -36,6 +36,9 @@ func (s *Server) transport() *http.Transport {
 	old := s.upstream
 	s.upstream = &http.Transport{
 		Proxy: func(r *http.Request) (*url.URL, error) {
+			if via, ok := r.Context().Value(upstreamKey{}).(*url.URL); ok {
+				return via, nil
+			}
 			return s.externalProxy(r.Context(), r.URL), nil
 		},
 		DialContext:           s.dialRecorded,

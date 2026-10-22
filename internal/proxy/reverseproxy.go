@@ -101,6 +101,14 @@ func (s *Server) reverse(w http.ResponseWriter, r *http.Request, target *url.URL
 	}
 	r2 := r.Clone(r.Context())
 	r2.URL = u
+	path, query, hasQuery := strings.Cut(requestTarget(r), "?")
+	if target.RawQuery != "" {
+		query, hasQuery = strings.Trim(target.RawQuery+"&"+query, "&"), true
+	}
+	r2.RequestURI = strings.TrimSuffix(target.EscapedPath(), "/") + path
+	if hasQuery {
+		r2.RequestURI += "?" + query
+	}
 	if !preserveHost {
 		r2.Host = target.Host
 	}

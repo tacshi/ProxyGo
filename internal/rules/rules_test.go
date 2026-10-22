@@ -349,3 +349,25 @@ func TestNewRules(t *testing.T) {
 		t.Error("three levels")
 	}
 }
+
+func TestProxyPasswordMask(t *testing.T) {
+	for _, c := range []struct{ raw, masked string }{
+		{"http://ada:s3cr@t@proxy.corp:3128", "http://ada:••••••@proxy.corp:3128"},
+		{"ada:pw@10.0.0.1:8080", "ada:••••••@10.0.0.1:8080"},
+		{"ada@proxy:8080", "ada@proxy:8080"},
+		{"proxy.corp:3128", "proxy.corp:3128"},
+	} {
+		if got := MaskProxyPassword(c.raw); got != c.masked {
+			t.Errorf("mask %q = %q, want %q", c.raw, got, c.masked)
+		}
+		if got := UnmaskProxyPassword(MaskProxyPassword(c.raw), c.raw); got != c.raw {
+			t.Errorf("unmask %q = %q", c.raw, got)
+		}
+	}
+	if got := UnmaskProxyPassword("http://ada:••••••@other:1", "http://ada:pw@proxy:3128"); got != "http://ada:pw@other:1" { // #nosec G101 -- a made-up proxy password for the test.
+		t.Errorf("host edit kept %q", got)
+	}
+	if got := UnmaskProxyPassword("http://ada:new@proxy:3128", "http://ada:pw@proxy:3128"); got != "http://ada:new@proxy:3128" { // #nosec G101 -- a made-up proxy password for the test.
+		t.Errorf("new password became %q", got)
+	}
+}

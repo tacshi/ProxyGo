@@ -267,3 +267,17 @@ func TestJSONConditionsAndPresets(t *testing.T) {
 		t.Errorf("filter %+v", back)
 	}
 }
+
+func TestDeepSearchFindsEscapedJSONText(t *testing.T) {
+	f := flow.New("J")
+	f.Request = &flow.Request{Scheme: "https", Host: "api.dev", Port: 443, FullPath: "https://api.dev/x", URI: "/x", Method: flow.Method{Name: "GET"}}
+	f.Response = &flow.Response{Status: &flow.Status{Code: 200}, BodyData: flow.Blob(`{"name":"中文","url":"https:\/\/cdn.dev\/a.png","quote":"say \"hi\""}`)}
+	for _, q := range []string{"中文", "https://cdn.dev/a.png", `say "hi"`} {
+		if !(Filter{Query: q, Deep: true}).Match(f) {
+			t.Errorf("%q not found", q)
+		}
+	}
+	if (Filter{Query: "nothing here", Deep: true}).Match(f) {
+		t.Error("matched text that is not in the body")
+	}
+}

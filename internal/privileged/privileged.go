@@ -28,6 +28,7 @@ type Request struct {
 	Op     string             `json:"op"`
 	Config systemproxy.Config `json:"config,omitzero"`
 	State  systemproxy.State  `json:"state,omitzero"`
+	Before systemproxy.State  `json:"before,omitzero"`
 }
 
 type Response struct {

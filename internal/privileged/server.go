@@ -2,6 +2,7 @@ package privileged
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,15 +26,27 @@ const cliLink = "/usr/local/bin/" + cli.Name
 
 type peer struct {
 	uid    int
+	pid    int
 	cdhash []byte
 	path   string
 }
 
 type server struct {
-	label  string
-	uid    int
-	cdhash []byte
-	mu     sync.Mutex
+	label   string
+	uid     int
+	cdhash  []byte
+	mu      sync.Mutex
+	watched *appWatch
+	every   time.Duration
+	alive   func(int) bool
+	status  func() systemproxy.State
+	restore func(systemproxy.State) error
+}
+
+type appWatch struct {
+	pid    int
+	cfg    systemproxy.Config
+	before systemproxy.State
 }
 
 func Serve(args []string) int {
@@ -111,10 +124,16 @@ func (s *server) handle(req Request, p peer) error {
 		if !loopback(cfg.Host) || cfg.Port < 1 || cfg.Port > 65535 || cfg.SOCKSPort < 0 || cfg.SOCKSPort > 65535 {
 			return errors.New("ProxyGo's helper points macOS only at a proxy on this Mac")
 		}
-		return systemproxy.Enable(cfg)
+		if err := systemproxy.Enable(cfg); err != nil {
+			return err
+		}
+		s.watch(p.pid, cfg, req.Before)
+		return nil
 	case "disable":
+		s.watched = nil
 		return systemproxy.Disable()
 	case "restore":
+		s.watched = nil
 		return systemproxy.Restore(req.State)
 	case "link-cli":
 		return linkCLI(p.path)
@@ -127,6 +146,41 @@ func (s *server) handle(req Request, p peer) error {
 		return nil
 	}
 	return fmt.Errorf("unknown request %q", req.Op)
+}
+
+func (s *server) watch(pid int, cfg systemproxy.Config, before systemproxy.State) {
+	if pid <= 0 {
+		return
+	}
+	w := &appWatch{pid: pid, cfg: cfg, before: before}
+	s.watched = w
+	alive, status, restore := s.alive, s.status, s.restore
+	if alive == nil {
+		alive, status, restore = processAlive, systemproxy.Status, systemproxy.Restore
+	}
+	every := cmp.Or(s.every, time.Second)
+	go func() {
+		for {
+			time.Sleep(every)
+			s.mu.Lock()
+			if s.watched != w {
+				s.mu.Unlock()
+				return
+			}
+			if alive(pid) {
+				s.mu.Unlock()
+				continue
+			}
+			s.watched = nil
+			if status().PointsAt(cfg.Host, cfg.Port) {
+				if err := restore(before); err != nil {
+					log.Printf("giving macOS its proxy back: %v", err)
+				}
+			}
+			s.mu.Unlock()
+			return
+		}
+	}()
 }
 
 func loopback(host string) bool {

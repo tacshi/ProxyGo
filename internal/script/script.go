@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,8 +36,11 @@ type Request struct {
 
 func (r *Request) URL() string {
 	host := r.Host
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
 	if (r.Scheme == "https" && r.Port != 443 && r.Port != 0) || (r.Scheme == "http" && r.Port != 80 && r.Port != 0) {
-		host += ":" + strconv.Itoa(r.Port)
+		host = net.JoinHostPort(r.Host, strconv.Itoa(r.Port))
 	}
 	path := r.Path
 	if !strings.HasPrefix(path, "/") {
@@ -94,6 +98,8 @@ func (e *Engine) ClearLogs() {
 	e.version++
 	e.mu.Unlock()
 }
+
+func (e *Engine) Warn(script, text string) { e.addLog(script, "warn", text) }
 
 func (e *Engine) addLog(script, level, s string) {
 	e.mu.Lock()
@@ -217,10 +223,13 @@ func (e *Engine) run(rule *rules.ScriptRule, hook string, f *flow.Flow, req *Req
 	_ = vm.Set("$abort", func() { abortFlag = true })
 
 	reqObj := requestValue(vm, req)
+	reqMark := markOf(vm, reqObj)
 	args := []goja.Value{ctx, vm.ToValue(req.URL()), reqObj}
 	var respObj *goja.Object
+	var respMark marks
 	if resp != nil {
 		respObj = responseValue(vm, resp)
+		respMark = markOf(vm, respObj)
 		args = append(args, respObj)
 	}
 	result, err := fn(goja.Undefined(), args...)
@@ -244,14 +253,14 @@ func (e *Engine) run(rule *rules.ScriptRule, hook string, f *flow.Flow, req *Req
 		if o, ok := result.(*goja.Object); ok && result != nil && !goja.IsUndefined(result) && !goja.IsNull(result) {
 			obj = o
 		}
-		absorbRequest(vm, obj, req)
+		absorbRequest(vm, obj, req, reqMark)
 		return false, nil
 	}
 	obj := respObj
 	if o, ok := result.(*goja.Object); ok && o.Get("statusCode") != nil {
 		obj = o
 	}
-	absorbResponse(vm, obj, resp)
+	absorbResponse(vm, obj, resp, respMark)
 	return false, nil
 }
 
@@ -328,18 +337,8 @@ func requestValue(vm *goja.Runtime, req *Request) *goja.Object {
 	_ = o.Set("port", req.Port)
 	_ = o.Set("path", req.Path)
 	_ = o.Set("headers", headerObject(vm, req.Header))
-	queries := vm.NewObject()
-	if _, q, ok := strings.Cut(req.Path, "?"); ok {
-		values, _ := url.ParseQuery(q)
-		for k, vs := range values {
-			if len(vs) == 1 {
-				_ = queries.Set(k, vs[0])
-			} else {
-				_ = queries.Set(k, vs)
-			}
-		}
-	}
-	_ = o.Set("queries", queries)
+	_, q, _ := strings.Cut(req.Path, "?")
+	_ = o.Set("queries", pairsObject(vm, q))
 	_ = o.Set("body", bodyValue(vm, req.Body, req.Header.Get("Content-Type")))
 	_ = o.Set("rawBody", string(req.Body))
 	_ = o.Set("comment", req.Comment)
@@ -371,18 +370,111 @@ func bodyValue(vm *goja.Runtime, body []byte, contentType string) goja.Value {
 			}
 		}
 	case strings.Contains(ct, "x-www-form-urlencoded"):
-		values, err := url.ParseQuery(string(body))
-		if err == nil {
-			o := vm.NewObject()
-			for k, vs := range values {
-				if len(vs) > 0 {
-					_ = o.Set(k, vs[0])
-				}
-			}
-			return o
+		if _, err := url.ParseQuery(string(body)); err == nil {
+			return pairsObject(vm, string(body))
 		}
 	}
 	return vm.ToValue(string(body))
+}
+
+func pairsObject(vm *goja.Runtime, q string) *goja.Object {
+	var keys []string
+	values := map[string][]string{}
+	for part := range strings.SplitSeq(q, "&") {
+		if part == "" {
+			continue
+		}
+		k, v, _ := strings.Cut(part, "=")
+		k = unescapeQuery(k)
+		if _, ok := values[k]; !ok {
+			keys = append(keys, k)
+		}
+		values[k] = append(values[k], unescapeQuery(v))
+	}
+	o := vm.NewObject()
+	for _, k := range keys {
+		vs := values[k]
+		if len(vs) == 1 {
+			_ = o.Set(k, vs[0])
+			continue
+		}
+		items := make([]any, len(vs))
+		for i, v := range vs {
+			items[i] = v
+		}
+		_ = o.Set(k, vm.NewArray(items...))
+	}
+	return o
+}
+
+func unescapeQuery(s string) string {
+	if u, err := url.QueryUnescape(s); err == nil {
+		return u
+	}
+	return s
+}
+
+func encodePairs(o *goja.Object) string {
+	var parts []string
+	for _, k := range o.Keys() {
+		v := o.Get(k)
+		if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+			continue
+		}
+		if arr, ok := v.Export().([]any); ok {
+			for _, x := range arr {
+				parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(fmt.Sprint(x)))
+			}
+			continue
+		}
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(v.String()))
+	}
+	return strings.Join(parts, "&")
+}
+
+type marks struct{ body, queries string }
+
+func markOf(vm *goja.Runtime, o *goja.Object) marks {
+	m := marks{body: fingerprint(vm, o.Get("body"))}
+	if qo, ok := o.Get("queries").(*goja.Object); ok {
+		m.queries = encodePairs(qo)
+	}
+	return m
+}
+
+func fingerprint(vm *goja.Runtime, v goja.Value) string {
+	switch {
+	case v == nil || goja.IsUndefined(v):
+		return "u"
+	case goja.IsNull(v):
+		return "n"
+	}
+	if _, ok := v.(*goja.Object); !ok {
+		return "s" + v.String()
+	}
+	switch b := v.Export().(type) {
+	case goja.ArrayBuffer:
+		return "b" + string(b.Bytes())
+	case []byte:
+		return "b" + string(b)
+	}
+	s, ok := stringify(vm, v)
+	if !ok {
+		return "!"
+	}
+	return "o" + s
+}
+
+func stringify(vm *goja.Runtime, v goja.Value) (string, bool) {
+	fn, ok := goja.AssertFunction(vm.Get("JSON").ToObject(vm).Get("stringify"))
+	if !ok {
+		return "", false
+	}
+	out, err := fn(goja.Undefined(), v)
+	if err != nil || out == nil || goja.IsUndefined(out) {
+		return "", false
+	}
+	return out.String(), true
 }
 
 func exported(o *goja.Object, key string) (any, bool) {
@@ -422,7 +514,11 @@ func absorbHeaders(o *goja.Object) (flow.Header, bool) {
 	return h, true
 }
 
-func absorbBody(o *goja.Object, contentType string) ([]byte, bool) {
+func absorbBody(vm *goja.Runtime, o *goja.Object, contentType, before string) ([]byte, bool) {
+	val := o.Get("body")
+	if fingerprint(vm, val) == before {
+		return nil, false
+	}
 	v, ok := exported(o, "body")
 	if !ok {
 		return nil, false
@@ -437,22 +533,18 @@ func absorbBody(o *goja.Object, contentType string) ([]byte, bool) {
 	case goja.ArrayBuffer:
 		return bytes.Clone(b.Bytes()), true
 	case map[string]any:
-		if strings.Contains(strings.ToLower(contentType), "x-www-form-urlencoded") {
-			values := url.Values{}
-			for k, x := range b {
-				values.Set(k, fmt.Sprint(x))
-			}
-			return []byte(values.Encode()), true
+		if obj, ok := val.(*goja.Object); ok && strings.Contains(strings.ToLower(contentType), "x-www-form-urlencoded") {
+			return []byte(encodePairs(obj)), true
 		}
-		out, _ := json.Marshal(b)
-		return out, true
-	default:
-		out, _ := json.Marshal(b)
-		return out, true
 	}
+	if s, ok := stringify(vm, val); ok {
+		return []byte(s), true
+	}
+	out, _ := json.Marshal(v)
+	return out, true
 }
 
-func absorbRequest(vm *goja.Runtime, o *goja.Object, req *Request) {
+func absorbRequest(vm *goja.Runtime, o *goja.Object, req *Request, before marks) {
 	str := func(key string, dst *string) {
 		if v, ok := exported(o, key); ok && v != nil {
 			if s := fmt.Sprint(v); s != "" || key == "comment" || key == "color" {
@@ -479,38 +571,24 @@ func absorbRequest(vm *goja.Runtime, o *goja.Object, req *Request) {
 			}
 		}
 	}
-	if v := o.Get("queries"); v != nil {
-		if qo, ok := v.(*goja.Object); ok {
-			values := url.Values{}
-			for _, k := range qo.Keys() {
-				x := qo.Get(k).Export()
-				if arr, ok := x.([]any); ok {
-					for _, e := range arr {
-						values.Add(k, fmt.Sprint(e))
-					}
-				} else if x != nil {
-					values.Set(k, fmt.Sprint(x))
-				}
-			}
-			path, q, _ := strings.Cut(req.Path, "?")
-			old, _ := url.ParseQuery(q)
-			if values.Encode() != old.Encode() {
-				req.Path = path
-				if len(values) > 0 {
-					req.Path += "?" + values.Encode()
-				}
+	if qo, ok := o.Get("queries").(*goja.Object); ok {
+		if q := encodePairs(qo); q != before.queries {
+			path, _, _ := strings.Cut(req.Path, "?")
+			req.Path = path
+			if q != "" {
+				req.Path += "?" + q
 			}
 		}
 	}
 	if h, ok := absorbHeaders(o); ok {
 		req.Header = h
 	}
-	if body, ok := absorbBody(o, req.Header.Get("Content-Type")); ok {
+	if body, ok := absorbBody(vm, o, req.Header.Get("Content-Type"), before.body); ok {
 		req.Body = body
 	}
 }
 
-func absorbResponse(vm *goja.Runtime, o *goja.Object, resp *Response) {
+func absorbResponse(vm *goja.Runtime, o *goja.Object, resp *Response, before marks) {
 	if v, ok := exported(o, "statusCode"); ok {
 		switch c := v.(type) {
 		case int64:
@@ -528,7 +606,7 @@ func absorbResponse(vm *goja.Runtime, o *goja.Object, resp *Response) {
 			return
 		}
 	}
-	if body, ok := absorbBody(o, resp.Header.Get("Content-Type")); ok {
+	if body, ok := absorbBody(vm, o, resp.Header.Get("Content-Type"), before.body); ok {
 		resp.Body = body
 	}
 }

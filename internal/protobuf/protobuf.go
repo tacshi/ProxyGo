@@ -133,10 +133,31 @@ func decode(out *strings.Builder, b []byte, depth int) error {
 				fmt.Fprintf(out, "%s%d: %s\n", indent, f.num, strconv.Quote(string(f.data)))
 				continue
 			}
+			if packed, ok := packedVarints(f.data); ok {
+				fmt.Fprintf(out, "%s%d: <%d bytes> %x  # packed %s\n", indent, f.num, len(f.data), f.data[:min(len(f.data), 64)], packed)
+				continue
+			}
 			fmt.Fprintf(out, "%s%d: <%d bytes> %x\n", indent, f.num, len(f.data), f.data[:min(len(f.data), 64)])
 		}
 	}
 	return nil
+}
+
+func packedVarints(b []byte) (string, bool) {
+	var vals []string
+	for len(b) > 0 {
+		v, n := varint(b)
+		if n == 0 {
+			return "", false
+		}
+		if len(vals) == 32 {
+			vals = append(vals, "…")
+			break
+		}
+		vals = append(vals, strconv.FormatUint(v, 10))
+		b = b[n:]
+	}
+	return "[" + strings.Join(vals, ", ") + "]", len(vals) > 0
 }
 
 func looksLikeMessage(b []byte) bool {

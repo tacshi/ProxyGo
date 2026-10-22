@@ -51,7 +51,7 @@ func (s *Server) Replay(ctx context.Context, m Message) (*flow.Flow, error) {
 	req.Header.Del("Host")
 	req.Header.Del("Content-Length")
 	req.RemoteAddr = "127.0.0.1:0"
-	req.RequestURI = u.RequestURI()
+	req.RequestURI = cmp.Or(targetOf(strings.TrimSpace(m.URL)), u.RequestURI())
 	req.Proto, req.ProtoMajor, req.ProtoMinor = "HTTP/1.1", 1, 1
 	client := flow.Client{Name: "ProxyGo", PID: os.Getpid(), Path: executablePath()}
 	f := s.exchange(req, bytes.Clone(m.Body), nil, client, nil, &discardSink{})

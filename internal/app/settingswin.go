@@ -23,6 +23,7 @@ type settingsDrafts struct {
 	bypass     string
 	access     string
 	upBypass   string
+	upEditing  string
 	maxFlows   float64
 	initDone   bool
 	socksPort  float64
@@ -253,10 +254,22 @@ func (a *App) proxySettings(c *ui.Context, p palette, d *rules.Data) {
 		field := func(label string, v string, set func(string)) {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, label).TextColor(p.text2).Width(110)
+				editing := drafts.upEditing == label
 				val := v
+				if !editing {
+					val = rules.MaskProxyPassword(v)
+				}
 				in := ui.TextInput(c.Key(label), &val).Placeholder(locales.UpstreamProxyPlaceholder()).Label(label).Grow(1)
 				if in.Changed() {
-					set(val)
+					set(rules.UnmaskProxyPassword(val, v))
+				}
+				switch {
+				case in.Focused() && !editing:
+					drafts.upEditing = label
+					a.invalidate()
+				case !in.Focused() && editing:
+					drafts.upEditing = ""
+					a.invalidate()
 				}
 			})
 		}

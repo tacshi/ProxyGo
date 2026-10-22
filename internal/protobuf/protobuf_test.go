@@ -73,3 +73,14 @@ func TestDecodeGRPC(t *testing.T) {
 		t.Fatal("protobuf content type")
 	}
 }
+
+func TestPackedVarints(t *testing.T) {
+	out, err := DecodeRaw([]byte{0x0a, 0x04, 0x01, 0x02, 0x03, 0x96})
+	if err != nil || strings.Contains(out, "packed") {
+		t.Fatalf("bytes ending inside a varint shown as packed: %q %v", out, err)
+	}
+	out, err = DecodeRaw([]byte{0x0a, 0x05, 0x01, 0x02, 0x03, 0x96, 0x01})
+	if err != nil || !strings.Contains(out, "# packed [1, 2, 3, 150]") {
+		t.Fatalf("%q %v", out, err)
+	}
+}

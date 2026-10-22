@@ -341,6 +341,44 @@ func (u Upstream) ProxyFor(scheme, host string) *url.URL {
 	return p
 }
 
+const hiddenDots = "••••••"
+
+func proxyPassword(raw string) (start, end int, ok bool) {
+	at := strings.LastIndexByte(raw, '@')
+	if at < 0 {
+		return 0, 0, false
+	}
+	from := 0
+	if i := strings.Index(raw[:at], "://"); i >= 0 {
+		from = i + 3
+	}
+	colon := strings.IndexByte(raw[from:at], ':')
+	if colon < 0 {
+		return 0, 0, false
+	}
+	return from + colon + 1, at, true
+}
+
+func MaskProxyPassword(raw string) string {
+	start, end, ok := proxyPassword(raw)
+	if !ok || start == end {
+		return raw
+	}
+	return raw[:start] + hiddenDots + raw[end:]
+}
+
+func UnmaskProxyPassword(edited, old string) string {
+	start, end, ok := proxyPassword(edited)
+	if !ok || edited[start:end] != hiddenDots {
+		return edited
+	}
+	oldStart, oldEnd, ok := proxyPassword(old)
+	if !ok {
+		return edited
+	}
+	return edited[:start] + old[oldStart:oldEnd] + edited[end:]
+}
+
 const (
 	AccessAll   = ""
 	AccessLocal = "local"
