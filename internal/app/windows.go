@@ -7,32 +7,33 @@ import (
 	ui "github.com/egoist/mygo/proxygoui"
 
 	"proxygo/internal/flow"
+	"proxygo/locales"
 )
 
 type windowSpec struct {
-	title         string
+	title         func() string
 	width, height int
 }
 
 var windowSpecs = map[string]windowSpec{
-	"ssl":         {"SSL Proxying List", 760, 560},
-	"maplocal":    {"Map Local", 980, 720},
-	"mapremote":   {"Map Remote", 860, 600},
-	"breakpoint":  {"Breakpoint Rules", 820, 560},
-	"bpedit":      {"Breakpoint", 1000, 700},
-	"scripting":   {"Scripting", 1100, 720},
-	"network":     {"Network Conditions", 820, 560},
-	"dns":         {"DNS Spoofing", 760, 520},
-	"reverse":     {"Reverse Proxy", 780, 520},
-	"block":       {"Block List", 780, 540},
-	"allow":       {"Allow List", 780, 540},
-	"clientcerts": {"Client Certificates", 780, 520},
-	"certificate": {"Certificate", 820, 640},
-	"settings":    {"Settings", 760, 620},
-	"compose":     {"Compose", 1100, 720},
-	"diff":        {"Diff", 1100, 720},
-	"help":        {"ProxyGo Help", 640, 620},
-	"setup":       {"Automatic Setup", 720, 640},
+	"ssl":         {locales.SSLProxyingList, 760, 560},
+	"maplocal":    {locales.ToolMapLocal, 980, 720},
+	"mapremote":   {locales.ToolMapRemote, 860, 600},
+	"breakpoint":  {locales.BreakpointRules, 820, 560},
+	"bpedit":      {locales.ToolBreakpoint, 1000, 700},
+	"scripting":   {locales.ToolScripting, 1100, 720},
+	"network":     {locales.ToolNetworkConditions, 820, 560},
+	"dns":         {locales.ToolDNSSpoofing, 760, 520},
+	"reverse":     {locales.ToolReverseProxy, 780, 520},
+	"block":       {locales.ToolBlockList, 780, 540},
+	"allow":       {locales.ToolAllowList, 780, 540},
+	"clientcerts": {locales.ClientCertificates, 780, 520},
+	"certificate": {locales.Certificate, 820, 640},
+	"settings":    {locales.Settings, 760, 620},
+	"compose":     {locales.Compose, 1100, 720},
+	"diff":        {locales.Diff, 1100, 720},
+	"help":        {locales.ProxyGoHelp, 640, 620},
+	"setup":       {locales.AutomaticSetup, 720, 640},
 }
 
 func (a *App) openWindow(kind string) {
@@ -46,7 +47,7 @@ func (a *App) openWindow(kind string) {
 		return
 	}
 	win := mygo.NewWindow(mygo.WindowOptions{
-		Title:          spec.title,
+		Title:          spec.title(),
 		Width:          spec.width,
 		Height:         spec.height,
 		UseContentSize: true,
@@ -154,29 +155,29 @@ func (a *App) windowHeader(c *ui.Context, title, subtitle string, controls func(
 
 func (a *App) helpWindow(c *ui.Context) {
 	p := a.pal
-	a.windowHeader(c, "Getting Started", "Inspect and debug HTTP and HTTPS traffic.", nil)
+	a.windowHeader(c, locales.GettingStarted(), locales.InspectAndDebugHTTPAndHTTPSTraffic(), nil)
 	section := func(title, body string) {
 		ui.Text(c, title).FontSize(13).FontWeight(650).TextColor(p.text)
 		ui.Text(c, body).TextColor(p.text2).Wrap()
 	}
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).FillWidth().Padding(4, windowInset, windowInset, windowInset).Gap(10).Children(func() {
-			section("1. Send traffic to ProxyGo", fmt.Sprintf("Turn on Tools › Override macOS Proxy, or set a device's HTTP proxy to %s. Apps that ignore the system proxy can use SOCKS5 (Settings › Proxy).", a.proxyAddress()))
-			section("2. Trust the certificate", "Certificate › Install Certificate on this Mac. For phones, open http://proxy.go on the device while it uses ProxyGo, then trust the profile.")
-			section("3. Decrypt HTTPS", "Encrypted tunnels show a lock. Choose Enable only this domain in the response pane, or add domains in Tools › SSL Proxying List.")
-			section("4. Debug", "Repeat (⌘R) and Compose (⌘E) requests; pause them with Breakpoints; serve local files with Map Local; send them elsewhere with Map Remote; change them with Scripts; slow them down with Network Conditions; block them with the Block List; and resolve hosts with DNS Spoofing.")
-			section("5. Automate", "Settings › Automation serves MCP to AI assistants and installs proxygo-cli, which records, exports and adds rules from a terminal. Certificate › Automatic Setup opens a terminal, a browser or an Electron app already going through ProxyGo.")
+			section(locales.HelpStep1Title(), locales.HelpStep1(a.proxyAddress()))
+			section(locales.HelpStep2Title(), locales.HelpStep2())
+			section(locales.HelpStep3Title(), locales.HelpStep3())
+			section(locales.HelpStep4Title(), locales.HelpStep4())
+			section(locales.HelpStep5Title(), locales.HelpStep5())
 			ui.Box(c).Height(6)
-			ui.Text(c, "Keyboard Shortcuts").FontSize(13).FontWeight(650).TextColor(p.text)
+			ui.Text(c, locales.KeyboardShortcuts()).FontSize(13).FontWeight(650).TextColor(p.text)
 			shortcuts := [][2]string{
-				{"⇧⌘P", "Command Palette"}, {"⌘F", "Filter"}, {"⌥⌘F", "Advanced Filter"}, {"⌘K", "Clear Session"},
-				{"⇧⌘R", "Pause or Resume Recording"}, {"⌘R", "Repeat"}, {"⌘E", "Edit and Repeat"}, {"⇧⌘N", "Compose"},
-				{"⇧⌘C", "Copy as cURL"}, {"⇧⌘U", "Copy URL"}, {"⌘D", "Save Request"}, {"⇧⌘M", "Comment"},
-				{"⇧⌘D", "Compare Two Flows"}, {"⌘⌫", "Delete"}, {"⌘O", "Open Session"}, {"⌘S", "Save Session"},
-				{"⇧⌘E", "Export HAR"}, {"⌥⌘S", "Toggle Sidebar"}, {"⌥⌘I", "Toggle Inspector"}, {"⌘,", "Settings"},
-				{"⌥⌘P", "SSL Proxying List"}, {"⌥⌘B", "Breakpoints"}, {"⌥⌘L", "Map Local"}, {"⌥⌘M", "Map Remote"},
-				{"⌥⌘J", "Scripting"}, {"⌥⌘N", "Network Conditions"}, {"↩ (double click)", "Open Flow in a Window"},
-				{"⌥⌘O", "Open Session in a Window"}, {"⌥⌘D", "Save to Folder"}, {"⌘↩", "Send in Compose"},
+				{"⇧⌘P", locales.CommandPalette()}, {"⌘F", locales.Filter()}, {"⌥⌘F", locales.AdvancedFilter()}, {"⌘K", locales.ClearSession()},
+				{"⇧⌘R", locales.PauseOrResumeRecording()}, {"⌘R", locales.Repeat()}, {"⌘E", locales.EditAndRepeat()}, {"⇧⌘N", locales.Compose()},
+				{"⇧⌘C", locales.CopyAsCURL()}, {"⇧⌘U", locales.CopyURL()}, {"⌘D", locales.SaveRequest()}, {"⇧⌘M", locales.Comment()},
+				{"⇧⌘D", locales.CompareTwoFlows()}, {"⌘⌫", locales.Delete()}, {"⌘O", locales.OpenSession()}, {"⌘S", locales.SaveSession()},
+				{"⇧⌘E", locales.ExportHARShortcut()}, {"⌥⌘S", locales.ToggleSidebar()}, {"⌥⌘I", locales.ToggleInspector()}, {"⌘,", locales.Settings()},
+				{"⌥⌘P", locales.SSLProxyingList()}, {"⌥⌘B", locales.Breakpoints()}, {"⌥⌘L", locales.ToolMapLocal()}, {"⌥⌘M", locales.ToolMapRemote()},
+				{"⌥⌘J", locales.ToolScripting()}, {"⌥⌘N", locales.ToolNetworkConditions()}, {locales.ReturnDoubleClick(), locales.OpenFlowInAWindow()},
+				{"⌥⌘O", locales.OpenSessionInAWindow()}, {"⌥⌘D", locales.SaveToFolder()}, {"⌘↩", locales.SendInCompose()},
 			}
 			ui.Grid(c).Columns(2).GapX(18).GapY(4).Children(func() {
 				for _, s := range shortcuts {

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"proxygo/internal/rules"
 	"proxygo/internal/script"
+	"proxygo/locales"
 )
 
 type scriptState struct {
@@ -41,7 +41,7 @@ func (a *App) scriptDraft(r *rules.ScriptRule) *scriptDraft {
 	if d == nil {
 		buf := editor.NewBuffer(r.Script)
 		buf.SetLanguage(editor.LanguageNamed("JavaScript"))
-		d = &scriptDraft{rule: clone(r), code: &editor.State{Buffer: buf, Label: "Script", TabSize: 2}}
+		d = &scriptDraft{rule: clone(r), code: &editor.State{Buffer: buf, Label: locales.Script(), TabSize: 2}}
 		s.drafts[r.ID] = d
 	}
 	return d
@@ -66,7 +66,7 @@ func (a *App) saveScript(d *scriptDraft) {
 		data.Scripts = putByID(data.Scripts, &r, func(s *rules.ScriptRule) string { return s.ID })
 		delete(data.DisabledTools, rules.ToolScripting)
 	})
-	a.toast("Saved " + r.Name)
+	a.toast(locales.SavedName(r.Name))
 }
 
 func (a *App) saveOpenScript() {
@@ -85,11 +85,11 @@ func (a *App) scriptWindow(c *ui.Context) {
 	s := &a.scriptUI
 	d := a.rules.Current()
 	sid := func(r *rules.ScriptRule) string { return r.ID }
-	a.windowHeader(c, "Scripting", "Change requests and responses with JavaScript: onRequest runs before the request goes to the server, onResponse before the response reaches the client.", func() {
+	a.windowHeader(c, locales.ToolScripting(), locales.ChangeRequestsAndResponsesWithJavaScript(), func() {
 		on := d.ToolOn(rules.ToolScripting)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, map[bool]string{true: "On", false: "Off"}[on]).FontWeight(600).TextColor(map[bool]ui.Color{true: p.green, false: p.muted}[on])
-			if ui.Switch(c, &on).Label("Enable Scripting").Changed() {
+			ui.Text(c, map[bool]string{true: locales.On(), false: locales.Off()}[on]).FontWeight(600).TextColor(map[bool]ui.Color{true: p.green, false: p.muted}[on])
+			if ui.Switch(c, &on).Label(locales.EnableScripting()).Changed() {
 				a.setTool(rules.ToolScripting, on)
 			}
 		})
@@ -102,12 +102,12 @@ func (a *App) scriptWindow(c *ui.Context) {
 	ui.Split(c, &s.listWidth, func() {
 		ui.Column(c).Fill().Background(p.sidebar).Children(func() {
 			ui.Row(c).FillWidth().Padding(8, 6, 8, 14).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Scripts").FontWeight(650).Grow(1)
-				ui.Button(c, "").Label("Scripting Options").Tooltip("Options").Children(func() { glyph(c, "ellipsis", 13, p.text2) }).Menu(func(m *ui.Menu) {
+				ui.Text(c, locales.Scripts()).FontWeight(650).Grow(1)
+				ui.Button(c, "").Label(locales.ScriptingOptions()).Tooltip(locales.Options()).Children(func() { glyph(c, "ellipsis", 13, p.text2) }).Menu(func(m *ui.Menu) {
 					a.scriptOptions(m)
 				})
-				if iconButton(c, "plus", "New Script", p.text2).Clicked() {
-					r := &rules.ScriptRule{ID: rules.NewID(), Enabled: true, Name: fmt.Sprintf("Script %d", len(d.Scripts)+1), Matcher: rules.Matcher{URL: "https://example.com/*"}, OnRequest: true, OnResponse: true, Script: script.Template}
+				if iconButton(c, "plus", locales.NewScript(), p.text2).Clicked() {
+					r := &rules.ScriptRule{ID: rules.NewID(), Enabled: true, Name: locales.ScriptNumber(len(d.Scripts) + 1), Matcher: rules.Matcher{URL: "https://example.com/*"}, OnRequest: true, OnResponse: true, Script: script.Template}
 					a.rules.Update(func(data *rules.Data) { data.Scripts = append(data.Scripts, r) })
 					s.selected = r.ID
 				}
@@ -115,7 +115,7 @@ func (a *App) scriptWindow(c *ui.Context) {
 			ui.Scroll(c).Grow(1).Children(func() {
 				ui.Column(c).FillWidth().Padding(4, 6).Gap(2).Children(func() {
 					if len(d.Scripts) == 0 {
-						ui.Text(c, "No scripts yet.").TextColor(p.muted).Padding(8)
+						ui.Text(c, locales.NoScriptsYet()).TextColor(p.muted).Padding(8)
 					}
 					for _, r := range d.Scripts {
 						row := ui.Row(c.Key(r.ID)).FillWidth().Padding(6, 8).Gap(8).Radius(6).AlignItems(ui.Center)
@@ -129,7 +129,7 @@ func (a *App) scriptWindow(c *ui.Context) {
 						}
 						row.Children(func() {
 							on := r.Enabled
-							if ui.Checkbox(c, &on, "").Label("Enabled").Changed() {
+							if ui.Checkbox(c, &on, "").Label(locales.Enabled()).Changed() {
 								id := r.ID
 								a.rules.Update(func(data *rules.Data) {
 									if x := byID(data.Scripts, id, sid); x != nil {
@@ -144,12 +144,12 @@ func (a *App) scriptWindow(c *ui.Context) {
 						})
 						row.ContextMenu(func(m *ui.Menu) {
 							id := r.ID
-							if m.Item("Duplicate").Chosen() {
+							if m.Item(locales.Duplicate()).Chosen() {
 								cp := *r
-								cp.ID, cp.Name = rules.NewID(), r.Name+" copy"
+								cp.ID, cp.Name = rules.NewID(), locales.CopyName(r.Name)
 								a.rules.Update(func(data *rules.Data) { data.Scripts = append(data.Scripts, &cp) })
 							}
-							if m.Item("Delete").Chosen() {
+							if m.Item(locales.Delete()).Chosen() {
 								a.rules.Update(func(data *rules.Data) { data.Scripts = dropByID(data.Scripts, id, sid) })
 								delete(s.drafts, id)
 							}
@@ -167,9 +167,9 @@ func (a *App) scriptWindow(c *ui.Context) {
 		if saved == nil {
 			ui.Column(c).Fill().Center().Gap(10).Children(func() {
 				glyph(c, "script", 28, p.faint)
-				ui.Text(c, "No script chosen").FontSize(14).FontWeight(600).TextColor(p.text2)
-				if ui.PrimaryButton(c, "New Script").Clicked() {
-					r := &rules.ScriptRule{ID: rules.NewID(), Enabled: true, Name: "Script 1", Matcher: rules.Matcher{URL: "https://example.com/*"}, OnRequest: true, OnResponse: true, Script: script.Template}
+				ui.Text(c, locales.NoScriptChosen()).FontSize(14).FontWeight(600).TextColor(p.text2)
+				if ui.PrimaryButton(c, locales.NewScript()).Clicked() {
+					r := &rules.ScriptRule{ID: rules.NewID(), Enabled: true, Name: locales.ScriptNumber(1), Matcher: rules.Matcher{URL: "https://example.com/*"}, OnRequest: true, OnResponse: true, Script: script.Template}
 					a.rules.Update(func(data *rules.Data) { data.Scripts = append(data.Scripts, r) })
 					s.selected = r.ID
 				}
@@ -187,10 +187,10 @@ func (a *App) scriptEditor(c *ui.Context, dr *scriptDraft, saved *rules.ScriptRu
 	ui.Column(c.Key(r.ID)).Fill().Children(func() {
 		ui.Column(c).FillWidth().Padding(10, inset).Gap(8).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.TextInput(c, &r.Name).Label("Name").Width(200)
-				ui.TextInput(c, &r.URL).Placeholder("https://api.example.com/*").Label("Matching URL").Grow(1)
+				ui.TextInput(c, &r.Name).Label(locales.ColumnName()).Width(200)
+				ui.TextInput(c, &r.URL).Placeholder("https://api.example.com/*").Label(locales.MatchingURL()).Grow(1)
 				method := methodLabel(r.Method)
-				if ui.Select(c, &method, methods).Label("Method").Width(100).Changed() {
+				if ui.Select(c, &method, methods).Label(locales.ColumnMethod()).Width(100).Changed() {
 					if method == "ANY" {
 						r.Method = ""
 					} else {
@@ -198,16 +198,16 @@ func (a *App) scriptEditor(c *ui.Context, dr *scriptDraft, saved *rules.ScriptRu
 					}
 				}
 				regex := r.Match == "regex"
-				if ui.Checkbox(c, &regex, "Regex").Changed() {
+				if ui.Checkbox(c, &regex, locales.Regex()).Changed() {
 					r.Match = map[bool]string{true: "regex", false: "wildcard"}[regex]
 				}
 			})
 			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
-				ui.Checkbox(c, &r.OnRequest, "Run on Request")
-				ui.Checkbox(c, &r.OnResponse, "Run on Response")
-				ui.Checkbox(c, &r.MockResponse, "Mock API").Tooltip("Answer from onResponse without sending the request to the server")
+				ui.Checkbox(c, &r.OnRequest, locales.RunOnRequest())
+				ui.Checkbox(c, &r.OnResponse, locales.RunOnResponse())
+				ui.Checkbox(c, &r.MockResponse, locales.MockAPI()).Tooltip(locales.AnswerFromOnResponseWithoutSendingThe())
 				ui.Spacer(c)
-				ui.MenuButton(c, "Snippets", func(m *ui.Menu) {
+				ui.MenuButton(c, locales.Snippets(), func(m *ui.Menu) {
 					for _, sn := range script.Snippets {
 						if m.Item(sn.Name).Chosen() {
 							dr.code.Insert(sn.Code + "\n")
@@ -215,11 +215,11 @@ func (a *App) scriptEditor(c *ui.Context, dr *scriptDraft, saved *rules.ScriptRu
 					}
 				})
 				changed := dr.changed(saved)
-				if ui.Button(c, "Revert").Disabled(!changed).Clicked() {
+				if ui.Button(c, locales.Revert()).Disabled(!changed).Clicked() {
 					delete(s.drafts, r.ID)
 					s.err = ""
 				}
-				if ui.PrimaryButton(c, "Save").Disabled(!changed).Tooltip("Save and apply (⌘S)").Clicked() || (changed && c.Shortcut(ui.Cmd, ui.KeyS)) {
+				if ui.PrimaryButton(c, locales.Save()).Disabled(!changed).Tooltip(locales.SaveAndApplyS()).Clicked() || (changed && c.Shortcut(ui.Cmd, ui.KeyS)) {
 					a.saveScript(dr)
 				}
 			})
@@ -257,17 +257,17 @@ func (a *App) console(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).FillWidth().Padding(4, inset).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Console").FontWeight(650)
+			ui.Text(c, locales.Console()).FontWeight(650)
 			ui.Text(c, plural(len(logs), "line", "lines")).FontSize(11).TextColor(p.muted)
 			ui.Spacer(c)
-			ui.Segmented(c, &s.level, "All", "Warnings", "Errors").Label("Console level")
-			if ui.Button(c, "Clear").Clicked() {
+			ui.Segmented(c, &s.level, locales.All(), locales.Warnings(), locales.Errors()).Label(locales.ConsoleLevel())
+			if ui.Button(c, locales.Clear()).Clicked() {
 				a.scripts.ClearLogs()
 			}
 		})
 		ui.Divider(c)
 		if len(logs) == 0 {
-			emptyState(c, p, map[bool]string{true: "console.log() output shows here", false: "No lines at this level"}[len(all) == 0])
+			emptyState(c, p, map[bool]string{true: locales.ConsoleLogOutputShowsHere(), false: locales.NoLinesAtThisLevel()}[len(all) == 0])
 			return
 		}
 		a.scriptUI.logs.FollowEnd = true
@@ -291,22 +291,22 @@ func (a *App) console(c *ui.Context) {
 
 func (a *App) scriptOptions(m *ui.Menu) {
 	d := a.rules.Current()
-	if m.Item("Run Only the First Matching Script").Checked(d.Scripting.FirstOnly).Chosen() {
+	if m.Item(locales.RunOnlyTheFirstMatchingScript()).Checked(d.Scripting.FirstOnly).Chosen() {
 		a.rules.Update(func(d *rules.Data) { d.Scripting.FirstOnly = !d.Scripting.FirstOnly })
 	}
-	if m.Item("Let Scripts Read Environment Variables").Checked(d.Scripting.AllowEnv).Chosen() {
+	if m.Item(locales.LetScriptsReadEnvironmentVariables()).Checked(d.Scripting.AllowEnv).Chosen() {
 		a.rules.Update(func(d *rules.Data) { d.Scripting.AllowEnv = !d.Scripting.AllowEnv })
 	}
 	m.Separator()
-	if m.Item("Import Script File…").Chosen() {
+	if m.Item(locales.ImportScriptFileEllipsis()).Chosen() {
 		a.importScriptFile()
 	}
-	if m.Item("Open Scripts Folder").Chosen() {
+	if m.Item(locales.OpenScriptsFolder()).Chosen() {
 		root := a.scripts.Root()
 		_ = os.MkdirAll(root, 0o755)
 		openPath(root)
 	}
-	if m.Item("Scripting Reference").Chosen() {
+	if m.Item(locales.ScriptingReference()).Chosen() {
 		a.scriptUI.reference = true
 	}
 }
@@ -314,7 +314,7 @@ func (a *App) scriptOptions(m *ui.Menu) {
 func (a *App) importScriptFile() {
 	parent := a.windows["scripting"]
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: "Import a Script", Filters: []mygo.FileFilter{{Name: "JavaScript", Extensions: []string{"js", "mjs", "cjs"}}}})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: locales.ImportAScript(), Filters: []mygo.FileFilter{{Name: "JavaScript", Extensions: []string{"js", "mjs", "cjs"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -322,7 +322,7 @@ func (a *App) importScriptFile() {
 		code, err := readCapped(path, 1<<20)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot read " + filepath.Base(path) + ": " + err.Error())
+				a.toast(locales.CannotRead(filepath.Base(path), err.Error()))
 				return
 			}
 			name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
@@ -333,7 +333,7 @@ func (a *App) importScriptFile() {
 			r := &rules.ScriptRule{ID: rules.NewID(), Enabled: false, Name: name, Matcher: rules.Matcher{URL: "https://example.com/*"}, OnRequest: true, OnResponse: true, Script: string(code)}
 			a.rules.Update(func(data *rules.Data) { data.Scripts = append(data.Scripts, r) })
 			a.scriptUI.selected = r.ID
-			a.toast("Imported " + name + ", switched off: set its URL, then switch it on")
+			a.toast(locales.ImportedSwitchedOff(name))
 		})
 	}()
 }
@@ -347,13 +347,13 @@ func (a *App) referenceSheet(c *ui.Context) {
 	ui.Modal(c, &s.reference, func() {
 		ui.Column(c).Width(sheetWidth(c, 760)).Height(max(h-120, 240)).Gap(10).Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Scripting Reference").FontSize(15).FontWeight(650).Grow(1)
-				if ui.Button(c, "Done").Clicked() {
+				ui.Text(c, locales.ScriptingReference()).FontSize(15).FontWeight(650).Grow(1)
+				if ui.Button(c, locales.Done()).Clicked() {
 					s.reference = false
 				}
 			})
 			ui.Column(c).Grow(1).FillWidth().Radius(6).Border(1, a.pal.border).Clip().Children(func() {
-				a.textViewer(c, "scriptReference", script.Reference(), "Markdown", "Scripting reference")
+				a.textViewer(c, "scriptReference", script.Reference(), "Markdown", locales.ScriptingReferenceLabel())
 			})
 		})
 	})

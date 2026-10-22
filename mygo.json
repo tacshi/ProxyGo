@@ -3,6 +3,10 @@
   "identifier": "com.example.proxygo",
   "version": "0.1.0",
   "out": "build",
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  },
   "resources": [
     "third_party/NOTICE",
     "third_party/MyGo-LICENSE"

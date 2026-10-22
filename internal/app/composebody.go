@@ -21,6 +21,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/formdata"
 	"proxygo/internal/proxy"
+	"proxygo/locales"
 )
 
 const (
@@ -150,11 +151,11 @@ func (a *App) formView(c *ui.Context, e *messageEditor) {
 			for i := range e.parts {
 				r := &e.parts[i]
 				ui.Row(c.Key(r.id)).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, &r.on, "").Label("Send this field")
-					ui.TextInput(c, &r.name).Placeholder("Name").Label("Field name").Width(170)
+					ui.Checkbox(c, &r.on, "").Label(locales.SendThisField())
+					ui.TextInput(c, &r.name).Placeholder(locales.ColumnName()).Label(locales.FieldName()).Width(170)
 					if multipart {
 						kind := map[bool]int{true: 1}[r.file]
-						if ui.Segmented(c, &kind, "Text", "File").Label("Field kind").Changed() {
+						if ui.Segmented(c, &kind, locales.BodyText(), locales.File()).Label(locales.FieldKind()).Changed() {
 							r.file = kind == 1
 						}
 					}
@@ -162,19 +163,19 @@ func (a *App) formView(c *ui.Context, e *messageEditor) {
 					case r.file && multipart:
 						label := r.fileName
 						if label == "" {
-							label = "No file chosen"
+							label = locales.NoFileChosen()
 						}
 						ui.Text(c, label).TextColor(map[bool]ui.Color{true: p.faint, false: p.text2}[r.fileName == ""]).Grow(1).SingleLine()
 						if r.fileName != "" {
 							ui.Text(c, formatSize(len(r.data))+" · "+r.contentType).FontSize(11).TextColor(p.muted).SingleLine()
 						}
-						if ui.Button(c, "Choose…").Clicked() {
+						if ui.Button(c, locales.ChooseEllipsis()).Clicked() {
 							a.chooseFilePart(e, r.id)
 						}
 					default:
-						ui.TextInput(c, &r.value).Placeholder("Value").Label("Field value").Grow(1)
+						ui.TextInput(c, &r.value).Placeholder(locales.Value()).Label(locales.FieldValue()).Grow(1)
 					}
-					if plainIconButton(c, "minus", "Remove Field", 12, p.muted, p.hover).Clicked() {
+					if plainIconButton(c, "minus", locales.RemoveField(), 12, p.muted, p.hover).Clicked() {
 						remove = i
 					}
 				})
@@ -183,10 +184,10 @@ func (a *App) formView(c *ui.Context, e *messageEditor) {
 				e.parts = slices.Delete(e.parts, remove, remove+1)
 			}
 			ui.Row(c).Gap(8).Padding(4, 0).Children(func() {
-				if ui.Button(c, "Add Field").Clicked() {
+				if ui.Button(c, locales.AddField()).Clicked() {
 					e.addPart(partRow{on: true})
 				}
-				if multipart && ui.Button(c, "Add File…").Clicked() {
+				if multipart && ui.Button(c, locales.AddFileEllipsis()).Clicked() {
 					a.chooseFilePart(e, 0)
 				}
 			})
@@ -197,7 +198,7 @@ func (a *App) formView(c *ui.Context, e *messageEditor) {
 func (a *App) chooseFilePart(e *messageEditor, id int) {
 	parent := a.windows["compose"]
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: "Choose a File to Send"})
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Title: locales.ChooseAFileToSend()})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -205,7 +206,7 @@ func (a *App) chooseFilePart(e *messageEditor, id int) {
 		data, err := readCapped(path, maxFilePart)
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot read " + filepath.Base(path) + ": " + err.Error())
+				a.toast(locales.CannotRead(filepath.Base(path), err.Error()))
 				return
 			}
 			ct := mime.TypeByExtension(filepath.Ext(path))
@@ -252,7 +253,7 @@ type curlSheet struct {
 
 func (a *App) openCurlSheet() {
 	st := &a.compose
-	st.curl = curlSheet{open: true, text: &editor.State{Buffer: editor.NewBuffer(""), SoftWrap: true, Label: "cURL command", Placeholder: "curl https://api.example.com/v1/items"}}
+	st.curl = curlSheet{open: true, text: &editor.State{Buffer: editor.NewBuffer(""), SoftWrap: true, Label: locales.CURLCommand(), Placeholder: "curl https://api.example.com/v1/items"}}
 }
 
 func (a *App) curlSheetView(c *ui.Context) {
@@ -264,8 +265,8 @@ func (a *App) curlSheetView(c *ui.Context) {
 	p := a.pal
 	ui.Modal(c, &s.open, func() {
 		ui.Column(c).Width(sheetWidth(c, 560)).Gap(10).Children(func() {
-			ui.Text(c, "Import from cURL").FontSize(15).FontWeight(650)
-			ui.Text(c, "Paste a curl command, as a browser's Copy as cURL writes it. Files it reads with @ are left out.").TextColor(p.muted).Wrap()
+			ui.Text(c, locales.ImportFromCURL()).FontSize(15).FontWeight(650)
+			ui.Text(c, locales.PasteACURLCommandAsA()).TextColor(p.muted).Wrap()
 			ui.Box(c).FillWidth().Height(180).Radius(6).Border(1, p.border).Clip().Children(func() {
 				editor.View(c.Key("curlText"), s.text).Fill()
 			})
@@ -273,11 +274,11 @@ func (a *App) curlSheetView(c *ui.Context) {
 				ui.Text(c, s.err).FontSize(11).TextColor(p.red).Wrap()
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
 				text := strings.TrimSpace(s.text.Buffer.String())
-				if ui.PrimaryButton(c, "Import").Disabled(text == "").Clicked() || text != "" && c.Shortcut(ui.Cmd, ui.KeyEnter) {
+				if ui.PrimaryButton(c, locales.Import()).Disabled(text == "").Clicked() || text != "" && c.Shortcut(ui.Cmd, ui.KeyEnter) {
 					cmd, err := curl.Parse(text)
 					if err != nil {
 						s.err = err.Error()
@@ -306,7 +307,7 @@ func (a *App) composeCurl(cmd curl.Command) {
 	}
 	notes := slices.Clone(cmd.Warnings)
 	if cmd.Insecure && !a.rules.Current().InsecureTLS {
-		notes = append(notes, "-k: ProxyGo checks the server's certificate, unless Settings › HTTPS accepts any")
+		notes = append(notes, locales.KProxyGoChecksTheServersCertificate())
 	}
 	st.notes = notes
 }

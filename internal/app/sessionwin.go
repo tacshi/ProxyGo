@@ -11,6 +11,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/session"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 type sessionView struct {
@@ -28,10 +29,10 @@ type sessionView struct {
 func (a *App) openSessionWindowDialog() {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Parent: a.win, Title: "Open in New Window",
+			Parent: a.win, Title: locales.OpenInNewWindow(),
 			Filters: []mygo.FileFilter{
-				{Name: "Sessions and Archives", Extensions: session.Extensions},
-				{Name: "All Files", Extensions: []string{"*"}},
+				{Name: locales.SessionsAndArchives(), Extensions: session.Extensions},
+				{Name: locales.AllFiles(), Extensions: []string{"*"}},
 			},
 		})
 		if err != nil || len(paths) == 0 {
@@ -40,7 +41,7 @@ func (a *App) openSessionWindowDialog() {
 		b, err := session.Open(paths[0])
 		a.do(func() {
 			if err != nil {
-				a.toast("Cannot open " + filepath.Base(paths[0]) + ": " + err.Error())
+				a.toast(locales.CannotOpen(filepath.Base(paths[0]), err.Error()))
 				return
 			}
 			a.loadIcons(b.Icons)
@@ -95,17 +96,17 @@ func (a *App) sessionWindow(c *ui.Context, key string) {
 		ui.Row(c).FillWidth().Padding(14, windowInset, 10, windowInset).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).Shrink(1).Gap(2).Children(func() {
 				ui.Text(c, v.title).FontSize(15).FontWeight(650).TextColor(p.text).SingleLine()
-				ui.Text(c, plural(len(v.flows), "flow", "flows")+" saved · new traffic appears in the main window").FontSize(11).TextColor(p.muted).SingleLine()
+				ui.Text(c, locales.FlowsSavedNewTraffic(len(v.flows))).FontSize(11).TextColor(p.muted).SingleLine()
 			})
-			box, _ := a.searchField(c, "q", &v.query, "Filter", "Filter flows")
+			box, _ := a.searchField(c, "q", &v.query, locales.Filter(), locales.FilterFlows())
 			box.Width(220)
-			if ui.Button(c, "Import into Session").Tooltip("Add these flows to the main window's session").Clicked() {
+			if ui.Button(c, locales.ImportIntoSession()).Tooltip(locales.AddTheseFlowsToTheMain()).Clicked() {
 				a.store.Append(v.flows)
-				a.toast("Imported " + plural(len(v.flows), "flow", "flows"))
+				a.toast(locales.ImportedFlows(len(v.flows)))
 			}
-			ui.MenuButton(c, "Export", func(m *ui.Menu) {
+			ui.MenuButton(c, locales.Export(), func(m *ui.Menu) {
 				for _, f := range []string{"har", "postman", "openapi", "openapi-html", "csv", "raw"} {
-					if m.Item("as " + exportFormats[f].title + "…").Chosen() {
+					if m.Item(locales.AsFormatEllipsis(exportTitle(f))).Chosen() {
 						a.exportFlows(f, v.flows, strings.TrimSuffix(v.title, filepath.Ext(v.title)))
 					}
 				}
@@ -132,17 +133,17 @@ func (a *App) sessionWindow(c *ui.Context, key string) {
 func (a *App) sessionTable(c *ui.Context, v *sessionView) {
 	p := a.pal
 	if len(v.visible) == 0 {
-		emptyState(c, p, map[bool]string{true: "No flows", false: "No flows match"}[len(v.flows) == 0])
+		emptyState(c, p, map[bool]string{true: locales.NoFlows(), false: locales.NoFlowsMatch()}[len(v.flows) == 0])
 		return
 	}
 	cols := []ui.TableColumn{
 		{Title: "", ID: "dot", Width: 24, Fixed: true, Align: ui.Center},
 		{Title: "#", Width: 44, Align: ui.End},
-		{Title: "URL", MinWidth: 240},
-		{Title: "Method", Width: 80},
-		{Title: "Status", Width: 66},
-		{Title: "Duration", Width: 72, Align: ui.End},
-		{Title: "Response", Width: 74, Align: ui.End},
+		{Title: locales.URL(), MinWidth: 240},
+		{Title: locales.ColumnMethod(), Width: 80},
+		{Title: locales.Status(), Width: 66},
+		{Title: locales.Duration(), Width: 72, Align: ui.End},
+		{Title: locales.PhaseResponse(), Width: 74, Align: ui.End},
 	}
 	v.list.Selected = &v.row
 	v.list.Key = func(row int) any {
@@ -183,7 +184,7 @@ func (a *App) sessionTable(c *ui.Context, v *sessionView) {
 		case 6:
 			ui.Text(c, formatSize(f.ResponseBodySize())).FontSize(11).TextColor(fg(p.muted)).FontFeatures("tnum")
 		}
-	}).Grow(1).Label("Saved flows")
+	}).Grow(1).Label(locales.SavedFlows())
 	if t.Changed() && v.row >= 0 && v.row < len(v.visible) {
 		v.selected = v.visible[v.row].UniqueID
 	}

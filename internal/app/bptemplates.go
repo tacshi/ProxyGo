@@ -10,6 +10,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/proxy"
 	"proxygo/internal/rules"
+	"proxygo/locales"
 )
 
 type templateSheet struct {
@@ -82,14 +83,14 @@ func (a *App) applyTemplate(pd *pending, t *rules.BreakpointTemplate) {
 
 func (a *App) pauseActions(c *ui.Context, pd *pending) {
 	templates := a.rules.Current().BreakpointTemplates
-	ui.MenuButton(c, "Abort", func(m *ui.Menu) {
-		if m.Item("Abort with 403 Forbidden").Chosen() {
+	ui.MenuButton(c, locales.Abort(), func(m *ui.Menu) {
+		if m.Item(locales.AbortWith403Forbidden()).Chosen() {
 			a.resolvePause(pd.ID, false, false)
 		}
-		if m.Item("Drop the Connection").Chosen() {
+		if m.Item(locales.DropTheConnection()).Chosen() {
 			a.decide(pd.ID, proxy.Message{Drop: true}, false)
 		}
-		verb := map[bool]string{true: "Replace with ", false: "Answer "}[pd.Response]
+		verb := map[bool]func(string) string{true: locales.ReplaceWithTemplate, false: locales.AnswerWithTemplate}[pd.Response]
 		first := true
 		for _, t := range templates {
 			if t == nil || !t.Response {
@@ -99,30 +100,30 @@ func (a *App) pauseActions(c *ui.Context, pd *pending) {
 				m.Separator()
 				first = false
 			}
-			if m.Item(verb + t.Name).Chosen() {
+			if m.Item(verb(t.Name)).Chosen() {
 				a.answerWithTemplate(pd, t)
 			}
 		}
-	}).Tooltip(map[bool]string{true: "Stop the response, or replace it with a template", false: "Stop the request, or answer it without the server"}[pd.Response])
-	ui.MenuButton(c, "Templates", func(m *ui.Menu) {
+	}).Tooltip(map[bool]string{true: locales.StopTheResponseOrReplaceIt(), false: locales.StopTheRequestOrAnswerIt()}[pd.Response])
+	ui.MenuButton(c, locales.Templates(), func(m *ui.Menu) {
 		n := 0
 		for _, t := range templates {
 			if t == nil || t.Response != pd.Response {
 				continue
 			}
 			n++
-			if m.Item("Apply " + t.Name).Chosen() {
+			if m.Item(locales.ApplyTemplate(t.Name)).Chosen() {
 				a.applyTemplate(pd, t)
 			}
 		}
 		if n == 0 {
-			m.Item("No " + map[bool]string{true: "response", false: "request"}[pd.Response] + " templates").Disabled(true)
+			m.Item(map[bool]string{true: locales.NoResponseTemplates(), false: locales.NoRequestTemplates()}[pd.Response]).Disabled(true)
 		}
 		m.Separator()
-		if m.Item("Save as Template…").Chosen() {
+		if m.Item(locales.SaveAsTemplateEllipsis()).Chosen() {
 			a.tplSave = templateSheet{open: true, pause: pd.ID, name: shorten(strings.TrimPrefix(strings.TrimPrefix(pd.Message.URL, "https://"), "http://"), 50)}
 		}
-		if m.Item("Manage Templates…").Chosen() {
+		if m.Item(locales.ManageTemplatesEllipsis()).Chosen() {
 			a.openWindow("bptemplates")
 		}
 	})
@@ -145,15 +146,15 @@ func (a *App) templateSheetView(c *ui.Context) {
 	}
 	ui.Modal(c, &s.open, func() {
 		ui.Column(c).Width(sheetWidth(c, 420)).Gap(10).Children(func() {
-			ui.Text(c, "Save as Template").FontSize(15).FontWeight(650)
-			ui.Text(c, "Keep this "+map[bool]string{true: "response", false: "request"}[pd.Response]+", as edited, to apply at later breakpoints.").TextColor(a.pal.muted).Wrap()
-			in := ui.TextInput(c, &s.name).Placeholder("Name").Label("Template name").AutoFocus()
+			ui.Text(c, locales.SaveAsTemplate()).FontSize(15).FontWeight(650)
+			ui.Text(c, map[bool]string{true: locales.KeepThisResponse(), false: locales.KeepThisRequest()}[pd.Response]).TextColor(a.pal.muted).Wrap()
+			in := ui.TextInput(c, &s.name).Placeholder(locales.ColumnName()).Label(locales.TemplateName()).AutoFocus()
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					s.open = false
 				}
 				name := strings.TrimSpace(s.name)
-				if ui.PrimaryButton(c, "Save").Disabled(name == "").Clicked() || name != "" && (in.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter)) {
+				if ui.PrimaryButton(c, locales.Save()).Disabled(name == "").Clicked() || name != "" && (in.Submitted() || c.Shortcut(ui.Cmd, ui.KeyEnter)) {
 					m := pd.edit.message()
 					var header []rules.Pair
 					for _, h := range m.Header.Entries {
@@ -164,7 +165,7 @@ func (a *App) templateSheetView(c *ui.Context) {
 					t := &rules.BreakpointTemplate{ID: rules.NewID(), Name: name, Response: pd.Response, Raw: rules.RawOf(pd.Response, m.Method, m.URL, m.StatusCode, header, m.Body)}
 					a.rules.Update(func(d *rules.Data) { d.BreakpointTemplates = append(d.BreakpointTemplates, t) })
 					s.open = false
-					a.toast("Saved the template " + name)
+					a.toast(locales.SavedTheTemplate(name))
 				}
 			})
 		})

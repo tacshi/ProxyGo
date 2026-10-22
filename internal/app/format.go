@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"proxygo/internal/flow"
+	"proxygo/locales"
 )
 
 func formatSize(n int) string {
@@ -99,9 +100,9 @@ func statusLabel(f *flow.Flow) string {
 	case f == nil:
 		return ""
 	case paused(f) != "":
-		return "Paused"
+		return locales.StatusPaused()
 	case f.IsActive():
-		return "Active"
+		return locales.StatusActive()
 	case f.IsIncomplete():
 		return "–"
 	case f.IsError():

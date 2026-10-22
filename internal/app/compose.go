@@ -19,6 +19,7 @@ import (
 	"proxygo/internal/flow"
 	"proxygo/internal/formdata"
 	"proxygo/internal/proxy"
+	"proxygo/locales"
 )
 
 type headerRow struct {
@@ -53,7 +54,7 @@ func newMessageEditor(m proxy.Message, response bool) *messageEditor {
 	if l := languageFor(m.Header.Get("Content-Type")); l != nil {
 		buf.SetLanguage(l)
 	}
-	e.body = &editor.State{Buffer: buf, SoftWrap: true, Label: "Body", Placeholder: "No body"}
+	e.body = &editor.State{Buffer: buf, SoftWrap: true, Label: locales.TabBody(), Placeholder: locales.NoBody()}
 	if len(m.Body) > 0 {
 		e.tab = 1
 	}
@@ -107,10 +108,10 @@ func (a *App) headersView(c *ui.Context, e *messageEditor) {
 			for i := range e.headers {
 				h := &e.headers[i]
 				ui.Row(c.Key(i)).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Checkbox(c, &h.on, "").Label("Send this header")
-					ui.TextInput(c, &h.name).Placeholder("Name").Label("Header name").Width(190)
-					ui.TextInput(c, &h.value).Placeholder("Value").Label("Header value").Grow(1)
-					if plainIconButton(c, "minus", "Remove Header", 12, p.muted, p.hover).Clicked() {
+					ui.Checkbox(c, &h.on, "").Label(locales.SendThisHeader())
+					ui.TextInput(c, &h.name).Placeholder(locales.ColumnName()).Label(locales.HeaderName()).Width(190)
+					ui.TextInput(c, &h.value).Placeholder(locales.Value()).Label(locales.HeaderValue()).Grow(1)
+					if plainIconButton(c, "minus", locales.RemoveHeader(), 12, p.muted, p.hover).Clicked() {
 						remove = i
 					}
 				})
@@ -119,11 +120,11 @@ func (a *App) headersView(c *ui.Context, e *messageEditor) {
 				e.headers = slices.Delete(e.headers, remove, remove+1)
 			}
 			ui.Row(c).Gap(8).Padding(4, 0).Children(func() {
-				if ui.Button(c, "Add Header").Clicked() {
+				if ui.Button(c, locales.AddHeader()).Clicked() {
 					e.headers = append(e.headers, headerRow{on: true})
 				}
 				for _, preset := range [][2]string{{"Content-Type", "application/json"}, {"Authorization", "Bearer "}, {"Accept", "application/json"}} {
-					if ui.Button(c, preset[0]).Tooltip("Set " + preset[0] + ": " + preset[1]).Clicked() {
+					if ui.Button(c, preset[0]).Tooltip(locales.SetHeaderTo(preset[0] + ": " + preset[1])).Clicked() {
 						e.setHeader(preset[0], preset[1])
 					}
 				}
@@ -139,25 +140,25 @@ func (a *App) bodyEditor(c *ui.Context, e *messageEditor, key string) {
 		ui.Row(c).Height(34).FillWidth().Padding(0, inset).Gap(8).AlignItems(ui.Center).Children(func() {
 			if e.compose {
 				kind := e.kind
-				if ui.Segmented(c, &kind, bodyKinds...).Label("Body type").Changed() {
+				if ui.Segmented(c, &kind, bodyKindLabels()...).Label(locales.BodyType()).Changed() {
 					e.setKind(kind)
 				}
 			}
 			if form {
-				ui.Text(c, plural(len(e.parts), "field", "fields")).FontSize(11).TextColor(p.muted)
+				ui.Text(c, locales.FieldsCount(len(e.parts))).FontSize(11).TextColor(p.muted)
 				return
 			}
 			ui.Text(c, formatSize(e.body.Buffer.Len())).FontSize(11).TextColor(p.muted)
 			ui.Spacer(c)
-			if ui.Button(c, "Beautify JSON").Clicked() {
+			if ui.Button(c, locales.BeautifyJSON()).Clicked() {
 				v := jsontext.Value(e.body.Buffer.String())
 				if err := v.Indent(jsontext.WithIndent("  ")); err == nil {
 					e.body.Buffer.Set(string(v))
 				} else {
-					a.toast("The body is not valid JSON")
+					a.toast(locales.TheBodyIsNotValidJSON())
 				}
 			}
-			if ui.Button(c, "Minify").Clicked() {
+			if ui.Button(c, locales.Minify()).Clicked() {
 				v := jsontext.Value(e.body.Buffer.String())
 				if err := v.Compact(); err == nil {
 					e.body.Buffer.Set(string(v))
@@ -207,7 +208,7 @@ func (a *App) composeFrom(f *flow.Flow) {
 	switch {
 	case f != nil && f.IsTunnel():
 		if !a.rules.Current().ShouldMITM(f.Host()) {
-			a.toast("Enable SSL Proxying for " + f.Host() + " to edit its requests")
+			a.toast(locales.EnableSSLProxyingToEdit(f.Host()))
 			return
 		}
 		old := a.compose
@@ -265,10 +266,10 @@ func (a *App) sendCompose() {
 			st.sending, st.cancel = false, nil
 			switch {
 			case errors.Is(err, context.Canceled):
-				st.err = "Canceled"
+				st.err = locales.Canceled()
 				return
 			case errors.Is(err, context.DeadlineExceeded):
-				st.err = fmt.Sprintf("No response within %gs: the timeout is under the URL", st.timeout)
+				st.err = locales.NoResponseWithin(fmt.Sprintf("%g", st.timeout))
 				return
 			case errors.Is(err, proxy.ErrTooManyRedirects) && f != nil:
 				st.err = err.Error()
@@ -304,10 +305,10 @@ func (a *App) composeWindow(c *ui.Context) {
 		if ws {
 			ui.Text(c, "WebSocket").FontSize(11).FontWeight(650).TextColor(p.purple).Background(p.purpleSoft).Padding(5, 8).Radius(6)
 		} else {
-			ui.Combobox(c, &e.method, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}).Label("Method").Width(110)
+			ui.Combobox(c, &e.method, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}).Label(locales.ColumnMethod()).Width(110)
 		}
 		before := e.url
-		in := ui.TextInput(c.Key("url"), &e.url).Placeholder("https://api.example.com/v1/items, or a curl command").Label("URL").Grow(1).AutoFocus()
+		in := ui.TextInput(c.Key("url"), &e.url).Placeholder(locales.HTTPSAPIExampleComV1Items()).Label("URL").Grow(1).AutoFocus()
 		if in.Changed() && len(e.url) > len(before)+1 && curl.Looks(e.url) {
 			if cmd, err := curl.Parse(e.url); err == nil {
 				a.composeCurl(cmd)
@@ -319,22 +320,22 @@ func (a *App) composeWindow(c *ui.Context) {
 		}
 		if st.sending {
 			ui.Spinner(c)
-			if ui.Button(c, "Cancel").Clicked() && st.cancel != nil {
+			if ui.Button(c, locales.Cancel()).Clicked() && st.cancel != nil {
 				st.cancel()
 			}
 		}
 		if open {
-			if ui.Button(c, "Disconnect").Tooltip("Close the WebSocket").Clicked() {
+			if ui.Button(c, locales.Disconnect()).Tooltip(locales.CloseTheWebSocket()).Clicked() {
 				a.closeComposeSocket()
 			}
 		} else {
-			label := map[bool]string{true: "Connect", false: "Send"}[ws]
+			label := map[bool]string{true: locales.Connect(), false: locales.Send()}[ws]
 			if ui.PrimaryButton(c, label).Disabled(st.sending).Tooltip(label+" (⌘↩)").Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 				send = true
 			}
 		}
 		if len(st.history) > 0 {
-			ui.Button(c, "").Label("History").Tooltip("Requests sent").Children(func() { glyph(c, "clock", 13, p.text2) }).Menu(func(m *ui.Menu) {
+			ui.Button(c, "").Label(locales.History()).Tooltip(locales.RequestsSent()).Children(func() { glyph(c, "clock", 13, p.text2) }).Menu(func(m *ui.Menu) {
 				for _, h := range st.history {
 					if m.Item(h.Method + " " + shorten(h.URL, 80)).Chosen() {
 						st.edit = newMessageEditor(h, false)
@@ -344,24 +345,24 @@ func (a *App) composeWindow(c *ui.Context) {
 		}
 	})
 	ui.Row(c).FillWidth().Padding(0, inset, 8, inset).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.MenuButton(c, "New", func(m *ui.Menu) {
+		ui.MenuButton(c, locales.New(), func(m *ui.Menu) {
 			for _, name := range composeTemplates {
-				if m.Item(name).Chosen() {
+				if m.Item(composeTemplateLabel(name)).Chosen() {
 					a.composeTemplate(name)
 				}
 			}
 		})
-		if ui.Button(c, "Import from cURL…").Clicked() {
+		if ui.Button(c, locales.ImportFromCURLEllipsis()).Clicked() {
 			a.openCurlSheet()
 		}
 		ui.Spacer(c)
 		if !ws {
-			ui.Checkbox(c, &st.follow, "Follow Redirects").Tooltip("Follow 3xx answers to where they lead, as browsers do")
+			ui.Checkbox(c, &st.follow, locales.FollowRedirects()).Tooltip(locales.Follow3xxAnswersToWhereThey())
 			ui.Box(c).Width(8)
 		}
-		ui.Text(c, "Timeout").TextColor(p.text2)
-		ui.NumberInput(c, &st.timeout, 0, 3600, 1).Width(110).Label("Timeout in seconds").Tooltip("Seconds to wait for the response; 0 waits as long as it takes")
-		ui.Text(c, "seconds").TextColor(p.muted)
+		ui.Text(c, locales.Timeout()).TextColor(p.text2)
+		ui.NumberInput(c, &st.timeout, 0, 3600, 1).Width(110).Label(locales.TimeoutInSeconds()).Tooltip(locales.SecondsToWaitForTheResponse())
+		ui.Text(c, locales.Seconds()).TextColor(p.muted)
 	})
 	if send && !st.sending {
 		a.sendCompose()
@@ -382,8 +383,8 @@ func (a *App) composeWindow(c *ui.Context) {
 					e.tab = 0
 				}
 			}
-			paneHeader(c, p, "Request", &e.tab, tabs, func() {
-				ui.Text(c, plural(len(e.headers), "header", "headers")).FontSize(11).TextColor(p.muted)
+			paneHeader(c, p, locales.PhaseRequest(), &e.tab, tabs, func() {
+				ui.Text(c, locales.HeadersCount(len(e.headers))).FontSize(11).TextColor(p.muted)
 			})
 			switch tabs[e.tab] {
 			case "Headers":
@@ -398,25 +399,25 @@ func (a *App) composeWindow(c *ui.Context) {
 		ui.Column(c).Fill().Children(func() {
 			f, _ := a.store.Lookup(st.result)
 			if f == nil {
-				paneHeader(c, p, "Response", &st.resTab, nil, nil)
+				paneHeader(c, p, locales.PhaseResponse(), &st.resTab, nil, nil)
 				if st.sending {
 					centered(c, 8, func() {
 						ui.Spinner(c)
-						ui.Text(c, "Sending…").TextColor(p.muted)
+						ui.Text(c, locales.SendingEllipsis()).TextColor(p.muted)
 					})
 				} else {
-					emptyState(c, p, map[bool]string{true: "Connect to send and see the WebSocket's messages here", false: "Send the request to see its response here"}[ws])
+					emptyState(c, p, map[bool]string{true: locales.ConnectToSendAndSeeMessages(), false: locales.SendTheRequestToSeeItsResponse()}[ws])
 				}
 				return
 			}
 			if f.IsWebSocket() && f.StatusCode() == http.StatusSwitchingProtocols {
-				paneHeader(c, p, "Messages", &st.resTab, nil, func() {
+				paneHeader(c, p, locales.TabMessages(), &st.resTab, nil, func() {
 					ui.Text(c, f.StatusLine()).FontSize(10.5).FontWeight(650).TextColor(p.purple).Background(p.purpleSoft).Padding(2, 7).Radius(5)
 				})
 				a.messages(c, f)
 				return
 			}
-			paneHeader(c, p, "Response", &st.resTab, []string{"Body", "Header", "Raw"}, func() {
+			paneHeader(c, p, locales.PhaseResponse(), &st.resTab, []string{"Body", "Header", "Raw"}, func() {
 				bg, tc := p.flowColors(f)
 				ui.Text(c, f.StatusLine()).FontSize(10.5).FontWeight(650).TextColor(tc).Background(bg).Padding(2, 7).Radius(5)
 				ui.Text(c, flowDuration(f)+" · "+formatSize(f.ResponseBodySize())).FontSize(11).TextColor(p.muted)
@@ -425,13 +426,13 @@ func (a *App) composeWindow(c *ui.Context) {
 			case f.IsError():
 				a.errorPane(c, f)
 			case f.IsActive():
-				emptyState(c, p, "Waiting for the response…")
+				emptyState(c, p, locales.WaitingForTheResponse())
 			case st.resTab == 0:
 				a.bodyView(c, f, true, "compose")
 			case st.resTab == 1:
 				a.headerTable(c, f.Response.Header, "response")
 			default:
-				a.textViewer(c, f.UniqueID+":composeRaw", rawResponse(f), "", "Raw response")
+				a.textViewer(c, f.UniqueID+":composeRaw", rawResponse(f), "", locales.RawResponse())
 			}
 		})
 	}).Grow(1)
@@ -441,7 +442,7 @@ func (a *App) queryEditor(c *ui.Context, e *messageEditor) {
 	p := a.pal
 	u, err := url.Parse(e.url)
 	if err != nil {
-		emptyState(c, p, "The URL is not valid")
+		emptyState(c, p, locales.TheURLIsNotValid())
 		return
 	}
 	type pair struct{ k, v string }
@@ -462,13 +463,13 @@ func (a *App) queryEditor(c *ui.Context, e *messageEditor) {
 			for i := range rows {
 				r := &rows[i]
 				ui.Row(c.Key(i)).Gap(6).AlignItems(ui.Center).Children(func() {
-					if ui.TextInput(c, &r.k).Placeholder("Name").Label("Parameter").Width(190).Changed() {
+					if ui.TextInput(c, &r.k).Placeholder(locales.ColumnName()).Label(locales.Parameter()).Width(190).Changed() {
 						changed = true
 					}
-					if ui.TextInput(c, &r.v).Placeholder("Value").Label("Value").Grow(1).Changed() {
+					if ui.TextInput(c, &r.v).Placeholder(locales.Value()).Label(locales.Value()).Grow(1).Changed() {
 						changed = true
 					}
-					if plainIconButton(c, "minus", "Remove Parameter", 12, p.muted, p.hover).Clicked() {
+					if plainIconButton(c, "minus", locales.RemoveParameter(), 12, p.muted, p.hover).Clicked() {
 						remove = i
 					}
 				})
@@ -477,7 +478,7 @@ func (a *App) queryEditor(c *ui.Context, e *messageEditor) {
 				rows = slices.Delete(rows, remove, remove+1)
 				changed = true
 			}
-			if ui.Button(c, "Add Parameter").AlignSelf(ui.Start).Clicked() {
+			if ui.Button(c, locales.AddParameter()).AlignSelf(ui.Start).Clicked() {
 				rows = append(rows, pair{"name", ""})
 				changed = true
 			}
@@ -495,27 +496,27 @@ func (a *App) queryEditor(c *ui.Context, e *messageEditor) {
 
 func (a *App) breakpointEditor(c *ui.Context) {
 	p := a.pal
-	a.windowHeader(c, "Breakpoint", "Edit a paused request before it goes to the server, or a response before it reaches the client.", func() {
+	a.windowHeader(c, locales.ToolBreakpoint(), locales.EditAPausedRequestBeforeIt(), func() {
 		if len(a.pauses) > 1 {
-			if ui.Button(c, "Abort All").Clicked() {
+			if ui.Button(c, locales.AbortAll()).Clicked() {
 				for _, pd := range slices.Clone(a.pauses) {
 					a.resolvePause(pd.ID, false, false)
 				}
 			}
-			if ui.Button(c, "Continue All").Clicked() {
+			if ui.Button(c, locales.ContinueAll()).Clicked() {
 				for _, pd := range slices.Clone(a.pauses) {
 					a.resolvePause(pd.ID, true, true)
 				}
 			}
 		}
-		if ui.Button(c, "Rules…").Clicked() {
+		if ui.Button(c, locales.RulesEllipsis()).Clicked() {
 			a.openWindow("breakpoint")
 		}
 	})
 	if len(a.pauses) == 0 {
 		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 			glyph(c, "bug", 30, p.faint)
-			ui.Text(c, "Nothing is paused").FontSize(15).FontWeight(600).TextColor(p.text2)
+			ui.Text(c, locales.NothingIsPaused()).FontSize(15).FontWeight(600).TextColor(p.text2)
 			d := a.rules.Current()
 			n := 0
 			for _, r := range d.Breakpoints {
@@ -525,13 +526,13 @@ func (a *App) breakpointEditor(c *ui.Context) {
 			}
 			switch {
 			case n == 0:
-				ui.Text(c, "Add a breakpoint rule, or choose Tools › Breakpoint on a flow.").TextColor(p.muted)
+				ui.Text(c, locales.AddABreakpointRuleOrChoose()).TextColor(p.muted)
 			case !d.ToolOn("breakpoint"):
-				ui.Text(c, "Breakpoints are switched off.").TextColor(p.yellow)
+				ui.Text(c, locales.BreakpointsAreSwitchedOff()).TextColor(p.yellow)
 			default:
-				ui.Text(c, "Requests matching "+plural(n, "rule", "rules")+" pause here.").TextColor(p.muted)
+				ui.Text(c, locales.RequestsMatchingRulesPauseHere(n)).TextColor(p.muted)
 			}
-			if ui.Button(c, "Breakpoint Rules…").Clicked() {
+			if ui.Button(c, locales.BreakpointRulesEllipsis()).Clicked() {
 				a.openWindow("breakpoint")
 			}
 		})
@@ -566,7 +567,7 @@ func (a *App) breakpointEditor(c *ui.Context) {
 					}
 					row.Children(func() {
 						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							phase := map[bool]string{true: "Response", false: "Request"}[pd.Response]
+							phase := map[bool]string{true: locales.PhaseResponse(), false: locales.PhaseRequest()}[pd.Response]
 							ui.Text(c, phase).FontSize(9.5).FontWeight(700).TextColor(p.purple).Background(p.purpleSoft).Padding(1, 5).Radius(4)
 							ui.Text(c, pd.Flow.MethodName()).FontSize(10).FontWeight(650).TextColor(p.pillText)
 							ui.Spacer(c)
@@ -590,22 +591,22 @@ func (a *App) pausedEditor(c *ui.Context, pd *pending) {
 	ui.Column(c.Key(pd.ID)).Fill().Children(func() {
 		ui.Row(c).FillWidth().Padding(10, 14).Gap(8).AlignItems(ui.Center).Children(func() {
 			if pd.Response {
-				ui.Text(c, "Status").TextColor(p.muted)
-				ui.NumberInput(c, &e.status, 100, 599, 1).Width(100).Label("Status code")
+				ui.Text(c, locales.Status()).TextColor(p.muted)
+				ui.NumberInput(c, &e.status, 100, 599, 1).Width(100).Label(locales.StatusCodeLabel())
 				ui.Text(c, http.StatusText(int(e.status))).TextColor(p.text2)
 				ui.Spacer(c)
 				ui.Text(c, shorten(pd.Message.URL, 70)).FontSize(11).TextColor(p.muted).SingleLine()
 			} else {
-				ui.Combobox(c, &e.method, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}).Label("Method").Width(110)
+				ui.Combobox(c, &e.method, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}).Label(locales.ColumnMethod()).Width(110)
 				ui.TextInput(c, &e.url).Label("URL").Grow(1)
 			}
 		})
 		ui.Row(c).FillWidth().Padding(0, 14, 6, 14).Children(func() {
-			ui.Text(c, "Rule: "+pd.Rule).FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.RuleName(pd.Rule)).FontSize(11).TextColor(p.muted)
 		})
 		ui.Divider(c)
 		tabs := []string{"Headers", "Body"}
-		paneHeader(c, p, map[bool]string{true: "Response", false: "Request"}[pd.Response], &e.tab, tabs, nil)
+		paneHeader(c, p, map[bool]string{true: locales.PhaseResponse(), false: locales.PhaseRequest()}[pd.Response], &e.tab, tabs, nil)
 		ui.Column(c).Grow(1).Children(func() {
 			if e.tab == 0 {
 				a.headersView(c, e)
@@ -617,10 +618,10 @@ func (a *App) pausedEditor(c *ui.Context, pd *pending) {
 		ui.Row(c).FillWidth().Padding(10, 14).Gap(8).AlignItems(ui.Center).Children(func() {
 			a.pauseActions(c, pd)
 			ui.Spacer(c)
-			if ui.Button(c, "Continue Without Changes").Clicked() {
+			if ui.Button(c, locales.ContinueWithoutChanges()).Clicked() {
 				a.resolvePause(pd.ID, true, false)
 			}
-			if ui.PrimaryButton(c, "Execute").Tooltip("Send the edited "+map[bool]string{true: "response", false: "request"}[pd.Response]+" (⌘↩)").Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
+			if ui.PrimaryButton(c, locales.Execute()).Tooltip(map[bool]string{true: locales.SendTheEditedResponse(), false: locales.SendTheEditedRequest()}[pd.Response]).Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 				if !pd.Response {
 					if _, err := parseURL(e.url); err != nil {
 						a.toast(err.Error())

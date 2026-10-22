@@ -10,6 +10,7 @@ import (
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
 	"proxygo/internal/store"
+	"proxygo/locales"
 )
 
 func (a *App) view(c *ui.Context) {
@@ -108,12 +109,12 @@ func (a *App) toolbar(c *ui.Context) {
 	}
 	ui.Toolbar(c, func() {
 		if !a.set.ShowSidebar {
-			if iconButton(c, "sidebar", "Show Sidebar", p.text2).Clicked() {
+			if iconButton(c, "sidebar", locales.ShowSidebar(), p.text2).Clicked() {
 				a.setSidebar(true)
 			}
 		}
-		rec := ui.Button(c, "").Label(map[bool]string{true: "Resume Recording", false: "Pause Recording"}[a.paused]).
-			Tooltip(map[bool]string{true: "Resume Recording (⇧⌘R)", false: "Pause Recording (⇧⌘R)"}[a.paused])
+		rec := ui.Button(c, "").Label(map[bool]string{true: locales.ResumeRecording(), false: locales.PauseRecording()}[a.paused]).
+			Tooltip(map[bool]string{true: locales.ResumeRecordingShortcut(), false: locales.PauseRecordingShortcut()}[a.paused])
 		rec.Children(func() {
 			if a.paused {
 				glyph(c, "record", 15, p.red)
@@ -124,35 +125,35 @@ func (a *App) toolbar(c *ui.Context) {
 		if rec.Clicked() {
 			a.setPaused(!a.paused)
 		}
-		if iconButton(c, "compose", "Compose a Request (⇧⌘N)", p.text2).Clicked() {
+		if iconButton(c, "compose", locales.ComposeARequestN(), p.text2).Clicked() {
 			a.composeFrom(nil)
 		}
-		if iconButton(c, "trash", "Clear Session (⌘K)", p.text2).Clicked() {
+		if iconButton(c, "trash", locales.ClearSessionK(), p.text2).Clicked() {
 			a.clearFlows()
 		}
 		ui.Spacer(c)
 		a.statusPill(c)
 		ui.Spacer(c)
-		if iconButton(c, "command", "Command Palette (⇧⌘P)", p.text2).Clicked() {
+		if iconButton(c, "command", locales.CommandPaletteP(), p.text2).Clicked() {
 			a.openPalette()
 		}
-		if iconButton(c, "gear", "Settings (⌘,)", p.text2).Clicked() {
+		if iconButton(c, "gear", locales.SettingsLabel(), p.text2).Clicked() {
 			a.openWindow("settings")
 		}
 		ui.ToggleGroup(c, func() {
 			side := a.set.ShowSidebar
-			if layoutToggle(c, &side, "sidebar", "Toggle Sidebar (⌥⌘S)", p).Changed() {
+			if layoutToggle(c, &side, "sidebar", locales.ToggleSidebarS(), p).Changed() {
 				a.setSidebar(side)
 			}
 			bottom := a.set.ShowDetail && !a.set.DetailRight
-			if layoutToggle(c, &bottom, "dockBottom", "Inspector Below", p).Changed() {
+			if layoutToggle(c, &bottom, "dockBottom", locales.InspectorBelow(), p).Changed() {
 				a.updateSettings(func(s *settings.Settings) { s.ShowDetail, s.DetailRight = bottom || !s.ShowDetail, false })
 			}
 			right := a.set.ShowDetail && a.set.DetailRight
-			if layoutToggle(c, &right, "dockRight", "Inspector on the Right", p).Changed() {
+			if layoutToggle(c, &right, "dockRight", locales.InspectorOnTheRight(), p).Changed() {
 				a.updateSettings(func(s *settings.Settings) { s.ShowDetail, s.DetailRight = right || !s.ShowDetail, right })
 			}
-		}).Label("Layout")
+		}).Label(locales.Layout())
 	}).Height(52).Padding(0, inset, 0, left).Background(p.bg).DragWindow()
 	ui.Divider(c)
 }
@@ -165,14 +166,14 @@ func layoutToggle(c *ui.Context, on *bool, icon, tip string, p palette) ui.Eleme
 
 func (a *App) statusPill(c *ui.Context) {
 	p := a.pal
-	dot, status := p.green, "Listening on "+a.proxyAddress()
+	dot, status := p.green, locales.ListeningOn(a.proxyAddress())
 	switch {
 	case a.proxyErr != "":
-		dot, status = p.red, "Proxy unavailable"
+		dot, status = p.red, locales.ProxyUnavailable()
 	case a.paused:
-		dot, status = p.faint, "Recording paused · "+a.proxyAddress()
+		dot, status = p.faint, locales.RecordingPausedAt(a.proxyAddress())
 	}
-	pill := ui.Button(c, "").Label("Proxy status").Tooltip(a.proxyErr).Padding(5, 12).Radius(14).Background(p.surface)
+	pill := ui.Button(c, "").Label(locales.ProxyStatus()).Tooltip(a.proxyErr).Padding(5, 12).Radius(14).Background(p.surface)
 	pill.Children(func() {
 		ui.Box(c).Size(8, 8).Radius(4).Background(dot)
 		ui.Box(c).Width(6)
@@ -181,28 +182,28 @@ func (a *App) statusPill(c *ui.Context) {
 		ui.Text(c, status).TextColor(p.text2).SingleLine().FontFeatures("tnum")
 		if a.systemProxyOn() {
 			ui.Box(c).Width(8)
-			ui.Text(c, "macOS Proxy").FontSize(10).FontWeight(600).TextColor(p.green).Background(p.greenSoft).Padding(1, 6).Radius(4)
+			ui.Text(c, locales.MacOSProxy()).FontSize(10).FontWeight(600).TextColor(p.green).Background(p.greenSoft).Padding(1, 6).Radius(4)
 		}
 	})
 	pill.Menu(func(m *ui.Menu) {
-		if m.Item("Copy Proxy Address").Chosen() {
-			a.copy(a.proxyAddress(), "the proxy address")
+		if m.Item(locales.CopyProxyAddress()).Chosen() {
+			a.copy(a.proxyAddress(), locales.CopiedTheProxyAddress())
 		}
-		if m.Item("Override macOS Proxy").Checked(a.systemProxyOn()).Chosen() {
+		if m.Item(locales.OverrideMacOSProxy()).Checked(a.systemProxyOn()).Chosen() {
 			a.setSystemProxy(!a.systemProxyOn())
 		}
 		m.Separator()
-		if m.Item("Proxy Settings…").Chosen() {
+		if m.Item(locales.ProxySettingsEllipsis()).Chosen() {
 			a.settingsTab = 1
 			a.openWindow("settings")
 		}
-		if m.Item("SSL Proxying List…").Chosen() {
+		if m.Item(locales.SSLProxyingListEllipsis()).Chosen() {
 			a.openWindow("ssl")
 		}
-		if m.Item("Install Certificate…").Chosen() {
+		if m.Item(locales.InstallCertificateEllipsis()).Chosen() {
 			a.openWindow("certificate")
 		}
-		if m.Item("Open Certificate Page in Browser").Chosen() {
+		if m.Item(locales.OpenCertificatePageInBrowser()).Chosen() {
 			c.OpenURL(fmt.Sprintf("http://127.0.0.1:%d/", a.proxy.Port()))
 		}
 	})
@@ -214,13 +215,13 @@ func (a *App) filterBar(c *ui.Context) {
 	p := a.pal
 	ui.Row(c).Height(36).FillWidth().Padding(0, inset).Gap(4).AlignItems(ui.Center).Children(func() {
 		ui.ScrollHorizontal(c).Grow(1).Shrink(1).Basis(0).Gap(1).AlignItems(ui.Center).MarginEnd(4).Children(func() {
-			if ok, _ := a.kindChip(c, "All", len(a.kinds) == 0); ok {
+			if ok, _ := a.kindChip(c, locales.All(), len(a.kinds) == 0); ok {
 				clear(a.kinds)
 			}
 			for _, group := range kindGroups {
 				ui.Box(c).Size(1, 14).Background(p.border).Margin(0, 4)
 				for _, k := range group {
-					if ok, mods := a.kindChip(c, k, a.kinds[k]); ok {
+					if ok, mods := a.kindChip(c, kindLabel(k), a.kinds[k]); ok {
 						if mods&ui.Cmd == 0 {
 							only := !a.kinds[k] || len(a.kinds) > 1
 							clear(a.kinds)
@@ -236,14 +237,14 @@ func (a *App) filterBar(c *ui.Context) {
 				}
 			}
 		})
-		box, search := a.searchField(c, "filter", &a.query, "Filter (⌘F)", "Filter flows")
-		box.Width(240).Shrink(0).Tooltip("Filters by URL, method, status, client and comment")
+		box, search := a.searchField(c, "filter", &a.query, locales.FilterF(), locales.FilterFlows())
+		box.Width(240).Shrink(0).Tooltip(locales.FiltersByURLMethodStatusClient())
 		search.Bind(&a.filterHandle)
 		if a.filterFocus {
 			a.filterFocus = false
 			a.filterHandle.Focus(c)
 		}
-		deep := ui.Toggle(c, &a.deep, "").Label("Search Headers and Bodies").Tooltip("Also search headers and bodies")
+		deep := ui.Toggle(c, &a.deep, "").Label(locales.SearchHeadersAndBodies()).Tooltip(locales.AlsoSearchHeadersAndBodies())
 		deep.Children(func() { glyph(c, "deepSearch", 13, p.text2) })
 		a.presetsButton(c)
 		n := 0
@@ -252,7 +253,7 @@ func (a *App) filterBar(c *ui.Context) {
 				n++
 			}
 		}
-		adv := ui.Toggle(c, &a.advanced, "").Label("Advanced Filter").Tooltip("Advanced Filter (⌥⌘F)")
+		adv := ui.Toggle(c, &a.advanced, "").Label(locales.AdvancedFilter()).Tooltip(locales.AdvancedFilterF())
 		adv.Children(func() {
 			glyph(c, "filter", 13, p.text2)
 			if n > 0 {
@@ -287,44 +288,48 @@ func (a *App) conditionsBar(c *ui.Context) {
 	p := a.pal
 	fields := make([]string, len(store.Fields))
 	for i, f := range store.Fields {
-		fields[i] = string(f)
+		fields[i] = fieldLabel(f)
 	}
 	ops := make([]string, len(store.Ops))
 	for i, o := range store.Ops {
-		ops[i] = string(o)
+		ops[i] = opLabel(o)
 	}
 	ui.Column(c).FillWidth().Padding(6, inset).Gap(4).Background(p.surface).Children(func() {
 		remove := -1
 		for i := range a.conditions {
 			cond := &a.conditions[i]
 			ui.Row(c.Key(i)).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Checkbox(c, &cond.Enabled, "").Label("Use this condition")
-				field := string(cond.Field)
-				if ui.Select(c, &field, fields).Label("Field").Width(170).Changed() {
-					cond.Field = store.Field(field)
+				ui.Checkbox(c, &cond.Enabled, "").Label(locales.UseThisCondition())
+				field := fieldLabel(cond.Field)
+				if ui.Select(c, &field, fields).Label(locales.Field()).Width(170).Changed() {
+					if i := slices.Index(fields, field); i >= 0 {
+						cond.Field = store.Fields[i]
+					}
 				}
 				if cond.Field.NeedsKey() {
 					placeholder := map[bool]string{true: "$.data.items[0].id", false: ".data.items[].id"}[cond.Field == store.FieldRequestJSONPath || cond.Field == store.FieldResponseJSONPath]
-					key := ui.TextInput(c, &cond.Key).Placeholder(placeholder).Label("Query").Width(200)
+					key := ui.TextInput(c, &cond.Key).Placeholder(placeholder).Label(locales.Query()).Width(200)
 					if msg := store.ValidKey(cond.Field, cond.Key); msg != "" && cond.Key != "" {
 						key.Error(msg)
 					}
 				}
-				op := string(cond.Op)
-				if ui.Select(c, &op, ops).Label("Comparison").Width(140).Changed() {
-					cond.Op = store.Op(op)
+				op := opLabel(cond.Op)
+				if ui.Select(c, &op, ops).Label(locales.Comparison()).Width(140).Changed() {
+					if i := slices.Index(ops, op); i >= 0 {
+						cond.Op = store.Ops[i]
+					}
 				}
-				placeholder := "Value"
+				placeholder := locales.Value()
 				if cond.Field.NeedsKey() {
-					placeholder = "Value, or empty for any the query selects"
+					placeholder = locales.ValueOrEmptyForAnyThe()
 				}
-				in := ui.TextInput(c, &cond.Value).Placeholder(placeholder).Label("Value").Grow(1)
+				in := ui.TextInput(c, &cond.Value).Placeholder(placeholder).Label(locales.Value()).Grow(1)
 				if cond.Op == store.OpRegex {
 					if msg := store.ValidRegexp(cond.Value); msg != "" && cond.Value != "" {
 						in.Error(msg)
 					}
 				}
-				if iconButton(c, "minus", "Remove Condition", p.muted).Clicked() {
+				if iconButton(c, "minus", locales.RemoveCondition(), p.muted).Clicked() {
 					remove = i
 				}
 			})
@@ -333,21 +338,21 @@ func (a *App) conditionsBar(c *ui.Context) {
 			a.conditions = slices.Delete(a.conditions, remove, remove+1)
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			if ui.Button(c, "Add Condition").Clicked() {
+			if ui.Button(c, locales.AddCondition()).Clicked() {
 				a.conditions = append(a.conditions, store.Condition{Enabled: true, Field: store.FieldURL, Op: store.OpContains})
 			}
 			mode := 0
 			if a.matchAny {
 				mode = 1
 			}
-			if ui.Segmented(c, &mode, "Match All", "Match Any").Label("Match").Changed() {
+			if ui.Segmented(c, &mode, locales.MatchAll(), locales.MatchAny()).Label(locales.Match()).Changed() {
 				a.matchAny = mode == 1
 			}
 			ui.Spacer(c)
-			if ui.Button(c, "Save Filter…").Tooltip("Keep this filter, to apply from the bookmark button").Clicked() {
+			if ui.Button(c, locales.SaveFilterEllipsis()).Tooltip(locales.KeepThisFilterToApplyFrom()).Clicked() {
 				a.presetSave = presetSheet{open: true}
 			}
-			if ui.Button(c, "Clear Filters").Clicked() {
+			if ui.Button(c, locales.ClearFilters()).Clicked() {
 				a.clearFilters()
 			}
 		})
@@ -383,17 +388,17 @@ func (a *App) focusFilter() {
 
 func (a *App) routeBanner(c *ui.Context) {
 	p := a.pal
-	text := "macOS does not send its traffic to ProxyGo: browsers and most apps bypass it."
+	text := locales.MacOSDoesNotSendItsTraffic()
 	if a.sys.Enabled() {
-		text = fmt.Sprintf("macOS sends its traffic to another proxy, %s:%d, not to ProxyGo.", a.sys.Host, a.sys.Port)
+		text = locales.MacOSSendsItsTrafficToAnotherProxy(fmt.Sprintf("%s:%d", a.sys.Host, a.sys.Port))
 	}
 	ui.Row(c).FillWidth().Padding(6, inset).Gap(8).AlignItems(ui.Center).Background(p.blueSoft).Children(func() {
 		glyph(c, "network", 14, p.blue)
 		ui.Text(c, text).TextColor(p.text).Grow(1).Shrink(1)
-		if ui.PrimaryButton(c, "Override macOS Proxy").Tooltip("Point macOS at ProxyGo; it is given back when ProxyGo quits").Clicked() {
+		if ui.PrimaryButton(c, locales.OverrideMacOSProxy()).Tooltip(locales.PointMacOSAtProxyGoItIs()).Clicked() {
 			a.setSystemProxy(true)
 		}
-		if plainIconButton(c, "xmark", "Hide", 11, p.muted, p.hover).Clicked() {
+		if plainIconButton(c, "xmark", locales.Hide(), 11, p.muted, p.hover).Clicked() {
 			a.routeHintClosed = true
 		}
 	})
@@ -403,9 +408,9 @@ func (a *App) pauseBanner(c *ui.Context) {
 	p := a.pal
 	ui.Row(c).FillWidth().Padding(6, inset).Gap(8).AlignItems(ui.Center).Background(p.yellowSoft).Children(func() {
 		glyph(c, "bug", 14, p.yellow)
-		ui.Text(c, plural(len(a.pauses), "flow is", "flows are")+" paused at a breakpoint").FontWeight(600).TextColor(p.text)
+		ui.Text(c, locales.FlowsPausedAtABreakpoint(len(a.pauses))).FontWeight(600).TextColor(p.text)
 		ui.Spacer(c)
-		if ui.PrimaryButton(c, "Open Breakpoint Editor").Clicked() {
+		if ui.PrimaryButton(c, locales.OpenBreakpointEditor()).Clicked() {
 			a.openWindow("bpedit")
 		}
 	})
@@ -420,25 +425,25 @@ func (a *App) statusBar(c *ui.Context) {
 	ui.Divider(c)
 	ui.Row(c).Height(footerHeight).FillWidth().Padding(0, inset, 0, left).Gap(10).AlignItems(ui.Center).Background(p.bg).Children(func() {
 		auto := a.set.AutoSelect
-		if ui.Toggle(c, &auto, "Auto Select").Tooltip("Select each new request as it arrives").Changed() {
+		if ui.Toggle(c, &auto, locales.AutoSelect()).Tooltip(locales.SelectEachNewRequestAsIt()).Changed() {
 			a.updateSettings(func(s *settings.Settings) { s.AutoSelect = auto })
 		}
 		a.toolChips(c)
 		ui.Spacer(c)
-		shown := fmt.Sprintf("%d flows", len(a.flows))
+		shown := locales.FlowsCount(len(a.flows))
 		if len(a.visible) != len(a.flows) && a.section != "overview" {
-			shown = fmt.Sprintf("%d of %d flows", len(a.visible), len(a.flows))
+			shown = locales.FlowsShownOf(len(a.visible), len(a.flows))
 		}
 		if n := a.chosen.Len(); n > 1 {
-			shown = fmt.Sprintf("%d selected · ", n) + shown
+			shown = locales.SelectedCount(n) + " · " + shown
 		}
 		ui.Text(c, shown).FontSize(11).TextColor(p.muted).FontFeatures("tnum")
 		if a.memory > 0 {
 			ui.Text(c, formatBytes(a.memory)).FontSize(11).TextColor(p.muted).FontFeatures("tnum").
-				Tooltip("Memory ProxyGo uses. Settings › General can cap what the flows keep.")
+				Tooltip(locales.MemoryProxyGoUsesSettingsGeneralCan())
 		}
 		up, down := a.store.Traffic()
-		ui.Row(c).Gap(3).AlignItems(ui.Center).Tooltip("Uploaded and downloaded, with the current speed").Children(func() {
+		ui.Row(c).Gap(3).AlignItems(ui.Center).Tooltip(locales.UploadedAndDownloadedWithTheCurrent()).Children(func() {
 			glyph(c, "arrowUp", 10, p.muted)
 			ui.Text(c, formatBytes(up)+" · "+formatRate(a.upRate)).FontSize(11).TextColor(p.muted).FontFeatures("tnum")
 			ui.Box(c).Width(6)
@@ -447,11 +452,11 @@ func (a *App) statusBar(c *ui.Context) {
 		})
 		switch {
 		case a.systemProxyOn():
-			ui.Text(c, "macOS Proxy").FontSize(10).FontWeight(600).TextColor(p.green).Background(p.greenSoft).Padding(2, 6).Radius(4).
-				Tooltip("macOS sends its HTTP and HTTPS traffic to ProxyGo; it gets it back when ProxyGo quits")
+			ui.Text(c, locales.MacOSProxy()).FontSize(10).FontWeight(600).TextColor(p.green).Background(p.greenSoft).Padding(2, 6).Radius(4).
+				Tooltip(locales.MacOSSendsItsHTTPAndHTTPS())
 		case a.sys.Enabled():
 			ui.Text(c, fmt.Sprintf("macOS → %s:%d", a.sys.Host, a.sys.Port)).FontSize(10).FontWeight(600).TextColor(p.text2).Background(p.graySoft).Padding(2, 6).Radius(4).
-				Tooltip("macOS sends its traffic to another proxy, not to ProxyGo")
+				Tooltip(locales.MacOSSendsItsTrafficToAnother())
 		}
 	})
 }
@@ -478,22 +483,22 @@ func (a *App) toolChips(c *ui.Context) {
 		kind, icon, name string
 		n                int
 	}{
-		{"ssl", "lock", "SSL Proxying", count(enabled(len(d.SSL.Rules), func(i int) bool { return d.SSL.Rules[i].Enabled }), d.SSL.Enabled)},
-		{"breakpoint", "bug", "Breakpoint", count(enabled(len(d.Breakpoints), func(i int) bool { return d.Breakpoints[i].Enabled }), d.ToolOn(rules.ToolBreakpoint))},
-		{"maplocal", "folder", "Map Local", count(enabled(len(d.MapLocal), func(i int) bool { return d.MapLocal[i].Enabled }), d.ToolOn(rules.ToolMapLocal))},
-		{"mapremote", "map", "Map Remote", count(enabled(len(d.MapRemote), func(i int) bool { return d.MapRemote[i].Enabled }), d.ToolOn(rules.ToolMapRemote))},
-		{"scripting", "script", "Scripting", count(enabled(len(d.Scripts), func(i int) bool { return d.Scripts[i].Enabled }), d.ToolOn(rules.ToolScripting))},
-		{"block", "block", "Block List", count(enabled(len(d.Block), func(i int) bool { return d.Block[i].Enabled }), d.ToolOn(rules.ToolBlock))},
-		{"allow", "check", "Allow List", count(enabled(len(d.Allow), func(i int) bool { return d.Allow[i].Enabled }), d.ToolOn(rules.ToolAllow))},
-		{"network", "speed", "Network Conditions", count(enabled(len(d.NetworkConditions), func(i int) bool { return d.NetworkConditions[i].Enabled }), d.ToolOn(rules.ToolNetwork))},
-		{"dns", "dns", "DNS Spoofing", count(enabled(len(d.DNS), func(i int) bool { return d.DNS[i].Enabled }), d.ToolOn(rules.ToolDNS))},
-		{"reverse", "reverse", "Reverse Proxy", count(enabled(len(d.ReverseProxies), func(i int) bool { return d.ReverseProxies[i].Enabled }), d.ToolOn(rules.ToolReverse))},
+		{"ssl", "lock", locales.SSLProxying(), count(enabled(len(d.SSL.Rules), func(i int) bool { return d.SSL.Rules[i].Enabled }), d.SSL.Enabled)},
+		{"breakpoint", "bug", locales.ToolBreakpoint(), count(enabled(len(d.Breakpoints), func(i int) bool { return d.Breakpoints[i].Enabled }), d.ToolOn(rules.ToolBreakpoint))},
+		{"maplocal", "folder", locales.ToolMapLocal(), count(enabled(len(d.MapLocal), func(i int) bool { return d.MapLocal[i].Enabled }), d.ToolOn(rules.ToolMapLocal))},
+		{"mapremote", "map", locales.ToolMapRemote(), count(enabled(len(d.MapRemote), func(i int) bool { return d.MapRemote[i].Enabled }), d.ToolOn(rules.ToolMapRemote))},
+		{"scripting", "script", locales.ToolScripting(), count(enabled(len(d.Scripts), func(i int) bool { return d.Scripts[i].Enabled }), d.ToolOn(rules.ToolScripting))},
+		{"block", "block", locales.ToolBlockList(), count(enabled(len(d.Block), func(i int) bool { return d.Block[i].Enabled }), d.ToolOn(rules.ToolBlock))},
+		{"allow", "check", locales.ToolAllowList(), count(enabled(len(d.Allow), func(i int) bool { return d.Allow[i].Enabled }), d.ToolOn(rules.ToolAllow))},
+		{"network", "speed", locales.ToolNetworkConditions(), count(enabled(len(d.NetworkConditions), func(i int) bool { return d.NetworkConditions[i].Enabled }), d.ToolOn(rules.ToolNetwork))},
+		{"dns", "dns", locales.ToolDNSSpoofing(), count(enabled(len(d.DNS), func(i int) bool { return d.DNS[i].Enabled }), d.ToolOn(rules.ToolDNS))},
+		{"reverse", "reverse", locales.ToolReverseProxy(), count(enabled(len(d.ReverseProxies), func(i int) bool { return d.ReverseProxies[i].Enabled }), d.ToolOn(rules.ToolReverse))},
 	}
 	for _, ch := range chips {
 		if ch.n == 0 {
 			continue
 		}
-		b := ui.ButtonBase(c).Label(ch.name).Tooltip(fmt.Sprintf("%s: %s on", ch.name, plural(ch.n, "rule", "rules"))).Padding(2, 6).Radius(5)
+		b := ui.ButtonBase(c).Label(ch.name).Tooltip(locales.ToolRulesOn(ch.name, ch.n)).Padding(2, 6).Radius(5)
 		if b.Hovered() {
 			b.Background(p.hover)
 		}
@@ -508,7 +513,7 @@ func (a *App) toolChips(c *ui.Context) {
 		}
 	}
 	if d.NoCaching {
-		ui.Text(c, "No Caching").FontSize(10).FontWeight(600).TextColor(p.orange).Tooltip("Tools › No Caching is on")
+		ui.Text(c, locales.NoCaching()).FontSize(10).FontWeight(600).TextColor(p.orange).Tooltip(locales.ToolsNoCachingIsOn())
 	}
 }
 
@@ -518,16 +523,16 @@ func (a *App) commentSheet(c *ui.Context) {
 	}
 	ui.Modal(c, &a.comment.open, func() {
 		ui.Column(c).Width(420).Gap(10).Children(func() {
-			ui.Text(c, "Comment").FontSize(15).FontWeight(600)
+			ui.Text(c, locales.Comment()).FontSize(15).FontWeight(600)
 			if len(a.comment.ids) > 1 {
-				ui.Text(c, "For "+plural(len(a.comment.ids), "flow", "flows")).TextColor(a.pal.muted)
+				ui.Text(c, locales.ForFlows(len(a.comment.ids))).TextColor(a.pal.muted)
 			}
-			ui.TextArea(c, &a.comment.text).Placeholder("What is this request about?").Height(90).AutoFocus().Label("Comment")
+			ui.TextArea(c, &a.comment.text).Placeholder(locales.WhatIsThisRequestAbout()).Height(90).AutoFocus().Label(locales.Comment())
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.comment.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
+				if ui.PrimaryButton(c, locales.Save()).Clicked() || c.Shortcut(ui.Cmd, ui.KeyEnter) {
 					a.saveComment()
 				}
 			})
@@ -541,18 +546,18 @@ func (a *App) repeatSheet(c *ui.Context) {
 	}
 	ui.Modal(c, &a.repeat.open, func() {
 		ui.Column(c).Width(380).Gap(12).Children(func() {
-			ui.Text(c, "Advanced Repeat").FontSize(15).FontWeight(600)
-			ui.Text(c, "Send "+plural(len(a.repeat.msgs), "request", "requests")+" again, several times.").TextColor(a.pal.muted)
+			ui.Text(c, locales.AdvancedRepeat()).FontSize(15).FontWeight(600)
+			ui.Text(c, locales.SendRequestsAgain(len(a.repeat.msgs))).TextColor(a.pal.muted)
 			ui.Form(c, func() {
-				ui.Field(c, "Iterations", func() { ui.NumberInput(c, &a.repeat.count, 1, 1000, 1).Width(110) })
-				ui.Field(c, "Concurrency", func() { ui.NumberInput(c, &a.repeat.concurrency, 1, 50, 1).Width(110) })
-				ui.Field(c, "Delay (ms)", func() { ui.NumberInput(c, &a.repeat.delay, 0, 60000, 100).Width(110) })
+				ui.Field(c, locales.Iterations(), func() { ui.NumberInput(c, &a.repeat.count, 1, 1000, 1).Width(110) })
+				ui.Field(c, locales.Concurrency(), func() { ui.NumberInput(c, &a.repeat.concurrency, 1, 50, 1).Width(110) })
+				ui.Field(c, locales.DelayMs(), func() { ui.NumberInput(c, &a.repeat.delay, 0, 60000, 100).Width(110) })
 			})
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, locales.Cancel()).Clicked() {
 					a.repeat.open = false
 				}
-				if ui.PrimaryButton(c, "Start").Clicked() {
+				if ui.PrimaryButton(c, locales.Start()).Clicked() {
 					a.runAdvancedRepeat()
 				}
 			})
@@ -585,7 +590,7 @@ func (a *App) searchField(c *ui.Context, key string, value *string, placeholder,
 		if input.Shortcut(0, ui.KeyEscape) {
 			*value = ""
 		}
-		if *value != "" && plainIconButton(c, "xmark", "Clear", 10, p.muted, p.hover).KeepFocus().Clicked() {
+		if *value != "" && plainIconButton(c, "xmark", locales.Clear(), 10, p.muted, p.hover).KeepFocus().Clicked() {
 			*value = ""
 		}
 	})

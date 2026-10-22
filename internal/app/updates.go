@@ -8,6 +8,8 @@ import (
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 	ui "github.com/egoist/mygo/proxygoui"
+
+	"proxygo/locales"
 )
 
 type updatePrefs struct {
@@ -39,21 +41,21 @@ func (a *App) readUpdatePrefs() {
 
 func (a *App) updatesGroup(c *ui.Context, p palette) {
 	u := &a.updates
-	group(c, p, "Updates", func() {
+	group(c, p, locales.Updates(), func() {
 		a.settingRow(c, "ProxyGo "+mygo.App.Version(), a.updateStatus(), func() {
-			if ui.Button(c, "Check Now").Disabled(!u.enabled).Clicked() {
+			if ui.Button(c, locales.CheckNow()).Disabled(!u.enabled).Clicked() {
 				updater.CheckForUpdates()
 			}
 		})
 		if !u.enabled || !u.loaded {
 			return
 		}
-		a.settingSwitch(c, "Check for updates automatically", "Once a day, while ProxyGo runs.", u.automatic, func(on bool) {
+		a.settingSwitch(c, locales.CheckForUpdatesAutomatically(), locales.OnceADayWhileProxyGoRuns(), u.automatic, func(on bool) {
 			u.automatic = on
 			updater.SetAutomaticChecks(on)
 		})
 		ui.Column(c).FillWidth().Disabled(!u.automatic).Children(func() {
-			a.settingSwitch(c, "Download and install updates automatically", "They take over the next time ProxyGo opens.", u.autoDownload, func(on bool) {
+			a.settingSwitch(c, locales.DownloadAndInstallUpdatesAutomatically(), locales.TheyTakeOverTheNextTime(), u.autoDownload, func(on bool) {
 				u.autoDownload = on
 				updater.SetAutomaticDownloads(on)
 			})
@@ -65,26 +67,26 @@ func (a *App) updateStatus() string {
 	u := &a.updates
 	switch {
 	case !u.enabled && mygo.IsDev():
-		return "Debug builds don't update themselves."
+		return locales.DebugBuildsDontUpdateThemselves()
 	case !u.enabled:
-		return "ProxyGo can't write where it's installed. Move it to Applications to get updates."
+		return locales.ProxyGoCantWriteWhereItsInstalled()
 	case u.lastCheck.IsZero():
-		return "Not checked for updates yet."
+		return locales.NotCheckedForUpdatesYet()
 	}
-	return "Last checked " + sinceText(u.lastCheck) + "."
+	return locales.LastChecked(sinceText(u.lastCheck))
 }
 
 func sinceText(t time.Time) string {
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return locales.JustNow()
 	case d < time.Hour:
-		return plural(int(d/time.Minute), "minute", "minutes") + " ago"
+		return locales.MinutesAgo(int(d / time.Minute))
 	case d < 24*time.Hour:
-		return plural(int(d/time.Hour), "hour", "hours") + " ago"
+		return locales.HoursAgo(int(d / time.Hour))
 	case d < 48*time.Hour:
-		return "yesterday"
+		return locales.Yesterday()
 	}
-	return t.Format("January 2")
+	return locales.MonthDay(t)
 }

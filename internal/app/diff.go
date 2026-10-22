@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/proxygoui/editor"
 
 	"proxygo/internal/flow"
+	"proxygo/locales"
 )
 
 type diffState struct {
@@ -39,7 +40,7 @@ func (a *App) addToDiffPool(fs []*flow.Flow) {
 	if len(d.pool) >= 2 {
 		a.openWindow("diff")
 	} else {
-		a.toast("Added to the Diff Pool: add another flow to compare")
+		a.toast(locales.AddedToTheDiffPoolAdd())
 	}
 }
 
@@ -106,7 +107,7 @@ func (a *App) externalDiff(tool string, l, r *flow.Flow) {
 			}
 			_ = os.RemoveAll(dir)
 		}
-		a.do(func() { a.toast("Cannot open the diff: " + err.Error()) })
+		a.do(func() { a.toast(locales.CannotOpenTheDiff(err.Error())) })
 	}()
 }
 
@@ -145,7 +146,7 @@ func (a *App) setDiffSide(f *flow.Flow, right bool) {
 	if a.diff.left != "" && a.diff.right != "" {
 		a.openWindow("diff")
 	} else {
-		a.toast(fmt.Sprintf("Set as the %s side: choose another flow's other side to compare", map[bool]string{true: "right", false: "left"}[right]))
+		a.toast(map[bool]string{true: locales.SetAsTheRightSide(), false: locales.SetAsTheLeftSide()}[right])
 	}
 }
 
@@ -154,16 +155,16 @@ func (a *App) diffWindow(c *ui.Context) {
 	d := &a.diff
 	l, _ := a.store.Lookup(d.left)
 	r, _ := a.store.Lookup(d.right)
-	a.windowHeader(c, "Diff", "Compare two flows' requests or responses, as they went on the wire.", func() {
-		if ui.Segmented(c, &d.part, "Request", "Response").Label("Compare").Changed() {
+	a.windowHeader(c, locales.Diff(), locales.CompareTwoFlowsRequestsOrResponses(), func() {
+		if ui.Segmented(c, &d.part, locales.PhaseRequest(), locales.PhaseResponse()).Label(locales.Compare()).Changed() {
 			d.key = ""
 		}
 		mode := map[bool]int{true: 1}[d.unified]
-		if ui.Segmented(c, &mode, "Side by Side", "Unified").Label("Layout").Changed() {
+		if ui.Segmented(c, &mode, locales.SideBySide(), locales.Unified()).Label(locales.Layout()).Changed() {
 			d.unified = mode == 1
 			d.key = ""
 		}
-		if ui.Toggle(c, &d.normalize, "Normalize").Tooltip("Sort JSON keys and headers, so only real changes show").Changed() {
+		if ui.Toggle(c, &d.normalize, locales.Normalize()).Tooltip(locales.SortJSONKeysAndHeadersSo()).Changed() {
 			d.key = ""
 		}
 	})
@@ -173,8 +174,8 @@ func (a *App) diffWindow(c *ui.Context) {
 	if l == nil || r == nil {
 		ui.Column(c).Grow(1).Center().Gap(8).Children(func() {
 			glyph(c, "diff", 28, p.faint)
-			ui.Text(c, "Choose two flows to compare").FontSize(14).FontWeight(600).TextColor(p.text2)
-			ui.Text(c, "Select two flows and choose Compare (⇧⌘D), or set each side from a flow's menu.").TextColor(p.muted)
+			ui.Text(c, locales.ChooseTwoFlowsToCompare()).FontSize(14).FontWeight(600).TextColor(p.text2)
+			ui.Text(c, locales.SelectTwoFlowsAndChooseCompare()).TextColor(p.muted)
 		})
 		return
 	}
@@ -200,15 +201,15 @@ func (a *App) diffWindow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(0, windowInset, 6, windowInset).Gap(10).Children(func() {
 		ui.Text(c, fmt.Sprintf("+%d", added)).FontWeight(600).TextColor(p.green)
 		ui.Text(c, fmt.Sprintf("−%d", deleted)).FontWeight(600).TextColor(p.red)
-		ui.Text(c, plural(len(d.state.Hunks()), "change", "changes")).TextColor(p.muted)
+		ui.Text(c, locales.ChangesCount(len(d.state.Hunks()))).TextColor(p.muted)
 		ui.Spacer(c)
-		if hasTool("opendiff") && ui.Button(c, "Open in FileMerge").Clicked() {
+		if hasTool("opendiff") && ui.Button(c, locales.OpenInFileMerge()).Clicked() {
 			a.externalDiff("filemerge", l, r)
 		}
-		if hasTool("ksdiff") && ui.Button(c, "Open in Kaleidoscope").Clicked() {
+		if hasTool("ksdiff") && ui.Button(c, locales.OpenInKaleidoscope()).Clicked() {
 			a.externalDiff("kaleidoscope", l, r)
 		}
-		if ui.Button(c, "Swap Sides").Clicked() {
+		if ui.Button(c, locales.SwapSides()).Clicked() {
 			d.left, d.right, d.key = d.right, d.left, ""
 		}
 	})
@@ -221,7 +222,7 @@ func (a *App) diffPool(c *ui.Context) {
 	p := a.pal
 	d := &a.diff
 	ui.Row(c).FillWidth().Padding(0, windowInset, 8, windowInset).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Diff Pool").FontSize(11).FontWeight(650).TextColor(p.muted)
+		ui.Text(c, locales.DiffPool()).FontSize(11).FontWeight(650).TextColor(p.muted)
 		ui.ScrollHorizontal(c).Grow(1).Shrink(1).Gap(6).Children(func() {
 			for _, id := range d.pool {
 				f, ok := a.store.Lookup(id)
@@ -235,7 +236,7 @@ func (a *App) diffPool(c *ui.Context) {
 				case d.right:
 					side = "R"
 				}
-				b := ui.ButtonBase(c.Key(id)).Label("#"+f.ID).Padding(3, 8).Radius(5).Tooltip(f.MethodName() + " " + f.URL() + "\nClick: the right side · ⌘-click: the left")
+				b := ui.ButtonBase(c.Key(id)).Label("#"+f.ID).Padding(3, 8).Radius(5).Tooltip(f.MethodName() + " " + f.URL() + "\n" + locales.DiffPoolClickHint())
 				switch {
 				case side != "":
 					b.Background(p.accent.Alpha(0.15))
@@ -262,7 +263,7 @@ func (a *App) diffPool(c *ui.Context) {
 				}
 			}
 		})
-		if ui.Button(c, "Clear Pool").Clicked() {
+		if ui.Button(c, locales.ClearPool()).Clicked() {
 			d.pool = nil
 		}
 	})

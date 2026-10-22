@@ -16,6 +16,7 @@ import (
 	"proxygo/internal/protobuf"
 	"proxygo/internal/query"
 	"proxygo/internal/rules"
+	"proxygo/locales"
 )
 
 type jsonQuery struct {
@@ -41,9 +42,9 @@ func (a *App) jsonQueryOf(side string) *jsonQuery {
 
 func (a *App) jsonFilterField(c *ui.Context, side string) {
 	q := a.jsonQueryOf(side)
-	ui.Select(c.Key("jsonLang"), &q.lang, jsonLangs).Label("Filter language").Width(96)
+	ui.Select(c.Key("jsonLang"), &q.lang, jsonLangs).Label(locales.FilterLanguage()).Width(96)
 	placeholder := map[string]string{"jq": ".data.items[].id", "JSONPath": "$.data.items[0].id", "Key Path": "data.items.0.id"}[q.lang]
-	box, _ := a.searchField(c, "jsonFilter", &q.expr, placeholder, "Filter JSON")
+	box, _ := a.searchField(c, "jsonFilter", &q.expr, placeholder, locales.FilterJSON())
 	box.Width(220).Shrink(1)
 }
 
@@ -54,16 +55,16 @@ func (a *App) jsonFilterResult(c *ui.Context, key string, body []byte, side stri
 	if err != nil {
 		ui.Row(c).FillWidth().Padding(6, inset).Gap(6).AlignItems(ui.Center).Background(p.surface).Children(func() {
 			glyph(c, "warning", 12, p.yellow)
-			ui.Text(c, "The filter does not fit this body: "+err.Error()).FontSize(11).TextColor(p.text2).SingleLine().Selectable().MinWidth(0).Shrink(1).ClipX()
+			ui.Text(c, locales.TheFilterDoesNotFitThisBody(err.Error())).FontSize(11).TextColor(p.text2).SingleLine().Selectable().MinWidth(0).Shrink(1).ClipX()
 		})
 		ui.Divider(c)
 		return false
 	}
 	if len(values) == 0 {
-		emptyState(c, p, "The filter selects nothing")
+		emptyState(c, p, locales.TheFilterSelectsNothing())
 		return true
 	}
-	a.textViewer(c, key+":q:"+q.lang+":"+q.expr, query.Pretty(values), "JSON", "Filtered JSON")
+	a.textViewer(c, key+":q:"+q.lang+":"+q.expr, query.Pretty(values), "JSON", locales.FilteredJSON())
 	return true
 }
 
@@ -101,7 +102,7 @@ func (a *App) protobufText(src bodySource, body []byte, ct string) (string, stri
 			text, err = protobuf.DecodeRaw(body)
 		}
 		if err != nil {
-			return "# Not protobuf: " + err.Error() + "\n\n" + hexDump(body)
+			return "# " + locales.NotProtobuf(err.Error()) + "\n\n" + hexDump(body)
 		}
 		return text
 	}
@@ -125,7 +126,7 @@ func (a *App) protobufText(src bodySource, body []byte, ct string) (string, stri
 	}
 	text, err := a.schemas.DecodeBody(typ, payload, body, grpc, encoding)
 	if err != nil {
-		return "# " + typ + ": " + err.Error() + "\n# The fields as they are:\n\n" + raw(), "Protobuf"
+		return "# " + typ + ": " + err.Error() + "\n# " + locales.TheFieldsAsTheyAre() + "\n\n" + raw(), "Protobuf"
 	}
 	return text, "JSON"
 }
@@ -133,7 +134,7 @@ func (a *App) protobufText(src bodySource, body []byte, ct string) (string, stri
 func (a *App) protobufTypePicker(c *ui.Context, src bodySource, ct string) {
 	types := a.schemas.Messages()
 	if len(types) == 0 {
-		if ui.Button(c, "Import Schema…").Tooltip("Decode protobuf with its .proto or descriptor set").Clicked() {
+		if ui.Button(c, locales.ImportSchemaEllipsis()).Tooltip(locales.DecodeProtobufWithItsProtoOr()).Clicked() {
 			a.openWindow("protobuf")
 		}
 		return
@@ -141,7 +142,7 @@ func (a *App) protobufTypePicker(c *ui.Context, src bodySource, ct string) {
 	if src.f == nil || src.f.Request == nil {
 		return
 	}
-	const rawFields = "Raw Fields"
+	rawFields := locales.RawFieldsTitle()
 	current, _ := a.protobufType(src, ct)
 	choice := current
 	if choice == "" {
@@ -151,7 +152,7 @@ func (a *App) protobufTypePicker(c *ui.Context, src bodySource, ct string) {
 	if !slices.Contains(options, choice) {
 		options = append(options, choice)
 	}
-	if ui.Select(c.Key("protoType"), &choice, options).Label("Message type").Width(220).Tooltip("Message type of this URL's " + map[bool]string{true: "responses", false: "requests"}[src.response]).Changed() {
+	if ui.Select(c.Key("protoType"), &choice, options).Label(locales.MessageType()).Width(220).Tooltip(map[bool]string{true: locales.MessageTypeOfThisURLsResponses(), false: locales.MessageTypeOfThisURLsRequests()}[src.response]).Changed() {
 		typ := choice
 		if typ == rawFields {
 			typ = ""
@@ -204,31 +205,31 @@ func (a *App) jwtView(c *ui.Context, key, raw string) {
 				ui.Text(c, fmt.Sprintf("JWT · %v", h["alg"])).FontWeight(650).TextColor(p.text)
 				switch {
 				case t.ExpiresAt.IsZero():
-					ui.Text(c, "No expiry").FontSize(11).TextColor(p.muted)
+					ui.Text(c, locales.NoExpiry()).FontSize(11).TextColor(p.muted)
 				case t.Expired(time.Now()):
-					ui.Text(c, "Expired "+t.ExpiresAt.Local().Format("2006-01-02 15:04:05")).FontSize(10.5).FontWeight(650).TextColor(p.red).Background(p.redSoft).Padding(2, 7).Radius(5)
+					ui.Text(c, locales.ExpiredAt(t.ExpiresAt.Local().Format("2006-01-02 15:04:05"))).FontSize(10.5).FontWeight(650).TextColor(p.red).Background(p.redSoft).Padding(2, 7).Radius(5)
 				default:
-					ui.Text(c, "Expires "+t.ExpiresAt.Local().Format("2006-01-02 15:04:05")+" (in "+time.Until(t.ExpiresAt).Round(time.Second).String()+")").FontSize(10.5).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 7).Radius(5)
+					ui.Text(c, locales.ExpiresAtIn(t.ExpiresAt.Local().Format("2006-01-02 15:04:05"), time.Until(t.ExpiresAt).Round(time.Second).String())).FontSize(10.5).FontWeight(650).TextColor(p.green).Background(p.greenSoft).Padding(2, 7).Radius(5)
 				}
 				ui.Spacer(c)
-				if ui.Button(c, "Copy Claims").Clicked() {
-					a.copy(pretty(t.Claims), "the claims")
+				if ui.Button(c, locales.CopyClaims()).Clicked() {
+					a.copy(pretty(t.Claims), locales.CopiedTheClaims())
 				}
 			})
-			ui.Text(c, "The signature is not verified.").FontSize(11).TextColor(p.muted)
+			ui.Text(c, locales.TheSignatureIsNotVerified()).FontSize(11).TextColor(p.muted)
 			for _, d := range []struct {
 				label string
 				at    time.Time
-			}{{"Issued", t.IssuedAt}, {"Not before", t.NotBefore}, {"Expires", t.ExpiresAt}} {
+			}{{locales.Issued(), t.IssuedAt}, {locales.NotBefore(), t.NotBefore}, {locales.Expires(), t.ExpiresAt}} {
 				if !d.at.IsZero() {
-					ui.Text(c, d.label+": "+d.at.Local().Format("Mon, 2 Jan 2006 15:04:05 MST")).FontSize(11).TextColor(p.text2).Selectable()
+					ui.Text(c, locales.LabeledTime(d.label, d.at.Local())).FontSize(11).TextColor(p.text2).Selectable()
 				}
 			}
-			ui.Text(c, "Header").FontWeight(650).TextColor(p.text2).Margin(4, 0, 0, 0)
+			ui.Text(c, locales.TabHeader()).FontWeight(650).TextColor(p.text2).Margin(4, 0, 0, 0)
 			code(c, p, pretty(t.Header))
-			ui.Text(c, "Claims").FontWeight(650).TextColor(p.text2)
+			ui.Text(c, locales.Claims()).FontWeight(650).TextColor(p.text2)
 			code(c, p, pretty(t.Claims))
-			ui.Text(c, "Signature").FontWeight(650).TextColor(p.text2)
+			ui.Text(c, locales.Signature()).FontWeight(650).TextColor(p.text2)
 			code(c, p, hex.EncodeToString(t.Signature))
 		})
 	})
@@ -242,7 +243,7 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 		events = append(slices.Clone(events), *stream.Pending)
 	}
 	if len(events) == 0 {
-		emptyState(c, p, "No events yet")
+		emptyState(c, p, locales.NoEventsYet())
 		return
 	}
 	if a.sseRow >= len(events) || a.sseRow < 0 {
@@ -253,7 +254,7 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 	}
 	list := a.listState("sse:"+key, live)
 	list.Selected = &a.sseRow
-	cols := []ui.TableColumn{{Title: "#", Width: 44, Align: ui.End}, {Title: "Event", Width: 110}, {Title: "ID", Width: 80}, {Title: "Data"}}
+	cols := []ui.TableColumn{{Title: "#", Width: 44, Align: ui.End}, {Title: locales.Event(), Width: 110}, {Title: "ID", Width: 80}, {Title: locales.Data()}}
 	ui.SplitVerticalPercent(c, &a.listSplit, func() {
 		ui.Table(c.Key("sse"), list, cols, len(events), func(row, col int) {
 			e := events[row]
@@ -277,7 +278,7 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 			case 3:
 				ui.Text(c, shorten(strings.ReplaceAll(e.Data, "\n", " "), 400)).FontSize(11.5).TextColor(color).SingleLine()
 			}
-		}).Grow(1).Label("Server-sent events")
+		}).Grow(1).Label(locales.ServerSentEvents())
 	}, func() {
 		e := events[a.sseRow]
 		ct := ""
@@ -286,7 +287,7 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 		}
 		header := fmt.Sprintf("%s · %s", e.Type, formatSize(len(e.Data)))
 		if e.Retry > 0 {
-			header += " · retry " + e.Retry.String()
+			header += " · " + locales.RetryAfter(e.Retry.String())
 		}
 		if e.ID != "" {
 			header += " · id " + e.ID
@@ -295,18 +296,18 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 			ui.Text(c, header).FontSize(11).TextColor(p.muted).SingleLine()
 			if stream.Comments > 0 {
 				ui.Spacer(c)
-				ui.Text(c, plural(stream.Comments, "comment", "comments")+" (keep-alives)").FontSize(11).TextColor(p.faint)
+				ui.Text(c, locales.KeepAliveComments(stream.Comments)).FontSize(11).TextColor(p.faint)
 			}
 		})
 		ui.Divider(c)
-		a.textViewer(c, fmt.Sprintf("%s:sse:%d:%d", key, a.sseRow, len(e.Data)), prettyText([]byte(e.Data), ct), languageName(ct), "Event data")
+		a.textViewer(c, fmt.Sprintf("%s:sse:%d:%d", key, a.sseRow, len(e.Data)), prettyText([]byte(e.Data), ct), languageName(ct), locales.EventData())
 	}).Grow(1)
 }
 
 func (a *App) tlsView(c *ui.Context, f *flow.Flow) {
 	p := a.pal
 	if f.TLS == nil || f.TLS.Client == nil && f.TLS.Server == nil {
-		emptyState(c, p, "No TLS for this flow")
+		emptyState(c, p, locales.NoTLSForThisFlow())
 		return
 	}
 	side := func(title string, t *flow.TLSInfo) {
@@ -320,42 +321,42 @@ func (a *App) tlsView(c *ui.Context, f *flow.Flow) {
 					ui.Field(c, k, func() { ui.Text(c, v).TextColor(p.text).Selectable().Wrap() })
 				}
 			}
-			row("Version", t.Version)
-			row("Cipher Suite", t.CipherSuite)
+			row(locales.Version(), t.Version)
+			row(locales.CipherSuite(), t.CipherSuite)
 			row("ALPN", t.ALPN)
-			row("Server Name", t.ServerName)
+			row(locales.ServerNameLabel(), t.ServerName)
 			if len(t.Offered) > 0 {
-				row("Client Offered", strings.Join(t.Offered, ", "))
+				row(locales.ClientOffered(), strings.Join(t.Offered, ", "))
 			}
 			if t.Resumed {
-				row("Session", "Resumed")
+				row(locales.SessionCookie(), locales.Resumed())
 			}
-			row("Error", t.Error)
+			row(locales.Error(), t.Error)
 			if t.PinningLikely {
-				row("Note", "The client refused ProxyGo's certificate. If it trusts the ProxyGo root, it likely pins its server's certificate: leave the host out of SSL Proxying, or use a custom server certificate.")
+				row(locales.Note(), locales.TheClientRefusedProxyGosCertificateIf())
 			}
 		})
 		for i, cert := range t.Certificates {
 			ui.Column(c.Key(title+fmt.Sprint(i))).FillWidth().Padding(10, 12).Gap(3).Radius(6).Background(p.surface).Children(func() {
-				label := "Certificate"
+				label := locales.Certificate()
 				switch {
 				case i == 0:
-					label = "Leaf"
+					label = locales.Leaf()
 				case i == len(t.Certificates)-1:
-					label = "Root or last intermediate"
+					label = locales.RootOrLastIntermediate()
 				default:
-					label = "Intermediate"
+					label = locales.Intermediate()
 				}
 				ui.Text(c, label).FontSize(10.5).FontWeight(650).TextColor(p.muted)
 				ui.Text(c, cert.Subject).TextColor(p.text).Selectable().Wrap()
-				ui.Text(c, "Issued by "+cert.Issuer).FontSize(11).TextColor(p.text2).Selectable().Wrap()
-				validity := cert.NotBefore.Local().Format("2 Jan 2006") + " – " + cert.NotAfter.Local().Format("2 Jan 2006")
+				ui.Text(c, locales.IssuedBy(cert.Issuer)).FontSize(11).TextColor(p.text2).Selectable().Wrap()
+				validity := locales.CertificateValidity(cert.NotBefore.Local(), cert.NotAfter.Local())
 				if time.Now().After(cert.NotAfter) {
-					validity += " (expired)"
+					validity = locales.CertificateValidityExpired(cert.NotBefore.Local(), cert.NotAfter.Local())
 				}
 				ui.Text(c, validity).FontSize(11).TextColor(p.text2)
 				if len(cert.DNSNames) > 0 {
-					ui.Text(c, "Names: "+shorten(strings.Join(cert.DNSNames, ", "), 300)).FontSize(11).TextColor(p.text2).Selectable().Wrap()
+					ui.Text(c, locales.CertificateNames(shorten(strings.Join(cert.DNSNames, ", "), 300))).FontSize(11).TextColor(p.text2).Selectable().Wrap()
 				}
 				ui.Text(c, "SHA-256 "+cert.SHA256).FontSize(10).TextColor(p.muted).Selectable().Wrap()
 			})
@@ -363,8 +364,8 @@ func (a *App) tlsView(c *ui.Context, f *flow.Flow) {
 	}
 	ui.Scroll(c).Grow(1).Children(func() {
 		ui.Column(c).FillWidth().Padding(inset).Gap(8).Children(func() {
-			side("Client ↔ ProxyGo", f.TLS.Client)
-			side("ProxyGo ↔ Server", f.TLS.Server)
+			side(locales.ClientProxyGo(), f.TLS.Client)
+			side(locales.ProxyGoServer(), f.TLS.Server)
 		})
 	})
 }

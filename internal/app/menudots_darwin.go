@@ -11,6 +11,8 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/egoist/mygo"
 	ui "github.com/egoist/mygo/proxygoui"
+
+	"proxygo/locales"
 )
 
 type menuDots struct {
@@ -27,7 +29,7 @@ func (a *App) setMenuDots() {
 	defer d.mu.Unlock()
 	d.colors = map[string]ui.Color{}
 	for _, name := range highlightColors {
-		d.colors[title(name)] = a.pal.swatch(name)
+		d.colors[colorName(name)] = a.pal.swatch(name)
 	}
 	if d.images == nil {
 		d.images = map[string]objc.ID{}
@@ -63,7 +65,7 @@ func (d *menuDots) decorate(menu objc.ID, highlight bool) {
 			}
 		}
 		if sub := item.Send(sel("submenu")); sub != 0 {
-			d.decorate(sub, name == "Highlight")
+			d.decorate(sub, name == locales.Highlight())
 		}
 	}
 }

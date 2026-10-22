@@ -11,6 +11,7 @@ import (
 	ui "github.com/egoist/mygo/proxygoui"
 
 	"proxygo/internal/settings"
+	"proxygo/locales"
 )
 
 var appIcons = []struct{ id, name string }{
@@ -62,7 +63,7 @@ func (a *App) applyAppIcon() {
 		}
 		st.done, st.applied = id, true
 		if !ok {
-			a.do(func() { a.toast("macOS did not let ProxyGo change its icon in Finder") })
+			a.do(func() { a.toast(locales.MacOSDidNotLetProxyGoChangeItsIcon()) })
 		}
 	}()
 }

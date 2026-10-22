@@ -11,6 +11,7 @@ import (
 
 	"proxygo/internal/rules"
 	"proxygo/internal/settings"
+	"proxygo/locales"
 )
 
 //go:embed menubar.png
@@ -29,7 +30,7 @@ func (a *App) setMenuBarIcon(on bool) {
 	case on && a.tray == nil:
 		t, err := mygo.NewTray(mygo.TrayOptions{Icon: menuBarIcon, IconIsTemplate: true, ToolTip: "ProxyGo", Menu: a.trayMenu()})
 		if err != nil {
-			a.toast("Menu bar icon: " + err.Error())
+			a.toast(locales.MenuBarIconError(err.Error()))
 			return
 		}
 		a.tray = t
@@ -52,20 +53,20 @@ func (a *App) trayMenu() *mygo.Menu {
 				})
 			}}
 	}
-	t.record = check("Record Traffic", !a.paused, func(on bool) { a.setPaused(!on) })
-	t.systemProxy = check("Override macOS Proxy", a.systemProxyOn(), a.setSystemProxy)
+	t.record = check(locales.RecordTraffic(), !a.paused, func(on bool) { a.setPaused(!on) })
+	t.systemProxy = check(locales.OverrideMacOSProxy(), a.systemProxyOn(), a.setSystemProxy)
 	t.listenText = a.listenLabel()
 	t.listen = &mygo.MenuItem{Label: t.listenText, Submenu: []*mygo.MenuItem{
-		{Label: "Copy Address", Click: a.on(func() { a.copy(a.proxyAddress(), "the address") })},
-		{Label: "Copy IP Address", Click: a.on(func() { a.copy(a.proxyHost(), "the IP address") })},
-		{Label: "Copy Port", Click: a.on(func() { a.copy(strconv.Itoa(a.proxy.Port()), "the port") })},
-		{Label: "Copy Proxy URL", Click: a.on(func() { a.copy("http://"+a.proxyAddress(), "the proxy URL") })},
-		{Label: "Copy Shell Command", ToolTip: "export http_proxy and https_proxy, for a terminal", Click: a.on(func() {
+		{Label: locales.CopyAddress(), Click: a.on(func() { a.copy(a.proxyAddress(), locales.CopiedTheAddress()) })},
+		{Label: locales.CopyIPAddress(), Click: a.on(func() { a.copy(a.proxyHost(), locales.CopiedTheIPAddress()) })},
+		{Label: locales.CopyPort(), Click: a.on(func() { a.copy(strconv.Itoa(a.proxy.Port()), locales.CopiedThePort()) })},
+		{Label: locales.CopyProxyURL(), Click: a.on(func() { a.copy("http://"+a.proxyAddress(), locales.CopiedTheProxyURL()) })},
+		{Label: locales.CopyShellCommand(), ToolTip: locales.ExportHTTPProxyAndHTTPSProxy(), Click: a.on(func() {
 			url := "http://" + a.proxyAddress()
-			a.copy(fmt.Sprintf("export http_proxy=%s https_proxy=%s", url, url), "the shell command")
+			a.copy(fmt.Sprintf("export http_proxy=%s https_proxy=%s", url, url), locales.CopiedTheShellCommand())
 		})},
 		mygo.Separator(),
-		{Label: "Proxy Settings…", Click: a.on(func() { a.showSettings(1) })},
+		{Label: locales.ProxySettingsEllipsis(), Click: a.on(func() { a.showSettings(1) })},
 	}}
 	d := a.rules.Current()
 	var tools []*mygo.MenuItem
@@ -75,24 +76,24 @@ func (a *App) trayMenu() *mygo.Menu {
 		tools = append(tools, it)
 	}
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Show ProxyGo", Click: a.on(a.showMain)},
+		{Label: locales.ShowProxyGo(), Click: a.on(a.showMain)},
 		mygo.Separator(),
 		t.record,
 		t.systemProxy,
 		mygo.Separator(),
 		t.listen,
 		mygo.Separator(),
-		{Label: "Enable / Disable Tools", Submenu: tools},
+		{Label: locales.EnableDisableTools(), Submenu: tools},
 		mygo.Separator(),
-		{Label: "Send Feedback…", Click: a.on(func() { openPath(issuesURL) })},
-		{Label: "Manual…", Click: a.on(func() { a.showMain(); a.openWindow("help") })},
+		{Label: locales.SendFeedbackEllipsis(), Click: a.on(func() { openPath(issuesURL) })},
+		{Label: locales.ManualEllipsis(), Click: a.on(func() { a.showMain(); a.openWindow("help") })},
 		updater.MenuItem(),
 		mygo.Separator(),
-		{Label: "Quit ProxyGo", Click: a.on(mygo.App.Quit)},
+		{Label: locales.QuitProxyGo(), Click: a.on(mygo.App.Quit)},
 	})
 }
 
-func (a *App) listenLabel() string { return "Listen on " + a.proxyAddress() }
+func (a *App) listenLabel() string { return locales.ListenOn(a.proxyAddress()) }
 
 func (a *App) syncTray() {
 	t := &a.trayItems
@@ -131,7 +132,7 @@ func (a *App) showSettings(tab int) {
 }
 
 func (a *App) menuBarSettings(c *ui.Context) {
-	a.settingSwitch(c, "Show ProxyGo in the menu bar", "Record, override the macOS proxy and copy the address from there.", !a.set.HideMenuBarIcon, func(on bool) {
+	a.settingSwitch(c, locales.ShowProxyGoInTheMenuBar(), locales.RecordOverrideTheMacOSProxyAnd(), !a.set.HideMenuBarIcon, func(on bool) {
 		a.updateSettings(func(s *settings.Settings) { s.HideMenuBarIcon = !on })
 		a.setMenuBarIcon(on)
 	})
