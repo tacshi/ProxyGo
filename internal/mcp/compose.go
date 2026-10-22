@@ -20,25 +20,37 @@ import (
 )
 
 type draft struct {
-	mu  sync.Mutex
-	ID  string        `json:"compose_id"`
-	Msg proxy.Message `json:"-"`
+	mu       sync.Mutex
+	ID       string        `json:"compose_id"`
+	Msg      proxy.Message `json:"-"`
+	captured bool
 }
 
-func (d *draft) view() map[string]any {
+func (d *draft) view(redact bool) map[string]any {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	h, u, body := d.Msg.Header, d.Msg.URL, d.Msg.Body
+	redact = redact && d.captured
+	if redact {
+		h, _ = redactHeader(h)
+		u, _ = redactURL(u)
+		body, _ = redactBody(body, h.Get("Content-Type"))
+	}
 	headers := map[string]string{}
-	for _, e := range d.Msg.Header.Entries {
+	for _, e := range h.Entries {
 		if e.Enabled {
 			headers[e.Key.Name] = e.Value
 		}
 	}
-	return map[string]any{"compose_id": d.ID, "method": d.Msg.Method, "url": d.Msg.URL, "headers": headers, "body": string(d.Msg.Body)}
+	v := map[string]any{"compose_id": d.ID, "method": d.Msg.Method, "url": u, "headers": headers, "body": string(body)}
+	if redact {
+		v["note"] = "Credentials show redacted here; the draft keeps them and sends them."
+	}
+	return v
 }
 
-func (s *Server) newDraft(m proxy.Message) *draft {
-	d := &draft{ID: "compose-" + rules.NewID(), Msg: m}
+func (s *Server) newDraft(m proxy.Message, captured bool) *draft {
+	d := &draft{ID: "compose-" + rules.NewID(), Msg: m, captured: captured}
 	s.drafts.Store(d.ID, d)
 	return d
 }
@@ -65,8 +77,8 @@ func (s *Server) addComposeTools() {
 		if _, err := httpURL(in.URL); err != nil {
 			return nil, nil, err
 		}
-		d := s.newDraft(proxy.Message{Method: strings.ToUpper(cmp.Or(in.Method, http.MethodGet)), URL: in.URL, Header: headerOf(in.Headers), Body: []byte(in.Body)})
-		return jsonText(d.view())
+		d := s.newDraft(proxy.Message{Method: strings.ToUpper(cmp.Or(in.Method, http.MethodGet)), URL: in.URL, Header: headerOf(in.Headers), Body: []byte(in.Body)}, false)
+		return jsonText(d.view(s.Redact()))
 	})
 	mcp.AddTool(srv, change("create_compose_http_from_flow", "Compose from Flow", "A request to send later, as a captured flow's, to edit with update_compose_http.", false), func(_ context.Context, _ *mcp.CallToolRequest, in flowInput) (*mcp.CallToolResult, any, error) {
 		f, err := s.flow(in.FlowID)
@@ -76,25 +88,15 @@ func (s *Server) addComposeTools() {
 		if f.IsTunnel() {
 			return nil, nil, errors.New("an encrypted tunnel has no request to compose: enable SSL Proxying for its host")
 		}
-		d := s.newDraft(proxy.MessageOf(f))
-		v := d.view()
-		if s.Redact() {
-			h, _ := redactHeader(d.Msg.Header)
-			hs := map[string]string{}
-			for _, e := range h.Entries {
-				hs[e.Key.Name] = e.Value
-			}
-			v["headers"] = hs
-			v["note"] = "Credentials show redacted here; the draft keeps them and sends them."
-		}
-		return jsonText(v)
+		d := s.newDraft(proxy.MessageOf(f), true)
+		return jsonText(d.view(s.Redact()))
 	})
 	mcp.AddTool(srv, readOnly("get_compose_http", "Compose Draft", "A compose draft's request."), func(_ context.Context, _ *mcp.CallToolRequest, in composeIDInput) (*mcp.CallToolResult, any, error) {
 		d, err := s.draft(in.ComposeID)
 		if err != nil {
 			return nil, nil, err
 		}
-		return jsonText(d.view())
+		return jsonText(d.view(s.Redact()))
 	})
 	mcp.AddTool(srv, change("update_compose_http", "Edit Compose Draft", "Change a draft's method, URL, headers or body.", false), func(_ context.Context, _ *mcp.CallToolRequest, in updateComposeInput) (*mcp.CallToolResult, any, error) {
 		d, err := s.draft(in.ComposeID)
@@ -124,7 +126,7 @@ func (s *Server) addComposeTools() {
 			d.Msg.Body = []byte(*in.Body)
 		}
 		d.mu.Unlock()
-		return jsonText(d.view())
+		return jsonText(d.view(s.Redact()))
 	})
 	mcp.AddTool(srv, change("delete_compose_http", "Delete Compose Draft", "Forget a draft.", false), func(_ context.Context, _ *mcp.CallToolRequest, in composeIDInput) (*mcp.CallToolResult, any, error) {
 		s.drafts.Delete(in.ComposeID)

@@ -233,6 +233,31 @@ func TestMemoryLimit(t *testing.T) {
 	}
 }
 
+func TestMemoryLimitOnUpdate(t *testing.T) {
+	s := New(1000)
+	s.SetMemoryLimit(2500)
+	mk := func(id string) *flow.Flow {
+		f := flow.New(id)
+		f.Request = &flow.Request{Method: flow.Method{Name: "GET"}, Host: "a", URI: "/", BodyData: make(flow.Blob, 1000)}
+		return f
+	}
+	s.Upsert(mk("A"))
+	s.Upsert(mk("B"))
+	b := mk("B")
+	b.Response = &flow.Response{Status: &flow.Status{Code: 200}, BodyData: make(flow.Blob, 1400)}
+	s.Upsert(b)
+	var ids []string
+	for _, f := range s.Snapshot() {
+		ids = append(ids, f.UniqueID)
+	}
+	if strings.Join(ids, "") != "B" {
+		t.Errorf("kept %v: the updated flow only", ids)
+	}
+	if up, down := s.Traffic(); up+down > 2500 {
+		t.Errorf("%d bytes kept", up+down)
+	}
+}
+
 func TestJSONConditionsAndPresets(t *testing.T) {
 	f := flow.New("J")
 	f.Request = &flow.Request{FullPath: "https://api.dev/search?q=hello%20world&page=2", Method: flow.Method{Name: "GET"}}

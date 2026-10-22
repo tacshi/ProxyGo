@@ -572,42 +572,22 @@ func (s *Store) normalize() {
 		}
 		d.ExternalProxy = ""
 	}
-	if d.SSL.Rules == nil {
-		d.SSL.Rules = []*SSLRule{}
-	}
-	if d.MapLocal == nil {
-		d.MapLocal = []*MapLocalRule{}
-	}
-	if d.MapRemote == nil {
-		d.MapRemote = []*MapRemoteRule{}
-	}
-	if d.Block == nil {
-		d.Block = []*URLRule{}
-	}
-	if d.Allow == nil {
-		d.Allow = []*URLRule{}
-	}
-	if d.DNS == nil {
-		d.DNS = []*DNSRule{}
-	}
-	if d.Scripts == nil {
-		d.Scripts = []*ScriptRule{}
-	}
-	if d.Breakpoints == nil {
-		d.Breakpoints = []*BreakpointRule{}
-	}
-	if d.NetworkConditions == nil {
-		d.NetworkConditions = []*NetworkCondition{}
-	}
-	if d.ReverseProxies == nil {
-		d.ReverseProxies = []*ReverseProxy{}
-	}
-	if d.ClientCerts == nil {
-		d.ClientCerts = []*ClientCertificate{}
-	}
-	if d.ServerCerts == nil {
-		d.ServerCerts = []*ServerCertificate{}
-	}
+	d.SSL.Rules = nonNil(d.SSL.Rules)
+	d.MapLocal = nonNil(d.MapLocal)
+	d.MapRemote = nonNil(d.MapRemote)
+	d.Block = nonNil(d.Block)
+	d.Allow = nonNil(d.Allow)
+	d.DNS = nonNil(d.DNS)
+	d.Scripts = nonNil(d.Scripts)
+	d.Breakpoints = nonNil(d.Breakpoints)
+	d.NetworkConditions = nonNil(d.NetworkConditions)
+	d.ReverseProxies = nonNil(d.ReverseProxies)
+	d.ClientCerts = nonNil(d.ClientCerts)
+	d.ServerCerts = nonNil(d.ServerCerts)
+	d.BreakpointTemplates = slices.DeleteFunc(d.BreakpointTemplates, isNil)
+	d.BlockedApps = slices.DeleteFunc(d.BlockedApps, isNil)
+	d.Protobuf = slices.DeleteFunc(d.Protobuf, isNil)
+	d.NetworkProfiles = slices.DeleteFunc(d.NetworkProfiles, isNil)
 	if d.Socks.Port == 0 {
 		d.Socks.Port = DefaultSocksPort
 	}
@@ -624,6 +604,15 @@ func (s *Store) normalize() {
 	for _, r := range d.MapRemote {
 		r.Folder, _ = CleanFolder(r.Folder)
 	}
+}
+
+func isNil[T any](r *T) bool { return r == nil }
+
+func nonNil[T any](list []*T) []*T {
+	if list = slices.DeleteFunc(list, isNil); list == nil {
+		return []*T{}
+	}
+	return list
 }
 
 func (s *Store) publish() {

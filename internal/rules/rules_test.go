@@ -273,6 +273,27 @@ func TestStorePersistsAndMigrates(t *testing.T) {
 	}
 }
 
+func TestNullRulesDropped(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rules.json")
+	raw := `{"block":[null,{"id":"B","enabled":true,"url":"ads.dev"}],"allow":[null],"map_local":[null],"map_remote":[null],"ssl":{"rules":[null]},"breakpoint_templates":[null]}`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []*Store{Open(path), func() *Store {
+		s := Memory(Data{})
+		if err := s.Import(path); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}()} {
+		d := s.Current()
+		if len(d.Block) != 1 || d.Block[0].ID != "B" || len(d.Allow) != 0 || len(d.MapLocal) != 0 || len(d.MapRemote) != 0 || len(d.SSL.Rules) != 0 || len(d.BreakpointTemplates) != 0 {
+			t.Fatalf("null entries kept: %+v", d)
+		}
+	}
+}
+
 func TestBreakpointTemplates(t *testing.T) {
 	resp := &BreakpointTemplate{Response: true, Raw: "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 5\r\nX-Long: a\r\n b\r\n\r\n{\"e\":1}\n"}
 	m, err := resp.Parse()

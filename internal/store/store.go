@@ -30,7 +30,7 @@ func New(max int) *Store {
 func (s *Store) SetLimit(max int) {
 	s.mu.Lock()
 	s.max = cmp.Or(max, 50000)
-	s.trimLocked()
+	s.trimLocked(nil)
 	s.mu.Unlock()
 	s.version.Add(1)
 }
@@ -38,7 +38,7 @@ func (s *Store) SetLimit(max int) {
 func (s *Store) SetMemoryLimit(bytes int64) {
 	s.mu.Lock()
 	s.memLimit = max(bytes, 0)
-	s.trimLocked()
+	s.trimLocked(nil)
 	s.mu.Unlock()
 	s.version.Add(1)
 }
@@ -61,7 +61,7 @@ func (s *Store) Upsert(f *flow.Flow) {
 		s.flows = append(s.flows, f)
 		s.byID[f.UniqueID] = f
 		s.addTraffic(f, 1)
-		s.trimLocked()
+		s.trimLocked(f)
 		s.version.Add(1)
 		return
 	}
@@ -86,6 +86,7 @@ func (s *Store) replaceLocked(old, f *flow.Flow) {
 	s.byID[f.UniqueID] = f
 	s.addTraffic(old, -1)
 	s.addTraffic(f, 1)
+	s.trimLocked(f)
 	s.version.Add(1)
 }
 
@@ -150,7 +151,7 @@ func (s *Store) Replace(flows []*flow.Flow) {
 		s.byID[f.UniqueID] = f
 		s.addTraffic(f, 1)
 	}
-	s.trimLocked()
+	s.trimLocked(nil)
 	s.mu.Unlock()
 	s.version.Add(1)
 }
@@ -165,7 +166,7 @@ func (s *Store) Append(flows []*flow.Flow) {
 	}
 }
 
-func (s *Store) trimLocked() {
+func (s *Store) trimLocked(keep *flow.Flow) {
 	if len(s.flows) > s.max {
 		drop := min(len(s.flows), len(s.flows)-s.max+s.max/10)
 		for _, f := range s.flows[:drop] {
@@ -184,7 +185,7 @@ func (s *Store) trimLocked() {
 			kept = append(kept, s.flows[i:]...)
 			break
 		}
-		if f.Saved {
+		if f.Saved || f == keep {
 			kept = append(kept, f)
 			continue
 		}
