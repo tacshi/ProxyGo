@@ -1,0 +1,64 @@
+package privileged
+
+import (
+	"cmp"
+	"html"
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+
+	"proxygo/internal/clientinfo"
+	"proxygo/internal/systemproxy"
+)
+
+const Arg = "privileged-helper"
+
+const (
+	toolDir   = "/Library/PrivilegedHelperTools"
+	daemonDir = "/Library/LaunchDaemons"
+	runDir    = "/var/run"
+)
+
+func toolPath(label string) string   { return filepath.Join(toolDir, label) }
+func plistPath(label string) string  { return filepath.Join(daemonDir, label+".plist") }
+func socketPath(label string) string { return filepath.Join(runDir, label+".socket") }
+
+type Request struct {
+	Op     string             `json:"op"`
+	Config systemproxy.Config `json:"config,omitzero"`
+	State  systemproxy.State  `json:"state,omitzero"`
+}
+
+type Response struct {
+	Error string `json:"error,omitempty"`
+	Stale bool   `json:"stale,omitempty"`
+}
+
+func executable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	return exe, nil
+}
+
+var Label = sync.OnceValue(func() string {
+	exe, _ := executable()
+	return cmp.Or(clientinfo.BundleID(exe), "com.example.proxygo") + ".helper"
+})
+
+func daemonPlist(label, tool string, uid int) string {
+	str := func(s string) string { return "<string>" + html.EscapeString(s) + "</string>" }
+	return `<?xml version="1.0" encoding="UTF-8"?>` +
+		`<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` +
+		`<plist version="1.0"><dict>` +
+		`<key>Label</key>` + str(label) +
+		`<key>ProgramArguments</key><array>` + str(tool) + str(Arg) + str(label) + str(strconv.Itoa(uid)) + `</array>` +
+		`<key>RunAtLoad</key><true/>` +
+		`<key>KeepAlive</key><true/>` +
+		`</dict></plist>`
+}

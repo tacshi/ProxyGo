@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- ProxyGo's app icon: a packet caught in flight between < and >.
+       resources/icon.png is this file at 1024 px:
+       rsvg-convert -w 1024 -h 1024 assets/icon/icon.svg -o resources/icon.png
+       AppIcon.icon holds the same artwork as Icon Composer layers for macOS 26 and later. -->
+  <defs>
+    <path id="shape" d="M512 100C527.5 100 541.6 100 556.9 100C572.3 100 588.3 100 604 100C619.6 100.1 635.3 100.1 650.8 100.4C666.4 100.6 681.8 100.8 697.2 101.5C712.6 102.2 728.1 103 743.4 104.7C758.8 106.5 774.2 108.3 789.1 112C804 115.7 819.3 120 832.8 126.9C846.4 133.8 860 142.6 870.7 153.3C881.4 164 890.2 177.4 897 191C903.9 204.6 908.2 219.8 911.9 234.7C915.6 249.5 917.5 265 919.3 280.3C921 295.6 921.7 311 922.5 326.4C923.2 341.8 923.4 357.1 923.6 372.5C923.9 387.9 923.9 403.6 924 418.8C924 434 924 448.1 924 463.7C924 479.2 924 496.5 924 512C924 527.5 924 541.6 924 556.9C924 572.3 924 588.3 924 604C923.9 619.6 923.9 635.3 923.6 650.8C923.4 666.4 923.2 681.8 922.5 697.2C921.8 712.6 921 728.1 919.3 743.4C917.5 758.8 915.7 774.2 912 789.1C908.3 804 904 819.3 897.1 832.8C890.2 846.4 881.4 860 870.7 870.7C860 881.4 846.6 890.2 833 897C819.4 903.9 804.2 908.2 789.3 911.9C774.5 915.6 759 917.5 743.7 919.3C728.4 921 713 921.7 697.6 922.5C682.2 923.2 666.9 923.4 651.5 923.6C636.1 923.9 620.4 923.9 605.2 924C590 924 575.9 924 560.3 924C544.8 924 527.5 924 512 924C496.5 924 482.4 924 467.1 924C451.7 924 435.7 924 420 924C404.4 923.9 388.7 923.9 373.2 923.6C357.6 923.4 342.2 923.2 326.8 922.5C311.4 921.8 295.9 921 280.6 919.3C265.2 917.5 249.8 915.7 234.9 912C220 908.3 204.7 904 191.2 897.1C177.6 890.2 164.1 881.5 153.4 870.8C142.7 860.1 133.9 846.6 127 833C120.1 819.4 115.8 804.2 112.1 789.3C108.4 774.5 106.5 759 104.7 743.7C103 728.4 102.3 713 101.5 697.6C100.8 682.2 100.6 666.9 100.4 651.5C100.1 636.1 100.1 620.4 100 605.2C100 590 100 575.9 100 560.3C100 544.8 100 527.5 100 512C100 496.5 100 482.4 100 467.1C100 451.7 100 435.7 100 420C100.1 404.4 100.1 388.7 100.4 373.2C100.6 357.6 100.8 342.2 101.5 326.8C102.2 311.4 103 295.9 104.7 280.6C106.5 265.2 108.3 249.8 112 234.9C115.7 220 120 204.7 126.9 191.2C133.8 177.6 142.5 164.1 153.2 153.4C163.9 142.7 177.4 133.9 191 127C204.6 120.1 219.8 115.8 234.7 112.1C249.5 108.4 265 106.5 280.3 104.7C295.6 103 311 102.3 326.4 101.5C341.8 100.8 357.1 100.6 372.5 100.4C387.9 100.1 403.6 100.1 418.8 100C434 100 448.1 100 463.7 100C479.2 100 496.5 100 512 100Z"/>
+    <clipPath id="clip"><use href="#shape"/></clipPath>
+    <linearGradient id="bg" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#FFB648"/>
+      <stop offset="0.5" stop-color="#FF7448"/>
+      <stop offset="1" stop-color="#EE3D6E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.12" r="0.75">
+      <stop offset="0" stop-color="#FFF4D6" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#FFF4D6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="0.3" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFE8D8"/>
+    </linearGradient>
+    <radialGradient id="packet" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#55246C"/>
+      <stop offset="1" stop-color="#1E0C2A"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#8C1838" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <use href="#shape" fill="url(#bg)" filter="url(#shadow)"/>
+  <g clip-path="url(#clip)">
+    <rect width="1024" height="1024" fill="url(#glow)"/>
+    <g filter="url(#lift)">
+      <path d="M336 344L206 512L336 680M688 344L818 512L688 680" fill="none" stroke="url(#glyph)" stroke-width="84" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M392 456H450M362 512H450M392 568H450" stroke="#FFF6EC" stroke-opacity="0.85" stroke-width="30" stroke-linecap="round"/>
+      <circle cx="560" cy="512" r="88" fill="url(#packet)"/>
+      <circle cx="588" cy="484" r="22" fill="#FFF6EC"/>
+    </g>
+    <use href="#shape" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  </g>
+</svg>

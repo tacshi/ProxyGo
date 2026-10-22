@@ -1,0 +1,9 @@
+{
+  "neon": {"background": ["#17151F", "#050507"], "brackets": "#FF6AD5", "trail": "#FF6AD5", "packet": "#FF6AD5", "glint": "#FFFFFF"},
+  "lime": {"background": ["#E4FB8C", "#A3E635"], "brackets": "#1B2210", "trail": "#1B2210", "packet": "#1B2210", "glint": "#E4FB8C"},
+  "mint": {"background": ["#0F7A62", "#053B30"], "brackets": "#6EF2C0", "trail": "#6EF2C0", "packet": "#6EF2C0", "glint": "#FFFFFF"},
+  "grape": {"background": ["#A78BFA", "#5B21B6"], "brackets": "#FFF8F0", "trail": "#FFF8F0", "packet": "#FFB648", "glint": "#FFF8F0"},
+  "paper": {"background": ["#FDFBF6", "#E7E0D2"], "brackets": "#1E1B2E", "trail": "#1E1B2E", "packet": "#FF5A4E", "glint": "#FFF6EC"},
+  "graphite": {"background": ["#55555C", "#1C1C1F"], "brackets": "#F2F2F7", "trail": "#F2F2F7", "packet": "#FF9F0A", "glint": "#FFF6EC"},
+  "sakura": {"background": ["#FFE6EE", "#FFADC6"], "brackets": "#7A1E48", "trail": "#7A1E48", "packet": "#7A1E48", "glint": "#FFE6EE"}
+}
