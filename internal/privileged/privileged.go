@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"proxygo/internal/clientinfo"
@@ -58,10 +59,22 @@ func appBundle(exe string) string {
 	return app
 }
 
+const (
+	appID    = "app.capyvibe.proxygo"
+	formerID = "com.example.proxygo"
+)
+
 var Label = sync.OnceValue(func() string {
 	exe, _ := executable()
-	return cmp.Or(clientinfo.BundleID(exe), "com.example.proxygo") + ".helper"
+	return cmp.Or(clientinfo.BundleID(exe), appID) + ".helper"
 })
+
+func formerLabel(label string) string {
+	if rest, ok := strings.CutPrefix(label, appID); ok {
+		return formerID + rest
+	}
+	return ""
+}
 
 func daemonPlist(label, tool string, uid int) string {
 	str := func(s string) string { return "<string>" + html.EscapeString(s) + "</string>" }

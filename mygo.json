@@ -1,6 +1,6 @@
 {
   "name": "ProxyGo",
-  "identifier": "com.example.proxygo",
+  "identifier": "app.capyvibe.proxygo",
   "version": "0.1.0",
   "out": "build",
   "i18n": {
