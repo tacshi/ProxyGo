@@ -39,7 +39,15 @@ func TestRequire(t *testing.T) {
 	write("node_modules/esm-only/package.json", `{"type":"module","main":"index.js"}`)
 	write("node_modules/esm-only/index.js", `export default 1;`)
 	write("users/esm.js", `export const x = 1;`)
-	_ = os.WriteFile(filepath.Join(t.TempDir(), "secret.js"), []byte("exports.s = 1"), 0o600)
+	outside := t.TempDir()
+	_ = os.WriteFile(filepath.Join(outside, "secret.js"), []byte("exports.s = 1"), 0o600)
+	_ = os.WriteFile(filepath.Join(outside, "package.json"), []byte(`{"main":"index.js"}`), 0o600)
+	_ = os.Symlink(filepath.Join(outside, "secret.js"), filepath.Join(root, "users", "link.js"))
+	_ = os.Symlink(outside, filepath.Join(root, "libs", "out"))
+	_ = os.MkdirAll(filepath.Join(root, "node_modules", "sneaky"), 0o750)
+	_ = os.Symlink(filepath.Join(outside, "package.json"), filepath.Join(root, "node_modules", "sneaky", "package.json"))
+	write("users/inner.js", `exports.n = 7;`)
+	_ = os.Symlink(filepath.Join("..", "users", "inner.js"), filepath.Join(root, "libs", "inner.js"))
 
 	comment, _ := runScript(t, e, `function onRequest(c, u, request) {
 		const { token } = require("@users/token.json");
@@ -47,10 +55,11 @@ func TestRequire(t *testing.T) {
 		const { double } = require("@libs/math.js");
 		const day = require("dayjs-like");
 		const { md5 } = require("@addons/MD5.js");
-		request.comment = [token, greet("ada"), double(21), day(), md5("a"), require("@users/token.json") === require("@users/token.json")].join("|");
+		const { n } = require("@libs/inner.js");
+		request.comment = [token, greet("ada"), double(21), day(), md5("a"), n, require("@users/token.json") === require("@users/token.json")].join("|");
 		return request;
 	}`)
-	if comment != "abc|hi ada|42|today|0cc175b9c0f1b6a831c399e269772661|true" {
+	if comment != "abc|hi ada|42|today|0cc175b9c0f1b6a831c399e269772661|7|true" {
 		t.Errorf("comment %q", comment)
 	}
 
@@ -64,6 +73,9 @@ func TestRequire(t *testing.T) {
 		"@addons/Nope.js":         "no addon",
 		"@users/missing.js":       "cannot find",
 		"./a/../../../b.js":       "outside the scripts folder",
+		"@users/link.js":          "escapes",
+		"@libs/out/secret.js":     "escapes",
+		"sneaky":                  "escapes",
 	} {
 		req := request()
 		_, err := e.RunRequest([]*rules.ScriptRule{rule(`function onRequest(c, u, r) { require(` + quoteJS(name) + `); return r; }`)}, flow.New("F"), req)
