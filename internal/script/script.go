@@ -63,8 +63,8 @@ type LogLine struct {
 }
 
 type Engine struct {
-	runMu    sync.Mutex
 	mu       sync.Mutex
+	sharedMu sync.Mutex
 	programs map[string]*goja.Program
 	shared   map[string]any
 	logs     []LogLine
@@ -190,14 +190,13 @@ func (e *Engine) run(rule *rules.ScriptRule, hook string, f *flow.Flow, req *Req
 	if err != nil {
 		return false, err
 	}
-	e.runMu.Lock()
-	defer e.runMu.Unlock()
 	vm := goja.New()
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	timer := time.AfterFunc(30*time.Second, func() { vm.Interrupt("script timed out after 30 s") })
 	defer timer.Stop()
 
-	e.installRuntime(vm, rule.Name)
+	lease := e.installRuntime(vm, rule.Name)
+	defer lease.release()
 	if _, err := vm.RunProgram(prog); err != nil {
 		return false, err
 	}
@@ -620,7 +619,7 @@ func expandHome(p string) string {
 	return p
 }
 
-func (e *Engine) installRuntime(vm *goja.Runtime, name string) {
+func (e *Engine) installRuntime(vm *goja.Runtime, name string) *sharedLease {
 	installNatives(vm)
 	_ = vm.Set("require", e.requireFunc(vm)(""))
 	setEnv := func(env map[string]string) {
@@ -664,11 +663,12 @@ func (e *Engine) installRuntime(vm *goja.Runtime, name string) {
 	_ = console.Set("error", logger("error"))
 	_ = vm.Set("console", console)
 
-	e.mu.Lock()
-	shared := e.shared
-	e.mu.Unlock()
-	_ = vm.Set("sharedState", shared)
-	_ = vm.Set("sleep", func(ms int) { time.Sleep(time.Duration(min(ms, 30000)) * time.Millisecond) })
+	lease := &sharedLease{mu: &e.sharedMu}
+	_ = vm.Set("sharedState", vm.NewDynamicObject(&sharedMap{vm: vm, l: lease, m: e.shared}))
+	_ = vm.Set("sleep", func(ms int) {
+		lease.release()
+		time.Sleep(time.Duration(min(ms, 30000)) * time.Millisecond)
+	})
 	_ = vm.Set("readFromFile", func(path string) (string, error) {
 		b, err := os.ReadFile(expandHome(path))
 		return string(b), err
@@ -682,16 +682,26 @@ func (e *Engine) installRuntime(vm *goja.Runtime, name string) {
 		return string(b), err
 	})
 	httpObj := vm.NewObject()
-	_ = httpObj.Set("get", func(u string) (any, error) { return httpJSON(http.MethodGet, u, nil) })
-	_ = httpObj.Set("post", func(u string, body any) (any, error) { return httpJSON(http.MethodPost, u, body) })
+	_ = httpObj.Set("get", func(u string) (any, error) {
+		lease.release()
+		return httpJSON(http.MethodGet, u, nil)
+	})
+	_ = httpObj.Set("post", func(u string, body any) (any, error) {
+		var b []byte
+		if body != nil {
+			b, _ = json.Marshal(body)
+		}
+		lease.release()
+		return httpJSON(http.MethodPost, u, b)
+	})
 	_ = vm.Set("$http", httpObj)
+	return lease
 }
 
-func httpJSON(method, u string, body any) (any, error) {
+func httpJSON(method, u string, body []byte) (any, error) {
 	var rdr io.Reader
 	if body != nil {
-		b, _ := json.Marshal(body)
-		rdr = bytes.NewReader(b)
+		rdr = bytes.NewReader(body)
 	}
 	req, err := http.NewRequest(method, u, rdr)
 	if err != nil {
