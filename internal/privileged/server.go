@@ -143,7 +143,7 @@ func (s *server) handle(req Request, p peer) error {
 				return err
 			}
 		}
-		return nil
+		return os.RemoveAll(bundlePath(s.label))
 	}
 	return fmt.Errorf("unknown request %q", req.Op)
 }

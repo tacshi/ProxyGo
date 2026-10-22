@@ -21,6 +21,7 @@ const (
 )
 
 func toolPath(label string) string   { return filepath.Join(toolDir, label) }
+func bundlePath(label string) string { return filepath.Join(toolDir, label+".app") }
 func plistPath(label string) string  { return filepath.Join(daemonDir, label+".plist") }
 func socketPath(label string) string { return filepath.Join(runDir, label+".socket") }
 
@@ -45,6 +46,16 @@ func executable() (string, error) {
 		exe = real
 	}
 	return exe, nil
+}
+
+func appBundle(exe string) string {
+	macOS := filepath.Dir(exe)
+	contents := filepath.Dir(macOS)
+	app := filepath.Dir(contents)
+	if filepath.Base(macOS) != "MacOS" || filepath.Base(contents) != "Contents" || filepath.Ext(app) != ".app" {
+		return ""
+	}
+	return app
 }
 
 var Label = sync.OnceValue(func() string {

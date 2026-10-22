@@ -151,3 +151,38 @@ func TestWatchRestoresProxyWhenAppDies(t *testing.T) {
 		t.Fatal("restored after the app gave the proxy back itself")
 	}
 }
+
+func TestAppBundle(t *testing.T) {
+	for exe, want := range map[string]string{
+		"/Applications/ProxyGo.app/Contents/MacOS/ProxyGo":         "/Applications/ProxyGo.app",
+		"/Users/me/build/ProxyGo-debug.app/Contents/MacOS/ProxyGo": "/Users/me/build/ProxyGo-debug.app",
+		"/Users/me/go/bin/proxygo":                                 "",
+		"/tmp/x/Contents/MacOS/ProxyGo":                            "",
+	} {
+		if got := appBundle(exe); got != want {
+			t.Errorf("appBundle(%q) = %q, want %q", exe, got, want)
+		}
+	}
+}
+
+func TestInstallCommandsCopyTheWholeApp(t *testing.T) {
+	label := "com.example.proxygo.helper"
+	script := strings.Join(installCommands(label, "/Applications/ProxyGo.app/Contents/MacOS/ProxyGo", 501), " && ")
+	program := "/Library/PrivilegedHelperTools/com.example.proxygo.helper.app/Contents/MacOS/ProxyGo"
+	for _, want := range []string{
+		"/usr/bin/ditto --noextattr --noqtn '/Applications/ProxyGo.app' '/Library/PrivilegedHelperTools/com.example.proxygo.helper.app.new'",
+		"<string>" + program + "</string>",
+		"/bin/rm -f '/Library/PrivilegedHelperTools/com.example.proxygo.helper'",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("install script lacks %q:\n%s", want, script)
+		}
+	}
+	if strings.Contains(script, "/bin/cp -X") {
+		t.Errorf("an app's executable is copied without its bundle:\n%s", script)
+	}
+	lone := strings.Join(installCommands(label, "/Users/me/go/bin/proxygo", 501), " && ")
+	if !strings.Contains(lone, "<string>/Library/PrivilegedHelperTools/com.example.proxygo.helper</string>") {
+		t.Errorf("a bare executable is not installed on its own:\n%s", lone)
+	}
+}

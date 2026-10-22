@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -100,29 +101,54 @@ func install(label string) error {
 	if err != nil {
 		return err
 	}
-	tool, plist := toolPath(label), plistPath(label)
-	next := tool + ".new"
+	return runAdmin(strings.Join(installCommands(label, exe, os.Getuid()), " && "), installPrompt)
+}
+
+func installCommands(label, exe string, uid int) []string {
+	tool, bundle, plist := toolPath(label), bundlePath(label), plistPath(label)
 	cmds := []string{
 		"/bin/mkdir -p " + quote(toolDir),
 		"{ /bin/launchctl bootout " + quote("system/"+label) + " 2>/dev/null || true; }",
-		"/bin/rm -f " + quote(next),
-		"/bin/cp -X " + quote(exe) + " " + quote(next),
-		"/usr/sbin/chown root:wheel " + quote(next),
-		"/bin/chmod 755 " + quote(next),
-		"/bin/mv -f " + quote(next) + " " + quote(tool),
-		"/bin/rm -f " + quote(plist),
-		"/usr/bin/printf %s " + quote(daemonPlist(label, tool, os.Getuid())) + " > " + quote(plist),
-		"/usr/sbin/chown root:wheel " + quote(plist),
-		"/bin/chmod 644 " + quote(plist),
-		"{ /bin/launchctl bootstrap system " + quote(plist) + " || { /bin/sleep 1 && /bin/launchctl bootstrap system " + quote(plist) + "; }; }",
 	}
-	return runAdmin(strings.Join(cmds, " && "), installPrompt)
+	program := tool
+	if app := appBundle(exe); app != "" {
+		program = filepath.Join(bundle, "Contents", "MacOS", filepath.Base(exe))
+		next := bundle + ".new"
+		cmds = append(cmds,
+			"/bin/rm -rf "+quote(next),
+			"/usr/bin/ditto --noextattr --noqtn "+quote(app)+" "+quote(next),
+			"/usr/sbin/chown -R root:wheel "+quote(next),
+			"/bin/chmod -R go-w "+quote(next),
+			"/bin/rm -rf "+quote(bundle),
+			"/bin/mv -f "+quote(next)+" "+quote(bundle),
+			"/bin/rm -f "+quote(tool),
+		)
+	} else {
+		next := tool + ".new"
+		cmds = append(cmds,
+			"/bin/rm -f "+quote(next),
+			"/bin/cp -X "+quote(exe)+" "+quote(next),
+			"/usr/sbin/chown root:wheel "+quote(next),
+			"/bin/chmod 755 "+quote(next),
+			"/bin/mv -f "+quote(next)+" "+quote(tool),
+			"/bin/rm -rf "+quote(bundle),
+		)
+	}
+	cmds = append(cmds,
+		"/bin/rm -f "+quote(plist),
+		"/usr/bin/printf %s "+quote(daemonPlist(label, program, uid))+" > "+quote(plist),
+		"/usr/sbin/chown root:wheel "+quote(plist),
+		"/bin/chmod 644 "+quote(plist),
+		"{ /bin/launchctl bootstrap system "+quote(plist)+" || { /bin/sleep 1 && /bin/launchctl bootstrap system "+quote(plist)+"; }; }",
+	)
+	return cmds
 }
 
 func removeCommands(label string) []string {
 	return []string{
 		"{ /bin/launchctl bootout " + quote("system/"+label) + " 2>/dev/null || true; }",
 		"/bin/rm -f " + quote(plistPath(label)) + " " + quote(toolPath(label)) + " " + quote(socketPath(label)),
+		"/bin/rm -rf " + quote(bundlePath(label)),
 	}
 }
 
