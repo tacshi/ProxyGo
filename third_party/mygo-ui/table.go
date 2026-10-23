@@ -286,8 +286,9 @@ func table(c *context, s *ListState, columns []TableColumn, n int, cell func(row
 		// and the keys for.
 		// ProxyGo: room at the end for the sideways scroll bar's track,
 		// its width and margins as scrollBars lays it out. The track takes
-		// presses even while the bar is hidden: the last row now scrolls
-		// clear of it rather than half under it (egoist/mygo#622).
+		// presses while the bar shows, as it does whenever the pointer is
+		// over the table: the last row now scrolls clear of it rather than
+		// half under it (egoist/mygo#622).
 		list = coreScroll(c).Grow(1).Role(RoleNone).Padding(0, 0, t.scrollbarWidth()+6, 0)
 		list.widget = "List"
 		list.flags |= flagScrollX
@@ -405,9 +406,9 @@ func tableHeader(c *context, table, h *node, j int, s *ListState, drag *tableDra
 	if col.Fixed {
 		return
 	}
-	// ProxyGo: the last column, sharing the room left, ends where the
-	// table does, so it has no edge to show there (egoist/mygo#625).
 	if _, ok := s.Columns.width(col); !ok && j == order[len(order)-1] {
+		// The last column sharing the room left ends at the table's end:
+		// an edge there would resize nothing, as AppKit's has none.
 		return
 	}
 	// The edge, which resizes the column, and fits it to its cells on a

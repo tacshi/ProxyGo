@@ -9,7 +9,7 @@ require (
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261020172427-7b1a02208696
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.6.2
+	github.com/egoist/mygo v0.6.3
 	github.com/egoist/mygo/proxygoui v0.0.0
 	github.com/itchyny/gojq v0.12.19
 	github.com/klauspost/compress v1.20.3
