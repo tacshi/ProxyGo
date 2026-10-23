@@ -203,9 +203,6 @@ func relayFrames(br *bufio.Reader, dst *wsSide, from string, rec *wsRecorder) bo
 		if err != nil {
 			return false
 		}
-		if err := dst.relay(frame); err != nil {
-			return false
-		}
 		switch frame.opcode {
 		case 0x0:
 			if len(assembled) < maxWebSocketMessage {
@@ -235,11 +232,16 @@ func relayFrames(br *bufio.Reader, dst *wsSide, from string, rec *wsRecorder) bo
 				reason = frame.payload[2:]
 			}
 			rec.add(message(from, "close", reason, code))
-			return true
 		case 0x9:
 			rec.add(message(from, "ping", frame.payload, 0))
 		case 0xA:
 			rec.add(message(from, "pong", frame.payload, 0))
+		}
+		if err := dst.relay(frame); err != nil {
+			return false
+		}
+		if frame.opcode == 0x8 {
+			return true
 		}
 	}
 }
