@@ -524,7 +524,7 @@ func (a *App) encryptedPane(c *ui.Context, f *flow.Flow) {
 	centered(c, 10, func() {
 		glyph(c, "lock", 26, p.faint)
 		ui.Text(c, locales.EncryptedHTTPS()).FontSize(16).FontWeight(650).TextColor(p.text2)
-		if a.rules.Current().ShouldMITM(host) {
+		if a.decrypts(f) {
 			ui.Text(c, locales.SSLProxyingIsNowOnFor(host)).TextColor(p.muted).TextAlign(ui.Center).MaxWidth(420)
 			if ui.Button(c, locales.ComposeRequestEllipsis()).Clicked() {
 				a.composeFrom(f)

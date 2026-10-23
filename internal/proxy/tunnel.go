@@ -236,7 +236,7 @@ func sniff(c *bufferedConn, timeout time.Duration) sniffed {
 
 func (s *Server) tunnel(c *bufferedConn, t *target, reply func(error) error) {
 	data := s.rules()
-	if s.opts.Certs != nil && data.ShouldMITM(t.host) {
+	if s.opts.Certs != nil && data.ShouldMITMFor(t.client.Name, t.host) {
 		if reply(nil) != nil {
 			_ = c.Close()
 			return
@@ -278,7 +278,21 @@ func (s *Server) tunnel(c *bufferedConn, t *target, reply func(error) error) {
 		s.tunnels.serve(c, &tunnelInfo{host: t.host, port: t.port, client: t.client, remote: t.remote})
 		return
 	}
+	s.plain.Store(c, t)
+	defer s.plain.Delete(c)
 	s.relay(c, t, &relayed{f: f, upstream: upstream})
+}
+
+func (s *Server) closeNowDecrypted(data *rules.Data) {
+	if s.opts.Certs == nil {
+		return
+	}
+	s.plain.Range(func(k, v any) bool {
+		if t := v.(*target); data.ShouldMITMFor(t.client.Name, t.host) {
+			_ = k.(net.Conn).Close()
+		}
+		return true
+	})
 }
 
 type relayed struct {
@@ -342,6 +356,7 @@ func (s *Server) serveMITM(c *bufferedConn, t *target) {
 	})
 	_ = tlsConn.SetDeadline(time.Now().Add(30 * time.Second))
 	if err := tlsConn.Handshake(); err != nil {
+		_, trusted := s.trusting.Load(trustKey(t.client))
 		f := s.connectFlow(t)
 		f.Timing.ClientTLSStartedAt = &start
 		end := now()
@@ -349,7 +364,7 @@ func (s *Server) serveMITM(c *bufferedConn, t *target) {
 		f.Response = &flow.Response{
 			Status: &flow.Status{Code: 999, Phrase: "SSL Handshake Failed"},
 			Error: flow.ResponseError{"sslHandshakeFailed": map[string]any{
-				"message": handshakeHint(err),
+				"message": handshakeHint(err, trusted, remoteDevice(t.client)),
 			}},
 			Version: flow.Version{Major: 1, Minor: 1},
 		}
@@ -362,11 +377,21 @@ func (s *Server) serveMITM(c *bufferedConn, t *target) {
 		return
 	}
 	_ = tlsConn.SetDeadline(time.Time{})
+	if key := trustKey(t.client); key != "" {
+		s.trusting.Store(key, struct{}{})
+	}
 	end := now()
 	cs := tlsConn.ConnectionState()
 	ci := flow.TLSInfoOf(&cs)
 	ci.Offered = offered
 	s.tunnels.serve(tlsConn, &tunnelInfo{host: t.host, port: t.port, client: t.client, remote: t.remote, tls: true, tlsStart: start, tlsEnd: end, clientTLS: ci})
+}
+
+func trustKey(c flow.Client) string {
+	if c.Name == "System" {
+		return ""
+	}
+	return c.Name
 }
 
 func pinningLikely(err error) bool {
@@ -376,9 +401,20 @@ func pinningLikely(err error) bool {
 		strings.Contains(msg, "connection reset")
 }
 
-func handshakeHint(err error) string {
+func remoteDevice(c flow.Client) string {
+	if c.PID > 0 || c.Path != "" || net.ParseIP(c.Name) == nil {
+		return ""
+	}
+	return c.Name
+}
+
+func handshakeHint(err error, trusted bool, device string) string {
 	msg := err.Error()
 	switch {
+	case device != "" && !trusted && pinningLikely(err):
+		return device + " has not accepted this ProxyGo's certificate for any host yet, so it most likely does not trust its CA. Each ProxyGo installation has its own CA: on the device, open http://proxy.go through this ProxyGo, then install and trust the certificate."
+	case trusted && pinningLikely(err):
+		return "The client accepted ProxyGo's certificate for other hosts but refused it here, so the ProxyGo CA is installed: the app making this connection does not trust user-installed CAs, or pins the server's certificate. Android apps trust user-installed CAs only when their network security config allows it."
 	case strings.Contains(msg, "unknown certificate") || strings.Contains(msg, "bad certificate") || strings.Contains(msg, "certificate unknown"):
 		return "The client rejected ProxyGo's certificate (" + msg + "). Install and trust the ProxyGo CA on the device, or remove the host from the SSL Proxying List if the app pins its certificate."
 	case errors.Is(err, io.EOF) || strings.Contains(msg, "EOF"):

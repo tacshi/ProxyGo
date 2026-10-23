@@ -167,7 +167,7 @@ func (a *App) sourceItem(c *ui.Context, tree *sourceTree, s source, depth, count
 		ic, label = "device", a.deviceName(s.app)
 	case s.host == "":
 		ic = "appWindow"
-	case s.path == "" && a.rules.Current().ShouldMITM(s.host):
+	case s.path == "" && a.rules.Current().ShouldMITMFor(s.app, s.host):
 		ic = "lockOpen"
 	case s.path == "":
 		ic = "globe"
@@ -245,7 +245,7 @@ func (a *App) sourceMenu(m *ui.Menu, s source) {
 		if m.Item(map[bool]string{true: locales.UnpinValue(s.host), false: locales.PinHost(s.host)}[a.pinned(key)]).Chosen() {
 			a.togglePin(key)
 		}
-		if !a.rules.Current().ShouldMITM(s.host) && m.Item(locales.EnableSSLProxyingForHost(s.host)).Chosen() {
+		if !a.rules.Current().ShouldMITMFor(s.app, s.host) && m.Item(locales.EnableSSLProxyingForHost(s.host)).Chosen() {
 			a.enableSSL(s.host, false)
 		}
 	}

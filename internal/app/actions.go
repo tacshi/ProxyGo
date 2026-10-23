@@ -281,38 +281,32 @@ func (a *App) enableSSL(host string, all bool) {
 	}
 }
 
-func includeSSL(d *rules.Data, target string) {
+func includeSSL(d *rules.Data, target string) { includeSSLRule(d, target, "domain") }
+
+func includeSSLRule(d *rules.Data, target, kind string) {
 	d.SSL.Enabled = true
 	for _, r := range d.SSL.Rules {
-		if strings.EqualFold(r.Target, target) {
+		if r.IsClient() == (kind == "client") && strings.EqualFold(r.Target, target) {
 			r.Enabled, r.List = true, "include"
 			return
 		}
 	}
-	d.SSL.Rules = append(d.SSL.Rules, &rules.SSLRule{ID: rules.NewID(), Enabled: true, List: "include", Target: target, TargetType: "domain"})
+	d.SSL.Rules = append(d.SSL.Rules, &rules.SSLRule{ID: rules.NewID(), Enabled: true, List: "include", Target: target, TargetType: kind})
+}
+
+func (a *App) decrypts(f *flow.Flow) bool {
+	return a.rules.Current().ShouldMITMFor(f.Client.Name, f.Host())
 }
 
 func (a *App) enableSSLForClient(f *flow.Flow) {
-	name := clientName(f)
-	var hosts []string
-	for _, g := range a.flows {
-		if clientName(g) == name && (g.IsTunnel() || g.IsHTTPS()) && g.Host() != "" && !slices.Contains(hosts, g.Host()) {
-			hosts = append(hosts, g.Host())
-		}
-	}
-	slices.Sort(hosts)
-	a.rules.Update(func(d *rules.Data) {
-		for _, host := range hosts {
-			includeSSL(d, host)
-		}
-	})
-	a.toast(locales.SSLProxyingIsOnForDomainsOf(len(hosts), a.clientLabel(f)))
+	a.rules.Update(func(d *rules.Data) { includeSSLRule(d, f.Client.Name, "client") })
+	a.toast(locales.SSLProxyingIsOnForEveryDomainFrom(a.clientLabel(f)))
 }
 
 func (a *App) excludeSSL(host string) {
 	a.rules.Update(func(d *rules.Data) {
 		for _, r := range d.SSL.Rules {
-			if strings.EqualFold(r.Target, host) && r.List == "exclude" {
+			if !r.IsClient() && strings.EqualFold(r.Target, host) && r.List == "exclude" {
 				r.Enabled = true
 				return
 			}

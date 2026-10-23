@@ -207,7 +207,7 @@ func (st *composeState) keepOptions(from composeState) {
 func (a *App) composeFrom(f *flow.Flow) {
 	switch {
 	case f != nil && f.IsTunnel():
-		if !a.rules.Current().ShouldMITM(f.Host()) {
+		if !a.decrypts(f) {
 			a.toast(locales.EnableSSLProxyingToEdit(f.Host()))
 			return
 		}

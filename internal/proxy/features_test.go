@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -9,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -55,6 +57,87 @@ func TestTLSDetailsAndPinning(t *testing.T) {
 	if fail.TLS == nil || fail.TLS.Client == nil || !fail.TLS.Client.PinningLikely || fail.TLS.Client.Error == "" {
 		t.Errorf("handshake failure %+v", fail.TLS)
 	}
+}
+
+func TestClientRuleAndRefusalAfterTrust(t *testing.T) {
+	e := newEnv(t)
+	ts := httptest.NewTLSServer(echoServer())
+	defer ts.Close()
+	e.trustServer(ts)
+	e.update(func(d *rules.Data) {
+		d.SSL.Enabled = true
+		d.SSL.Rules = append(d.SSL.Rules, &rules.SSLRule{ID: "a", Enabled: true, List: "include", Target: "192.168.1.7", TargetType: "client"})
+	})
+	addr := ts.Listener.Addr().(*net.TCPAddr)
+	handshake := func(device string, roots *x509.CertPool) error {
+		client, server := net.Pipe()
+		tg := &target{host: "127.0.0.1", port: addr.Port, client: flow.Client{Name: device, PID: -1}, remote: device + ":50000"}
+		go e.proxy.tunnel(&bufferedConn{Conn: server, r: bufio.NewReader(server)}, tg, func(error) error { return nil })
+		tc := tls.Client(client, &tls.Config{ServerName: "127.0.0.1", RootCAs: roots})
+		_ = tc.SetDeadline(time.Now().Add(5 * time.Second))
+		defer func() { _ = tc.Close() }()
+		return tc.Handshake()
+	}
+	origin := x509.NewCertPool()
+	origin.AddCert(ts.Certificate())
+
+	if err := handshake("192.168.1.58", origin); err != nil {
+		t.Fatalf("another device was decrypted: %v", err)
+	}
+	if err := handshake("192.168.1.7", origin); err == nil {
+		t.Fatal("the device's client rule did not decrypt it")
+	}
+	untrusted := e.waitFlow(func(f *flow.Flow) bool { return f.IsError() && f.Client.Name == "192.168.1.7" })
+	if !strings.Contains(untrusted.ErrorText(), "192.168.1.7 has not accepted") {
+		t.Errorf("a device that never accepted ProxyGo's certificate: %q", untrusted.ErrorText())
+	}
+	if err := handshake("192.168.1.7", e.certs.Pool()); err != nil {
+		t.Fatalf("trusting device: %v", err)
+	}
+	if err := handshake("192.168.1.7", origin); err == nil {
+		t.Fatal("refusing app reached the origin")
+	}
+	fail := e.waitFlow(func(f *flow.Flow) bool {
+		return f.IsError() && strings.Contains(f.ErrorText(), "for other hosts")
+	})
+	if fail.TLS == nil || !fail.TLS.Client.PinningLikely {
+		t.Errorf("refusal after trust %+v", fail.TLS)
+	}
+}
+
+func TestEnablingSSLClosesOpenTunnels(t *testing.T) {
+	e := newEnv(t)
+	ts := httptest.NewTLSServer(echoServer())
+	defer ts.Close()
+	e.trustServer(ts)
+	host := ts.Listener.Addr().String()
+	c, err := net.Dial("tcp", e.proxy.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+	_, _ = fmt.Fprintf(c, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", host, host)
+	br := bufio.NewReader(c)
+	if resp, err := http.ReadResponse(br, nil); err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("CONNECT: %v", err)
+	}
+	origin := x509.NewCertPool()
+	origin.AddCert(ts.Certificate())
+	tc := tls.Client(&bufferedConn{Conn: c, r: br}, &tls.Config{ServerName: "127.0.0.1", RootCAs: origin})
+	if err := tc.Handshake(); err != nil {
+		t.Fatalf("plain tunnel: %v", err)
+	}
+
+	e.update(func(d *rules.Data) {
+		d.SSL.Enabled = true
+		d.SSL.Rules = append(d.SSL.Rules, &rules.SSLRule{ID: "a", Enabled: true, List: "include", Target: "127.0.0.1"})
+	})
+	_ = tc.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := tc.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("the open tunnel was not closed: %v", err)
+	}
+	get(t, e.client(false), ts.URL+"/after")
+	e.waitFlow(byPath("/after"))
 }
 
 func selfSigned(t *testing.T, names ...string) (certPath, keyPath string, cert *x509.Certificate) {
