@@ -3,7 +3,7 @@ module github.com/egoist/mygo/proxygoui
 go 1.27.3
 
 require (
-	github.com/egoist/mygo v0.6.2
+	github.com/egoist/mygo v0.6.3
 	golang.org/x/image v0.46.0
 )
 
