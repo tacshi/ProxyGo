@@ -1517,25 +1517,16 @@
   "sources": "Sources",
   "speakHTTP2WithClientsAnd": "Speak HTTP/2 with clients and servers that offer it.",
   "SSLProxying": "SSL Proxying",
-  "SSLProxyingIsNowOnFor": "SSL Proxying is now on for {host}. New connections are decrypted: reload in the app, or compose a request to {host}.",
+  "SSLProxyingIsNowOnFor": "SSL Proxying is on for {host}. ProxyGo closed its open connections, so the app's next request to {host} is decrypted, or compose one now.",
   "SSLProxyingIsOn": "SSL Proxying Is On",
-  "SSLProxyingIsOnForDomains": "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: reload to see their requests",
-  "SSLProxyingIsOnForDomainsOf": "SSL Proxying is on for {count, plural, one {# domain} other {# domains}} of {app}: reload to see them",
-  "@SSLProxyingIsOnForDomainsOf": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "app": {
-        "type": "String"
-      }
-    }
-  },
-  "SSLProxyingIsOnForEvery": "SSL Proxying is on for every domain: new connections are decrypted",
-  "SSLProxyingIsOnForHost": "SSL Proxying is on for {host}: repeat the request or reload to see it",
+  "SSLProxyingIsOnForDomains": "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: their next requests are decrypted",
+  "SSLProxyingIsOnForEveryDomainFrom": "SSL Proxying is on for every domain from {app}: its next requests are decrypted",
+  "allDomainsFrom": "All domains from “{app}”",
+  "SSLProxyingIsOnForEvery": "SSL Proxying is on for every domain: the next requests are decrypted",
+  "SSLProxyingIsOnForHost": "SSL Proxying is on for {host}: its next requests are decrypted",
   "SSLProxyingList": "SSL Proxying List",
   "SSLProxyingListEllipsis": "SSL Proxying List…",
-  "SSLProxyingNowCoversEveryEncrypted": "SSL Proxying now covers every encrypted domain: reload to see their requests.",
+  "SSLProxyingNowCoversEveryEncrypted": "SSL Proxying now covers every encrypted domain: their next requests are decrypted.",
   "start": "Start",
   "started": "Started",
   "startedAgo": "Started {duration} ago",

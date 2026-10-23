@@ -80,6 +80,8 @@ type Server struct {
 	sockets  sync.Map
 	composed sync.Map
 	asked    sync.Map
+	trusting sync.Map
+	plain    sync.Map
 
 	offRules func()
 }
@@ -232,6 +234,7 @@ func (s *Server) reconcile() {
 		return
 	}
 	data := s.rules()
+	s.closeNowDecrypted(data)
 	s.socks.reconcile(s, data.Socks)
 	s.reconcileReverseProxies(data)
 	if s.opts.Certs != nil {

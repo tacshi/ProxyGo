@@ -493,11 +493,17 @@ func (s *Server) addTools() {
 		}
 		return text("Wrote %d flows to %s", len(flows), in.Path)
 	})
-	mcp.AddTool(srv, readOnly("get_ssl_proxying_list", "SSL Proxying List", "Whether SSL Proxying is on, and the hosts it decrypts and leaves alone."), func(context.Context, *mcp.CallToolRequest, noInput) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(srv, readOnly("get_ssl_proxying_list", "SSL Proxying List", "Whether SSL Proxying is on, the hosts it decrypts and leaves alone, and the clients whose every domain it decrypts."), func(context.Context, *mcp.CallToolRequest, noInput) (*mcp.CallToolResult, any, error) {
 		d := s.host.Rules().Current()
-		include, exclude := []string{}, []string{}
+		include, exclude, clients := []string{}, []string{}, []string{}
 		for _, r := range d.SSL.Rules {
 			if !r.Enabled {
+				continue
+			}
+			if r.IsClient() {
+				if r.List != "exclude" {
+					clients = append(clients, r.Target)
+				}
 				continue
 			}
 			if r.List == "exclude" {
@@ -506,7 +512,7 @@ func (s *Server) addTools() {
 				include = append(include, r.Target)
 			}
 		}
-		return jsonText(map[string]any{"enabled": d.SSL.Enabled, "include": include, "exclude": exclude})
+		return jsonText(map[string]any{"enabled": d.SSL.Enabled, "include": include, "exclude": exclude, "every_domain_from_clients": clients})
 	})
 	mcp.AddTool(srv, readOnly("list_rules", "Rules", "The debugging tools' rules with their IDs, for toggle_rule and delete_rule."), func(_ context.Context, _ *mcp.CallToolRequest, in ruleTypeInput) (*mcp.CallToolResult, any, error) {
 		out := map[string]any{}
@@ -587,7 +593,7 @@ func (s *Server) addTools() {
 		s.host.Rules().Update(func(d *rules.Data) {
 			d.SSL.Enabled = true
 			for _, r := range d.SSL.Rules {
-				if strings.EqualFold(r.Target, host) {
+				if !r.IsClient() && strings.EqualFold(r.Target, host) {
 					r.Enabled, r.List = true, "include"
 					return
 				}
@@ -601,7 +607,7 @@ func (s *Server) addTools() {
 		found := false
 		s.host.Rules().Update(func(d *rules.Data) {
 			for _, r := range d.SSL.Rules {
-				if strings.EqualFold(r.Target, host) && r.List != "exclude" {
+				if !r.IsClient() && strings.EqualFold(r.Target, host) && r.List != "exclude" {
 					r.Enabled, found = false, true
 				}
 			}

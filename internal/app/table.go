@@ -490,7 +490,7 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 		a.advancedRepeat(fs)
 	}
 	m.Separator()
-	if f.IsHTTPS() && (f.IsTunnel() || !a.rules.Current().ShouldMITM(f.Host())) {
+	if f.IsHTTPS() && (f.IsTunnel() || !a.decrypts(f)) {
 		if m.Item(locales.EnableSSLProxyingForHost(f.Host())).Chosen() {
 			a.enableSSL(f.Host(), false)
 		}

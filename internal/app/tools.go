@@ -1213,7 +1213,11 @@ func (a *App) sslWindow(c *ui.Context) {
 					})
 				}
 			case 1:
-				ui.Text(c, r.Target).SingleLine().TextColor(map[bool]ui.Color{true: p.text, false: p.faint}[r.Enabled]).ContextMenu(func(m *ui.Menu) {
+				label := r.Target
+				if r.IsClient() {
+					label = locales.AllDomainsFrom(a.deviceName(r.Target))
+				}
+				ui.Text(c, label).SingleLine().TextColor(map[bool]ui.Color{true: p.text, false: p.faint}[r.Enabled]).ContextMenu(func(m *ui.Menu) {
 					other := map[string]string{"include": "exclude", "exclude": "include"}[list]
 					if m.Item(map[string]string{"include": locales.MoveToInclude(), "exclude": locales.MoveToExclude()}[other]).Chosen() {
 						a.rules.Update(func(d *rules.Data) {

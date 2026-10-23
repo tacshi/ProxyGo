@@ -674,7 +674,11 @@ func (s *Store) Import(path string) error {
 	return nil
 }
 
-func (d *Data) ShouldMITM(host string) bool {
+func (r *SSLRule) IsClient() bool { return r.TargetType == "client" }
+
+func (d *Data) ShouldMITM(host string) bool { return d.ShouldMITMFor("", host) }
+
+func (d *Data) ShouldMITMFor(client, host string) bool {
 	if !d.SSL.Enabled {
 		return false
 	}
@@ -684,7 +688,11 @@ func (d *Data) ShouldMITM(host string) bool {
 		if r == nil || !r.Enabled {
 			continue
 		}
-		if !hostMatch(r.Target, host) {
+		if r.IsClient() {
+			if client == "" || !strings.EqualFold(r.Target, client) {
+				continue
+			}
+		} else if !hostMatch(r.Target, host) {
 			continue
 		}
 		if r.List == "exclude" {

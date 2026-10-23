@@ -68,6 +68,27 @@ func TestMatcherMethodAndGraphQL(t *testing.T) {
 	}
 }
 
+func TestShouldMITMForClient(t *testing.T) {
+	d := Data{SSL: SSL{Enabled: true, Rules: []*SSLRule{
+		{Enabled: true, List: "include", Target: "192.168.1.7", TargetType: "client"},
+		{Enabled: true, List: "exclude", Target: "gateway.icloud.com"},
+	}}}
+	for _, c := range []struct {
+		client, host string
+		want         bool
+	}{
+		{"192.168.1.7", "init-p01md.apple.com", true},
+		{"192.168.1.7", "never-seen.example", true},
+		{"192.168.1.7", "gateway.icloud.com", false},
+		{"192.168.1.58", "init-p01md.apple.com", false},
+		{"", "192.168.1.7", false},
+	} {
+		if got := d.ShouldMITMFor(c.client, c.host); got != c.want {
+			t.Errorf("ShouldMITMFor(%q, %s) = %v", c.client, c.host, got)
+		}
+	}
+}
+
 func TestShouldMITM(t *testing.T) {
 	d := Data{SSL: SSL{Enabled: true, Rules: []*SSLRule{
 		{Enabled: true, List: "include", Target: "*.example.com"},

@@ -12376,11 +12376,11 @@ func (msgs Messages) SSLProxying() string {
 	return Catalog.Format(msgs.locale, "SSLProxying", nil)
 }
 
-// SSLProxyingIsNowOnFor says "SSL Proxying is now on for {host}. New connections are decrypted: reload in the app, or compose a request to {host}."
+// SSLProxyingIsNowOnFor says "SSL Proxying is on for {host}. ProxyGo closed its open connections, so the app's next request to {host} is decrypted,…"
 // in the language the app shows.
 func SSLProxyingIsNowOnFor(host string) string { return In(i18n.Locale()).SSLProxyingIsNowOnFor(host) }
 
-// SSLProxyingIsNowOnFor says "SSL Proxying is now on for {host}. New connections are decrypted: reload in the app, or compose a request to {host}."
+// SSLProxyingIsNowOnFor says "SSL Proxying is on for {host}. ProxyGo closed its open connections, so the app's next request to {host} is decrypted,…"
 // in the language of msgs.
 func (msgs Messages) SSLProxyingIsNowOnFor(host string) string {
 	return Catalog.Format(msgs.locale, "SSLProxyingIsNowOnFor", map[string]any{"host": host})
@@ -12396,47 +12396,57 @@ func (msgs Messages) SSLProxyingIsOn() string {
 	return Catalog.Format(msgs.locale, "SSLProxyingIsOn", nil)
 }
 
-// SSLProxyingIsOnForDomains says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: reload to see their requests"
+// SSLProxyingIsOnForDomains says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: their next requests are decrypted"
 // in the language the app shows.
 func SSLProxyingIsOnForDomains(count int) string {
 	return In(i18n.Locale()).SSLProxyingIsOnForDomains(count)
 }
 
-// SSLProxyingIsOnForDomains says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: reload to see their requests"
+// SSLProxyingIsOnForDomains says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}}: their next requests are decrypted"
 // in the language of msgs.
 func (msgs Messages) SSLProxyingIsOnForDomains(count int) string {
 	return Catalog.Format(msgs.locale, "SSLProxyingIsOnForDomains", map[string]any{"count": count})
 }
 
-// SSLProxyingIsOnForDomainsOf says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}} of {app}: reload to see them"
+// SSLProxyingIsOnForEveryDomainFrom says "SSL Proxying is on for every domain from {app}: its next requests are decrypted"
 // in the language the app shows.
-func SSLProxyingIsOnForDomainsOf(count int, app string) string {
-	return In(i18n.Locale()).SSLProxyingIsOnForDomainsOf(count, app)
+func SSLProxyingIsOnForEveryDomainFrom(app string) string {
+	return In(i18n.Locale()).SSLProxyingIsOnForEveryDomainFrom(app)
 }
 
-// SSLProxyingIsOnForDomainsOf says "SSL Proxying is on for {count, plural, one {# domain} other {# domains}} of {app}: reload to see them"
+// SSLProxyingIsOnForEveryDomainFrom says "SSL Proxying is on for every domain from {app}: its next requests are decrypted"
 // in the language of msgs.
-func (msgs Messages) SSLProxyingIsOnForDomainsOf(count int, app string) string {
-	return Catalog.Format(msgs.locale, "SSLProxyingIsOnForDomainsOf", map[string]any{"count": count, "app": app})
+func (msgs Messages) SSLProxyingIsOnForEveryDomainFrom(app string) string {
+	return Catalog.Format(msgs.locale, "SSLProxyingIsOnForEveryDomainFrom", map[string]any{"app": app})
 }
 
-// SSLProxyingIsOnForEvery says "SSL Proxying is on for every domain: new connections are decrypted"
+// AllDomainsFrom says "All domains from “{app}”"
+// in the language the app shows.
+func AllDomainsFrom(app string) string { return In(i18n.Locale()).AllDomainsFrom(app) }
+
+// AllDomainsFrom says "All domains from “{app}”"
+// in the language of msgs.
+func (msgs Messages) AllDomainsFrom(app string) string {
+	return Catalog.Format(msgs.locale, "allDomainsFrom", map[string]any{"app": app})
+}
+
+// SSLProxyingIsOnForEvery says "SSL Proxying is on for every domain: the next requests are decrypted"
 // in the language the app shows.
 func SSLProxyingIsOnForEvery() string { return In(i18n.Locale()).SSLProxyingIsOnForEvery() }
 
-// SSLProxyingIsOnForEvery says "SSL Proxying is on for every domain: new connections are decrypted"
+// SSLProxyingIsOnForEvery says "SSL Proxying is on for every domain: the next requests are decrypted"
 // in the language of msgs.
 func (msgs Messages) SSLProxyingIsOnForEvery() string {
 	return Catalog.Format(msgs.locale, "SSLProxyingIsOnForEvery", nil)
 }
 
-// SSLProxyingIsOnForHost says "SSL Proxying is on for {host}: repeat the request or reload to see it"
+// SSLProxyingIsOnForHost says "SSL Proxying is on for {host}: its next requests are decrypted"
 // in the language the app shows.
 func SSLProxyingIsOnForHost(host string) string {
 	return In(i18n.Locale()).SSLProxyingIsOnForHost(host)
 }
 
-// SSLProxyingIsOnForHost says "SSL Proxying is on for {host}: repeat the request or reload to see it"
+// SSLProxyingIsOnForHost says "SSL Proxying is on for {host}: its next requests are decrypted"
 // in the language of msgs.
 func (msgs Messages) SSLProxyingIsOnForHost(host string) string {
 	return Catalog.Format(msgs.locale, "SSLProxyingIsOnForHost", map[string]any{"host": host})
@@ -12462,13 +12472,13 @@ func (msgs Messages) SSLProxyingListEllipsis() string {
 	return Catalog.Format(msgs.locale, "SSLProxyingListEllipsis", nil)
 }
 
-// SSLProxyingNowCoversEveryEncrypted says "SSL Proxying now covers every encrypted domain: reload to see their requests."
+// SSLProxyingNowCoversEveryEncrypted says "SSL Proxying now covers every encrypted domain: their next requests are decrypted."
 // in the language the app shows.
 func SSLProxyingNowCoversEveryEncrypted() string {
 	return In(i18n.Locale()).SSLProxyingNowCoversEveryEncrypted()
 }
 
-// SSLProxyingNowCoversEveryEncrypted says "SSL Proxying now covers every encrypted domain: reload to see their requests."
+// SSLProxyingNowCoversEveryEncrypted says "SSL Proxying now covers every encrypted domain: their next requests are decrypted."
 // in the language of msgs.
 func (msgs Messages) SSLProxyingNowCoversEveryEncrypted() string {
 	return Catalog.Format(msgs.locale, "SSLProxyingNowCoversEveryEncrypted", nil)
