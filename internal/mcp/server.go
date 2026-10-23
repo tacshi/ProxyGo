@@ -98,10 +98,10 @@ func (s *Server) acceptUnix(ctx context.Context, ln net.Listener) {
 			if err != nil {
 				return
 			}
-			go func() {
-				<-ctx.Done()
-				_ = ss.Close()
-			}()
+			// Close the session when the server stops, and stop waiting for
+			// that once the session ends on its own.
+			stop := context.AfterFunc(ctx, func() { _ = ss.Close() })
+			defer stop()
 			_ = ss.Wait()
 		})
 	}
@@ -165,7 +165,11 @@ func (s *Server) stopLocked() {
 	}
 	if s.http != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		_ = s.http.Shutdown(ctx)
+		// Streams still open after a second (an SSE GET, say) are closed
+		// rather than left serving.
+		if err := s.http.Shutdown(ctx); err != nil {
+			_ = s.http.Close()
+		}
 		cancel()
 		s.http = nil
 	}

@@ -3,6 +3,8 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -65,21 +67,38 @@ func redactBody(body []byte, contentType string) ([]byte, bool) {
 	trimmed := bytes.TrimSpace(body)
 	switch {
 	case strings.Contains(ct, "json") || len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '['):
+		// A body may hold several values, as NDJSON does: each is redacted,
+		// so none after the first leaks or goes missing.
 		dec := json.NewDecoder(bytes.NewReader(body))
 		dec.UseNumber()
-		var v any
-		if dec.Decode(&v) != nil {
-			return body, false
+		var values []any
+		for {
+			var v any
+			err := dec.Decode(&v)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				return body, false
+			}
+			values = append(values, v)
 		}
-		changed := redactValue(v)
+		changed := false
+		for _, v := range values {
+			changed = redactValue(v) || changed
+		}
 		if !changed {
 			return body, false
 		}
-		out, err := marshal(v, "")
-		if err != nil {
-			return body, false
+		lines := make([][]byte, len(values))
+		for i, v := range values {
+			out, err := marshal(v, "")
+			if err != nil {
+				return body, false
+			}
+			lines[i] = out
 		}
-		return out, true
+		return bytes.Join(lines, []byte("\n")), true
 	case strings.Contains(ct, "x-www-form-urlencoded"):
 		out, changed := redactURL("?" + string(body))
 		return []byte(strings.TrimPrefix(out, "?")), changed
@@ -87,21 +106,42 @@ func redactBody(body []byte, contentType string) ([]byte, bool) {
 	return body, false
 }
 
-func redactValue(v any) bool {
+func redactValue(v any) bool { return redactIn(v, false) }
+
+// numericSecretKey names the keys whose numbers are secrets, as a PIN or a
+// one-time code; other numbers, as usage counts under "total_tokens", stay.
+var numericSecretKey = regexp.MustCompile(`(?i)(password|passwd|passcode|^pwd$|^pin$|^otp$|secret)`)
+
+// redactIn redacts the secrets in v; inSecret is set inside the object or
+// array a sensitive key holds, whose strings are all secrets.
+func redactIn(v any, inSecret bool) bool {
 	changed := false
 	switch x := v.(type) {
 	case map[string]any:
 		for k, e := range x {
-			if s, isString := e.(string); isString && s != "" && sensitiveKey.MatchString(k) {
-				x[k] = redacted
-				changed = true
-				continue
+			sensitive := inSecret || sensitiveKey.MatchString(k)
+			switch e := e.(type) {
+			case string:
+				if sensitive && e != "" {
+					x[k], changed = redacted, true
+				}
+			case json.Number:
+				if numericSecretKey.MatchString(k) {
+					x[k], changed = redacted, true
+				}
+			default:
+				changed = redactIn(e, sensitive) || changed
 			}
-			changed = redactValue(e) || changed
 		}
 	case []any:
-		for _, e := range x {
-			changed = redactValue(e) || changed
+		for i, e := range x {
+			if s, isString := e.(string); isString {
+				if inSecret && s != "" {
+					x[i], changed = redacted, true
+				}
+				continue
+			}
+			changed = redactIn(e, inSecret) || changed
 		}
 	}
 	return changed

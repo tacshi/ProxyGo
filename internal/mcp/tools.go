@@ -110,7 +110,16 @@ func (s *Server) message(h flow.Header, body []byte, ct string, limit int, binar
 		}
 	}
 	if len(body) > limit {
-		body, m.Truncated = body[:limit], true
+		// Cut before a character the limit would split, so a text body
+		// still reads as text.
+		cut := limit
+		for i := 0; i < utf8.UTFMax-1 && cut > 0 && !utf8.RuneStart(body[cut]); i++ {
+			cut--
+		}
+		if !utf8.RuneStart(body[cut]) {
+			cut = limit
+		}
+		body, m.Truncated = body[:cut], true
 	}
 	switch {
 	case len(body) == 0:
@@ -565,14 +574,13 @@ func (s *Server) addTools() {
 		return text("%s: %v", in.Tool, in.Enabled)
 	})
 	mcp.AddTool(srv, change("toggle_no_caching", "No Caching", "Strip caching headers so every request reaches the server, or stop.", false), func(_ context.Context, _ *mcp.CallToolRequest, in enabledInput) (*mcp.CallToolResult, any, error) {
-		_ = control.SetTool(s.host.Rules(), "no-caching", in.Enabled)
+		if err := control.SetTool(s.host.Rules(), "no-caching", in.Enabled); err != nil {
+			return nil, nil, err
+		}
 		return text("No Caching: %v", in.Enabled)
 	})
 	mcp.AddTool(srv, change("enable_ssl_proxying", "Enable SSL Proxying", "Decrypt a host's HTTPS from now on; its clients must trust ProxyGo's certificate. Connections already open stay encrypted.", false), func(_ context.Context, _ *mcp.CallToolRequest, in domainInput) (*mcp.CallToolResult, any, error) {
-		host := strings.TrimSpace(in.Domain)
-		if u, err := url.Parse(host); err == nil && u.Host != "" {
-			host = u.Hostname()
-		}
+		host := domainOf(in.Domain)
 		if host == "" {
 			return nil, nil, errors.New("enter a domain")
 		}
@@ -589,18 +597,19 @@ func (s *Server) addTools() {
 		return text("SSL Proxying decrypts %s", host)
 	})
 	mcp.AddTool(srv, change("disable_ssl_proxying", "Disable SSL Proxying", "Stop decrypting a host, keeping it on the list, switched off.", false), func(_ context.Context, _ *mcp.CallToolRequest, in domainInput) (*mcp.CallToolResult, any, error) {
+		host := domainOf(in.Domain)
 		found := false
 		s.host.Rules().Update(func(d *rules.Data) {
 			for _, r := range d.SSL.Rules {
-				if strings.EqualFold(r.Target, in.Domain) && r.List != "exclude" {
+				if strings.EqualFold(r.Target, host) && r.List != "exclude" {
 					r.Enabled, found = false, true
 				}
 			}
 		})
 		if !found {
-			return nil, nil, fmt.Errorf("%s is not on the SSL Proxying List", in.Domain)
+			return nil, nil, fmt.Errorf("%s is not on the SSL Proxying List", host)
 		}
-		return text("SSL Proxying no longer decrypts %s", in.Domain)
+		return text("SSL Proxying no longer decrypts %s", host)
 	})
 	mcp.AddTool(srv, change("toggle_rule", "Toggle Rule", "Switch one rule on or off.", false), func(_ context.Context, _ *mcp.CallToolRequest, in toggleRuleInput) (*mcp.CallToolResult, any, error) {
 		tool, ok := ruleTypes[in.RuleType]
@@ -736,6 +745,16 @@ var toolNames = map[string]string{
 	"map_local": "map-local", "map_remote": "map-remote", "breakpoint": "breakpoint", "blacklist": "block-list",
 	"allow_list": "allow-list", "scripting": "scripting", "network_condition": "network-condition",
 	"dns_spoofing": "dns-spoofing", "reverse_proxy": "reverse-proxy", "ssl_proxying": "ssl-proxying", "no_caching": "no-caching",
+}
+
+// domainOf is the host the SSL Proxying tools name: the domain given, or
+// the host of a URL.
+func domainOf(domain string) string {
+	host := strings.TrimSpace(domain)
+	if u, err := url.Parse(host); err == nil && u.Host != "" {
+		host = u.Hostname()
+	}
+	return host
 }
 
 func (m matcherInput) matcher() rules.Matcher {
