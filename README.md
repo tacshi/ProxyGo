@@ -14,6 +14,8 @@
   <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white" alt="Go 1.27"></a>
   <a href="#mcp-for-ai-assistants"><img src="https://img.shields.io/badge/MCP-supported-6E56CF" alt="MCP supported"></a>
   <a href="https://github.com/egoist/mygo"><img src="https://img.shields.io/badge/built%20with-MyGo-F2545B" alt="Built with MyGo"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="https://awesomemygo.dev/apps/proxygo"><img src="https://awesomemygo.dev/badge.svg" alt="Listed on Awesome MyGo"></a>
 </p>
 
 ProxyGo records what your Mac, phones and other devices send and receive,
@@ -208,3 +210,7 @@ ProxyGo keeps its settings, rules, certificates and sessions in
 ProxyGo is built on [MyGo](https://github.com/egoist/mygo) (MIT). See
 [`third_party/NOTICE`](third_party/NOTICE) and
 [`third_party/MyGo-LICENSE`](third_party/MyGo-LICENSE).
+
+## License
+
+ProxyGo is released under the [MIT License](LICENSE).
