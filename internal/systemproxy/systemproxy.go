@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,11 +28,12 @@ type State struct {
 func (s State) Enabled() bool { return s.HTTP || s.HTTPS }
 
 func (s State) PointsAt(host string, port int) bool {
-	if !s.Enabled() || s.Port != port {
-		return false
-	}
+	return s.Enabled() && s.Port == port && sameHost(s.Host, host)
+}
+
+func sameHost(a, b string) bool {
 	local := func(h string) bool { return h == "127.0.0.1" || h == "localhost" || h == "::1" }
-	return s.Host == host || local(s.Host) && local(host)
+	return a == b || local(a) && local(b)
 }
 
 func Status() State {
@@ -72,17 +74,17 @@ func parseScutil(out string) State {
 		HTTP:   values["HTTPEnable"] == "1",
 		HTTPS:  values["HTTPSEnable"] == "1",
 		SOCKS:  values["SOCKSEnable"] == "1",
-		Host:   values["HTTPSProxy"],
 		Bypass: bypass,
 	}
 	if values["ProxyAutoConfigEnable"] == "1" {
 		st.AutoProxyURL = values["ProxyAutoConfigURLString"]
 	}
-	if st.Host == "" {
+	st.Host = values["HTTPSProxy"]
+	if st.Host == "" || st.HTTP && !st.HTTPS {
 		st.Host = values["HTTPProxy"]
 	}
 	st.Port, _ = strconv.Atoi(values["HTTPSPort"])
-	if st.Port == 0 {
+	if st.Port == 0 || st.HTTP && !st.HTTPS {
 		st.Port, _ = strconv.Atoi(values["HTTPPort"])
 	}
 	st.SOCKSPort, _ = strconv.Atoi(values["SOCKSPort"])
@@ -112,31 +114,188 @@ func Disable() error {
 	return run(DisableCommands(services))
 }
 
-func Restore(prev State) error {
+func Restore(before Snapshot) error {
 	services, err := Services()
 	if err != nil {
 		return err
 	}
-	return run(RestoreCommands(services, prev))
+	return run(RestoreCommands(services, before))
 }
 
-func RestoreCommands(services []string, prev State) []string {
+func RestoreCommands(services []string, before Snapshot) []string {
 	var cmds []string
-	if !prev.Enabled() {
-		cmds = DisableCommands(services)
-	} else {
-		cfg := Config{Host: prev.Host, Port: prev.Port, Bypass: prev.Bypass}
-		if prev.SOCKS {
-			cfg.SOCKSPort = prev.SOCKSPort
-		}
-		cmds = EnableCommands(services, cfg)
-	}
-	if prev.AutoProxyURL != "" {
-		for _, s := range services {
-			cmds = append(cmds, "networksetup -setautoproxyurl "+quote(s)+" "+quote(prev.AutoProxyURL))
+	for _, name := range services {
+		if s, ok := before[name]; ok {
+			cmds = append(cmds, s.commands(name)...)
+		} else {
+			cmds = append(cmds, DisableCommands([]string{name})...)
 		}
 	}
 	return cmds
+}
+
+type Endpoint struct {
+	On   bool   `json:"on,omitzero"`
+	Host string `json:"host,omitempty"`
+	Port int    `json:"port,omitzero"`
+}
+
+type Service struct {
+	Web     Endpoint `json:"web,omitzero"`
+	Secure  Endpoint `json:"secure,omitzero"`
+	SOCKS   Endpoint `json:"socks,omitzero"`
+	Bypass  []string `json:"bypass,omitempty"`
+	AutoURL string   `json:"auto_url,omitempty"`
+	AutoOn  bool     `json:"auto_on,omitzero"`
+}
+
+type Snapshot map[string]Service
+
+func (b Snapshot) Without(cfg Config) Snapshot {
+	out := make(Snapshot, len(b))
+	for name, s := range b {
+		s.Web = s.Web.without(cfg.Host, cfg.Port)
+		s.Secure = s.Secure.without(cfg.Host, cfg.Port)
+		s.SOCKS = s.SOCKS.without(cfg.Host, cfg.SOCKSPort)
+		out[name] = s
+	}
+	return out
+}
+
+func (e Endpoint) without(host string, port int) Endpoint {
+	if e.Port == port && sameHost(e.Host, host) {
+		e.On = false
+	}
+	return e
+}
+
+func (s Service) commands(name string) []string {
+	q := quote(name)
+	cmds := s.Web.commands("-setwebproxy", "-setwebproxystate", q)
+	cmds = append(cmds, s.Secure.commands("-setsecurewebproxy", "-setsecurewebproxystate", q)...)
+	cmds = append(cmds, s.SOCKS.commands("-setsocksfirewallproxy", "-setsocksfirewallproxystate", q)...)
+	cmds = append(cmds, bypassCommand(q, s.Bypass))
+	if s.AutoOn && s.AutoURL != "" {
+		return append(cmds, "networksetup -setautoproxyurl "+q+" "+quote(s.AutoURL))
+	}
+	return append(cmds, "networksetup -setautoproxystate "+q+" off")
+}
+
+func (e Endpoint) commands(set, state, service string) []string {
+	var cmds []string
+	if e.Host != "" && e.Port > 0 {
+		cmds = append(cmds, "networksetup "+set+" "+service+" "+quote(e.Host)+" "+strconv.Itoa(e.Port))
+	}
+	on := "off"
+	if e.On {
+		on = "on"
+	}
+	return append(cmds, "networksetup "+state+" "+service+" "+on)
+}
+
+func bypassCommand(service string, domains []string) string {
+	list := "Empty"
+	if len(domains) > 0 {
+		quoted := make([]string, len(domains))
+		for i, d := range domains {
+			quoted[i] = quote(d)
+		}
+		list = strings.Join(quoted, " ")
+	}
+	return "networksetup -setproxybypassdomains " + service + " " + list
+}
+
+func Read() (Snapshot, error) {
+	services, err := Services()
+	if err != nil {
+		return nil, err
+	}
+	out := make(Snapshot, len(services))
+	for _, name := range services {
+		s, err := readService(name)
+		if err != nil {
+			return nil, fmt.Errorf("reading the proxy settings of %s: %w", name, err)
+		}
+		out[name] = s
+	}
+	return out, nil
+}
+
+func readService(name string) (Service, error) {
+	var s Service
+	for flag, endpoint := range map[string]*Endpoint{"-getwebproxy": &s.Web, "-getsecurewebproxy": &s.Secure, "-getsocksfirewallproxy": &s.SOCKS} {
+		out, err := query(flag, name)
+		if err != nil {
+			return s, err
+		}
+		if *endpoint, err = parseEndpoint(out); err != nil {
+			return s, err
+		}
+	}
+	out, err := query("-getproxybypassdomains", name)
+	if err != nil {
+		return s, err
+	}
+	s.Bypass = parseBypass(out)
+	if out, err = query("-getautoproxyurl", name); err != nil {
+		return s, err
+	}
+	s.AutoURL, s.AutoOn, err = parseAuto(out)
+	return s, err
+}
+
+func query(flag, service string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "networksetup", flag, service).Output() // #nosec G204 -- networksetup, given a service it listed.
+	if err != nil {
+		return "", fmt.Errorf("networksetup %s: %w", flag, err)
+	}
+	return string(out), nil
+}
+
+func fields(out string) map[string]string {
+	values := map[string]string{}
+	for line := range strings.Lines(out) {
+		if k, v, ok := strings.Cut(line, ":"); ok {
+			values[k] = strings.TrimSpace(v)
+		}
+	}
+	return values
+}
+
+func parseEndpoint(out string) (Endpoint, error) {
+	values := fields(out)
+	on, ok := values["Enabled"]
+	if !ok {
+		return Endpoint{}, fmt.Errorf("unexpected proxy settings: %q", out)
+	}
+	e := Endpoint{On: on == "Yes", Host: values["Server"]}
+	if e.Host == "(null)" {
+		e.Host = ""
+	}
+	e.Port, _ = strconv.Atoi(values["Port"])
+	return e, nil
+}
+
+func parseAuto(out string) (string, bool, error) {
+	values := fields(out)
+	on, ok := values["Enabled"]
+	if !ok {
+		return "", false, fmt.Errorf("unexpected auto proxy settings: %q", out)
+	}
+	url := values["URL"]
+	if url == "(null)" {
+		url = ""
+	}
+	return url, on == "Yes", nil
+}
+
+func parseBypass(out string) []string {
+	if strings.HasPrefix(out, "There aren't any bypass domains") {
+		return nil
+	}
+	return strings.Fields(out)
 }
 
 func EnableCommands(services []string, cfg Config) []string {
@@ -153,16 +312,7 @@ func EnableCommands(services []string, cfg Config) []string {
 		} else {
 			cmds = append(cmds, "networksetup -setsocksfirewallproxystate "+q+" off")
 		}
-		cmds = append(cmds, "networksetup -setautoproxystate "+q+" off")
-		bypass := "Empty"
-		if len(cfg.Bypass) > 0 {
-			quoted := make([]string, len(cfg.Bypass))
-			for i, b := range cfg.Bypass {
-				quoted[i] = quote(b)
-			}
-			bypass = strings.Join(quoted, " ")
-		}
-		cmds = append(cmds, "networksetup -setproxybypassdomains "+q+" "+bypass)
+		cmds = append(cmds, "networksetup -setautoproxystate "+q+" off", bypassCommand(q, cfg.Bypass))
 	}
 	return cmds
 }
@@ -219,9 +369,9 @@ func quote(s string) string {
 }
 
 type Saved struct {
-	Before State  `json:"before"`
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
+	Before Snapshot `json:"services,omitempty"`
+	Host   string   `json:"host"`
+	Port   int      `json:"port"`
 }
 
 func Save(path string, s Saved) error {
@@ -232,7 +382,15 @@ func Save(path string, s Saved) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o600)
+	tmp := path + ".new"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func Load(path string) (Saved, bool) {

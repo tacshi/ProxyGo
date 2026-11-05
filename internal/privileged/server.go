@@ -37,16 +37,33 @@ type server struct {
 	cdhash  []byte
 	mu      sync.Mutex
 	watched *appWatch
+	saved   *systemproxy.Saved
+	path    string
 	every   time.Duration
+	sys     system
+}
+
+type system struct {
 	alive   func(int) bool
 	status  func() systemproxy.State
-	restore func(systemproxy.State) error
+	read    func() (systemproxy.Snapshot, error)
+	enable  func(systemproxy.Config) error
+	disable func() error
+	restore func(systemproxy.Snapshot) error
+}
+
+var realSystem = system{
+	alive:   processAlive,
+	status:  systemproxy.Status,
+	read:    systemproxy.Read,
+	enable:  systemproxy.Enable,
+	disable: systemproxy.Disable,
+	restore: systemproxy.Restore,
 }
 
 type appWatch struct {
-	pid    int
-	cfg    systemproxy.Config
-	before systemproxy.State
+	pid int
+	cfg systemproxy.Config
 }
 
 func Serve(args []string) int {
@@ -64,7 +81,10 @@ func Serve(args []string) int {
 		log.Print(err)
 		return 1
 	}
-	s := &server{label: args[0], uid: uid, cdhash: self}
+	s := &server{label: args[0], uid: uid, cdhash: self, path: statePath(args[0]), sys: realSystem}
+	if saved, ok := systemproxy.Load(s.path); ok {
+		s.saved = &saved
+	}
 	path := socketPath(s.label)
 	_ = os.Remove(path)
 	ln, err := net.Listen("unix", path)
@@ -124,17 +144,24 @@ func (s *server) handle(req Request, p peer) error {
 		if !loopback(cfg.Host) || cfg.Port < 1 || cfg.Port > 65535 || cfg.SOCKSPort < 0 || cfg.SOCKSPort > 65535 {
 			return errors.New("ProxyGo's helper points macOS only at a proxy on this Mac")
 		}
-		if err := systemproxy.Enable(cfg); err != nil {
+		if err := s.remember(cfg); err != nil {
 			return err
 		}
-		s.watch(p.pid, cfg, req.Before)
+		if err := s.sys.enable(cfg); err != nil {
+			return err
+		}
+		s.watch(p.pid, cfg)
 		return nil
 	case "disable":
 		s.watched = nil
-		return systemproxy.Disable()
+		if err := s.sys.disable(); err != nil {
+			return err
+		}
+		s.forget()
+		return nil
 	case "restore":
 		s.watched = nil
-		return systemproxy.Restore(req.State)
+		return s.giveBack()
 	case "link-cli":
 		return linkCLI(p.path)
 	case "uninstall":
@@ -149,8 +176,49 @@ func (s *server) handle(req Request, p peer) error {
 	return fmt.Errorf("unknown request %q", req.Op)
 }
 
+func (s *server) remember(cfg systemproxy.Config) error {
+	cur := s.sys.status()
+	ours := cur.PointsAt(cfg.Host, cfg.Port)
+	var before systemproxy.Snapshot
+	if s.saved != nil && (ours || cur.PointsAt(s.saved.Host, s.saved.Port)) {
+		before = s.saved.Before
+	} else {
+		read, err := s.sys.read()
+		if err != nil {
+			return err
+		}
+		before = read
+		if ours {
+			before = read.Without(cfg)
+		}
+	}
+	saved := systemproxy.Saved{Before: before, Host: cfg.Host, Port: cfg.Port}
+	if err := systemproxy.Save(s.path, saved); err != nil {
+		return fmt.Errorf("saving the macOS proxy settings: %w", err)
+	}
+	s.saved = &saved
+	return nil
+}
+
+func (s *server) giveBack() error {
+	var before systemproxy.Snapshot
+	if s.saved != nil {
+		before = s.saved.Before
+	}
+	if err := s.sys.restore(before); err != nil {
+		return err
+	}
+	s.forget()
+	return nil
+}
+
+func (s *server) forget() {
+	s.saved = nil
+	systemproxy.Forget(s.path)
+}
+
 func removeHelper(label string) error {
-	for _, path := range []string{plistPath(label), toolPath(label), socketPath(label)} {
+	for _, path := range []string{plistPath(label), toolPath(label), socketPath(label), statePath(label)} {
 		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
@@ -158,16 +226,12 @@ func removeHelper(label string) error {
 	return os.RemoveAll(bundlePath(label))
 }
 
-func (s *server) watch(pid int, cfg systemproxy.Config, before systemproxy.State) {
+func (s *server) watch(pid int, cfg systemproxy.Config) {
 	if pid <= 0 {
 		return
 	}
-	w := &appWatch{pid: pid, cfg: cfg, before: before}
+	w := &appWatch{pid: pid, cfg: cfg}
 	s.watched = w
-	alive, status, restore := s.alive, s.status, s.restore
-	if alive == nil {
-		alive, status, restore = processAlive, systemproxy.Status, systemproxy.Restore
-	}
 	every := cmp.Or(s.every, time.Second)
 	go func() {
 		for {
@@ -177,13 +241,13 @@ func (s *server) watch(pid int, cfg systemproxy.Config, before systemproxy.State
 				s.mu.Unlock()
 				return
 			}
-			if alive(pid) {
+			if s.sys.alive(pid) {
 				s.mu.Unlock()
 				continue
 			}
 			s.watched = nil
-			if status().PointsAt(cfg.Host, cfg.Port) {
-				if err := restore(before); err != nil {
+			if s.sys.status().PointsAt(cfg.Host, cfg.Port) {
+				if err := s.giveBack(); err != nil {
 					log.Printf("giving macOS its proxy back: %v", err)
 				}
 			}

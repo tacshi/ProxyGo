@@ -176,49 +176,31 @@ func (a *App) proxyStatePath() string { return filepath.Join(a.dir, "system-prox
 
 func (a *App) applySystemProxy(on, reset bool) error {
 	var cfg systemproxy.Config
-	var first bool
-	var before systemproxy.State
 	a.call(func() {
 		cfg = systemproxy.Config{Host: "127.0.0.1", Port: a.proxy.Port(), Bypass: a.rules.Current().Bypass}
 		if s := a.proxy.SocksPort(); s > 0 {
 			cfg.SOCKSPort = s
 		}
-		first, before = on && !a.overrode, a.sysBefore
 	})
 	var err error
-	var prev systemproxy.State
 	switch {
 	case on:
-		prev = systemproxy.Status()
-		keep := before
-		if first {
-			keep = prev
-			if a.isProxyGo(prev) {
-				keep = systemproxy.State{}
-			}
-		}
-		err = privileged.EnableProxy(cfg, keep)
+		err = privileged.EnableProxy(cfg)
 	case reset:
 		err = privileged.DisableProxy()
 	default:
-		err = privileged.RestoreProxy(before)
+		err = privileged.RestoreProxy()
 	}
 	st := systemproxy.Status()
 	a.call(func() {
 		a.sys, a.sysKnown = st, true
-		if first && err == nil {
-			a.sysBefore = prev
-			if a.isProxyGo(prev) {
-				a.sysBefore = systemproxy.State{}
-			}
-		}
 		switch {
 		case errors.Is(err, privileged.ErrCanceled):
 		case err != nil:
 			a.toast(locales.SystemProxyError(err.Error()))
 		case on:
 			a.overrode = true
-			_ = systemproxy.Save(a.proxyStatePath(), systemproxy.Saved{Before: a.sysBefore, Host: cfg.Host, Port: cfg.Port})
+			_ = systemproxy.Save(a.proxyStatePath(), systemproxy.Saved{Host: cfg.Host, Port: cfg.Port})
 			a.toast(locales.MacOSNowUsesProxyGo())
 		default:
 			a.overrode = false
@@ -240,12 +222,10 @@ func (a *App) recoverSystemProxy() {
 		return
 	}
 	a.do(func() {
-		a.sys, a.sysKnown = st, true
+		a.sys, a.sysKnown, a.overrode = st, true, true
 		if a.set.OverrideSystemProxy {
-			a.sysBefore, a.overrode = saved.Before, true
 			return
 		}
-		a.sysBefore, a.overrode = saved.Before, true
 		go func() {
 			if err := a.applySystemProxy(false, false); err == nil {
 				a.do(func() { a.toast(locales.GaveMacOSBackTheProxy()) })

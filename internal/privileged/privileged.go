@@ -25,12 +25,11 @@ func toolPath(label string) string   { return filepath.Join(toolDir, label) }
 func bundlePath(label string) string { return filepath.Join(toolDir, label+".app") }
 func plistPath(label string) string  { return filepath.Join(daemonDir, label+".plist") }
 func socketPath(label string) string { return filepath.Join(runDir, label+".socket") }
+func statePath(label string) string  { return filepath.Join(toolDir, label+".proxy.json") }
 
 type Request struct {
 	Op     string             `json:"op"`
 	Config systemproxy.Config `json:"config,omitzero"`
-	State  systemproxy.State  `json:"state,omitzero"`
-	Before systemproxy.State  `json:"before,omitzero"`
 }
 
 type Response struct {
