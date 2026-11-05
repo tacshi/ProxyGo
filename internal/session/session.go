@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -87,6 +88,9 @@ func Read(path string) (*Bundle, error) {
 					b.Flows = append(b.Flows, fl)
 				}
 			}
+			slices.SortFunc(b.Flows, func(x, y *flow.Flow) int {
+				return cmp.Or(cmp.Compare(savedPosition(x), savedPosition(y)), strings.Compare(x.UniqueID, y.UniqueID))
+			})
 		case "AppIconStorage":
 			var icons map[string]struct {
 				ImageWrapper struct {
@@ -104,6 +108,13 @@ func Read(path string) (*Bundle, error) {
 	}
 	sortFlows(b.Flows)
 	return b, nil
+}
+
+func savedPosition(f *flow.Flow) int {
+	if n, err := strconv.Atoi(f.ID); err == nil {
+		return n
+	}
+	return math.MaxInt
 }
 
 func readZipFile(f *zip.File) ([]byte, error) {
