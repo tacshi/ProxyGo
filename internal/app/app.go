@@ -99,6 +99,7 @@ type App struct {
 	viewers              map[string]*viewer
 	trees                map[string]*jsonTree
 	images               map[string]*ui.Bitmap
+	videos               map[string]*ui.VideoPlayer
 	dots                 menuDots
 	dotsOn, dotsDark     bool
 	partRow              map[string]*int
@@ -167,6 +168,7 @@ type App struct {
 	mcpShowSecrets atomic.Bool
 	localOnly      atomic.Bool
 	proxyPaused    atomic.Bool
+	serving        atomic.Pointer[proxy.Server]
 
 	queueMu sync.Mutex
 	queue   []func()
@@ -195,6 +197,7 @@ func New(dir string) (*App, error) {
 		viewers:      map[string]*viewer{},
 		trees:        map[string]*jsonTree{},
 		images:       map[string]*ui.Bitmap{},
+		videos:       map[string]*ui.VideoPlayer{},
 		partRow:      map[string]*int{},
 		tools:        map[string]*toolState{},
 		icons:        map[string]*ui.Bitmap{},
@@ -260,6 +263,7 @@ func Main() {
 		mygo.App.SetLocale(a.set.Language)
 	}
 	mygo.Theme.SetSource(themeSource(a.set.Appearance))
+	a.keepUpdatesOffOwnProxy()
 	mygo.Use(updaterPlugin(a.set.AppIcon))
 	mygo.App.WhenReady(a.start)
 	if err := mygo.App.Run(); err != nil {
@@ -271,6 +275,7 @@ func Main() {
 func (a *App) start() {
 	a.clients = clientinfo.New(1200 * time.Millisecond)
 	a.proxy = a.newProxy(a.clients)
+	a.serving.Store(a.proxy)
 	if a.certs != nil {
 		if err := a.proxy.Start(); err != nil {
 			a.proxyErr = locales.TheProxyCouldNotListen(strconv.Itoa(a.set.Port), err.Error())
@@ -307,7 +312,6 @@ func (a *App) start() {
 	a.watchUpdates()
 	a.installMenu()
 	a.watchLocale()
-	a.watchMenuDots()
 	a.applyAppIcon()
 	a.setMenuBarIcon(!a.set.HideMenuBarIcon)
 	a.startServers()

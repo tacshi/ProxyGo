@@ -2,13 +2,19 @@ package app
 
 import (
 	"cmp"
+	"net"
+	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/netproxy"
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
 	ui "github.com/egoist/mygo/proxygoui"
 
+	"proxygo/internal/proxy"
 	"proxygo/locales"
 )
 
@@ -23,6 +29,28 @@ type updatePrefs struct {
 func updaterPlugin(icon string) mygo.Plugin {
 	png, _ := appIconFiles.ReadFile("appicons/" + cmp.Or(icon, appIcons[0].id) + ".png")
 	return native.New(updater.Options{Icon: png})
+}
+
+func (a *App) keepUpdatesOffOwnProxy() {
+	netproxy.Transport().Proxy = func(r *http.Request) (*url.URL, error) {
+		u, err := netproxy.Proxy(r)
+		if u != nil && ownProxy(u, a.serving.Load()) {
+			return nil, err
+		}
+		return u, err
+	}
+}
+
+func ownProxy(u *url.URL, s *proxy.Server) bool {
+	if s == nil {
+		return false
+	}
+	host := u.Hostname()
+	if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return false
+	}
+	port, err := strconv.Atoi(u.Port())
+	return err == nil && port != 0 && (port == s.Port() || port == s.SocksPort())
 }
 
 func (a *App) watchUpdates() {

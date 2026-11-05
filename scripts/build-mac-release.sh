@@ -129,13 +129,14 @@ $UPLOAD && BUILD_ARGS+=(-upload)
 info "building ProxyGo $VERSION for macOS ${ARCHES[*]}, signed by $DEVELOPER_ID_APPLICATION"
 go tool mygo build "${BUILD_ARGS[@]}"
 
-# MyGo names disk images "<name> <version> <platform>.dmg", in a folder per
-# platform; they are moved out beside those folders under the usual names.
+# MyGo names disk images "<slug>-<version>-<goarch>.dmg" ("<slug>-<version>.dmg"
+# when universal), the slug being "proxygo", in a folder per platform; they
+# are moved out beside those folders under the usual names.
 for arch in "${ARCHES[@]}"; do
 	case "$arch" in
-	arm64) dmg="$OUT_DIR/darwin-arm64/ProxyGo $VERSION arm64.dmg" ;;
-	x64 | amd64) dmg="$OUT_DIR/darwin-amd64/ProxyGo $VERSION amd64.dmg" arch=x64 ;;
-	universal) dmg="$OUT_DIR/darwin-universal/ProxyGo $VERSION.dmg" ;;
+	arm64) dmg="$OUT_DIR/darwin-arm64/proxygo-$VERSION-arm64.dmg" ;;
+	x64 | amd64) dmg="$OUT_DIR/darwin-amd64/proxygo-$VERSION-amd64.dmg" arch=x64 ;;
+	universal) dmg="$OUT_DIR/darwin-universal/proxygo-$VERSION.dmg" ;;
 	esac
 	[[ -f "$dmg" ]] || die "expected $dmg after the build"
 	if $NOTARIZE; then

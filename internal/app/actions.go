@@ -668,7 +668,7 @@ func (a *App) dialogParent(kind string) *mygo.Window {
 func confirm(parent *mygo.Window, message, detail string, buttons ...string) (int, error) {
 	r, err := mygo.Dialog.Message(mygo.MessageOptions{
 		Parent: parent, Type: mygo.MessageWarning, Message: message, Detail: detail,
-		Buttons: buttons, DefaultButton: 0, CancelButton: len(buttons) - 1,
+		Buttons: buttons, DefaultButton: 0, CancelButton: len(buttons) - 1, DestructiveButtons: []int{0},
 	})
 	return r.Button, err
 }
@@ -676,7 +676,7 @@ func confirm(parent *mygo.Window, message, detail string, buttons ...string) (in
 func confirmDelete(parent *mygo.Window, message, detail string) (bool, error) {
 	r, err := mygo.Dialog.Message(mygo.MessageOptions{
 		Parent: parent, Type: mygo.MessageWarning, Message: message, Detail: detail,
-		Buttons: []string{locales.Delete(), locales.Cancel()}, DefaultButton: 1, CancelButton: 1,
+		Buttons: []string{locales.Delete(), locales.Cancel()}, DefaultButton: 1, CancelButton: 1, DestructiveButtons: []int{0},
 	})
 	return r.Button == 0, err
 }

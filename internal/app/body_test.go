@@ -1,6 +1,10 @@
 package app
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/gif"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -126,5 +130,40 @@ func TestPrettyGraphQL(t *testing.T) {
 		if got := prettyGraphQL(tc.in); got != tc.want {
 			t.Errorf("prettyGraphQL(%q) =\n%s\nwant\n%s", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestGraphQLHighlighting(t *testing.T) {
+	for _, ct := range []string{"application/graphql", "application/graphql; charset=utf-8"} {
+		if l := languageFor(ct); l == nil || l.Name != "GraphQL" {
+			t.Errorf("languageFor(%q) = %v, want GraphQL", ct, l)
+		}
+	}
+	if l := languageFor("application/graphql-response+json"); l == nil || l.Name != "JSON" {
+		t.Errorf("a GraphQL response is %v, want JSON", l)
+	}
+}
+
+func TestAnimatedGIF(t *testing.T) {
+	frame := func(c color.Color) *image.Paletted {
+		return image.NewPaletted(image.Rect(0, 0, 4, 4), color.Palette{c, color.Black})
+	}
+	encode := func(g *gif.GIF) []byte {
+		var b bytes.Buffer
+		if err := gif.EncodeAll(&b, g); err != nil {
+			t.Fatal(err)
+		}
+		return b.Bytes()
+	}
+	two := encode(&gif.GIF{Image: []*image.Paletted{frame(color.White), frame(color.Gray{128})}, Delay: []int{5, 5}})
+	one := encode(&gif.GIF{Image: []*image.Paletted{frame(color.White)}, Delay: []int{0}})
+	if v := animatedGIF(two); v == nil || !v.Loop() {
+		t.Errorf("a GIF of two frames plays %v", v)
+	}
+	if v := animatedGIF(one); v != nil {
+		t.Error("a GIF of one frame plays")
+	}
+	if v := animatedGIF(pngBytes()); v != nil {
+		t.Error("a PNG plays")
 	}
 }

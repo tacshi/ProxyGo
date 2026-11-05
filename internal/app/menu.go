@@ -243,8 +243,11 @@ func (a *App) codeItems() []*mygo.MenuItem {
 
 func (a *App) highlightItems() []*mygo.MenuItem {
 	var items []*mygo.MenuItem
+	a.dots.items = map[string]*mygo.MenuItem{}
 	for _, color := range highlightColors {
-		items = append(items, &mygo.MenuItem{Label: colorName(color), Click: a.on(func() { a.setHighlight(a.chosenFlows(), color) })})
+		it := &mygo.MenuItem{Label: colorName(color), Icon: a.dots.icons[color], Click: a.on(func() { a.setHighlight(a.chosenFlows(), color) })}
+		a.dots.items[color] = it
+		items = append(items, it)
 	}
 	return append(items,
 		mygo.Separator(),

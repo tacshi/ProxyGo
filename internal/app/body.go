@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/xml"
 	"fmt"
+	"image/gif"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -120,6 +121,8 @@ func languageFor(ct string) *editor.Language {
 	switch {
 	case strings.Contains(mt, "json"):
 		return editor.LanguageNamed("JSON")
+	case strings.Contains(mt, "graphql"):
+		return editor.LanguageNamed("GraphQL")
 	case strings.Contains(mt, "html"):
 		return editor.LanguageNamed("HTML")
 	case strings.Contains(mt, "xml"):
@@ -231,7 +234,7 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 			text, lang := a.protobufText(src, body, ct)
 			a.textViewer(c, k+":"+fmt.Sprint(a.schemas.Version()), text, lang, "Protobuf")
 		case modeGraphQL:
-			a.textViewer(c, k, graphQLText(body), "", "GraphQL")
+			a.textViewer(c, k, graphQLText(body), "GraphQL", "GraphQL")
 		case modeJWT:
 			a.jwtView(c, k, strings.TrimSpace(string(body)))
 		case modeSSE:
@@ -605,6 +608,10 @@ func (a *App) trimViewers() {
 	delete(a.viewers, oldest)
 	delete(a.trees, oldest)
 	delete(a.images, oldest)
+	if v := a.videos[oldest]; v != nil {
+		v.Close()
+		delete(a.videos, oldest)
+	}
 }
 
 type jsonTree struct {
@@ -751,6 +758,9 @@ func (a *App) imageView(c *ui.Context, key string, body []byte, ct string) {
 		if a.viewers[key] == nil {
 			a.viewers[key] = &viewer{}
 		}
+		if v := animatedGIF(body); v != nil {
+			a.videos[key] = v
+		}
 	}
 	if strings.Contains(ct, "svg") {
 		if svg, err := ui.ParseSVG(body); err == nil {
@@ -770,9 +780,33 @@ func (a *App) imageView(c *ui.Context, key string, body []byte, ct string) {
 		scale = min(96/side, 8)
 	}
 	centered(c, 8, func() {
-		ui.Image(c, bmp).Width(float32(min(w*scale, 900))).MaxWidth(float32(min(w*scale, 900))).Fit(ui.Contain).Background(p.surface).Radius(4)
+		var img ui.Element
+		if v := a.videos[key]; v != nil {
+			img = ui.Video(c, v)
+		} else {
+			img = ui.Image(c, bmp)
+		}
+		img.Width(float32(min(w*scale, 900))).MaxWidth(float32(min(w*scale, 900))).Fit(ui.Contain).Background(p.surface).Radius(4)
 		ui.Text(c, fmt.Sprintf("%d × %d · %s", w, h, formatSize(len(body)))).FontSize(11).TextColor(p.muted)
 	})
+}
+
+func animatedGIF(body []byte) *ui.VideoPlayer {
+	if !bytes.HasPrefix(body, []byte("GIF8")) {
+		return nil
+	}
+	if g, err := gif.DecodeAll(bytes.NewReader(body)); err != nil || len(g.Image) < 2 {
+		return nil
+	}
+	d, err := ui.NewGIFDecoder(body)
+	if err != nil {
+		return nil
+	}
+	v, err := ui.NewVideoPlayer(d)
+	if err != nil {
+		return nil
+	}
+	return v.SetLoop(true)
 }
 
 type bodyPart struct {
