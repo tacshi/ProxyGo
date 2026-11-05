@@ -57,6 +57,9 @@ func (s *Server) summary(f *flow.Flow) FlowSummary {
 		ContentType: f.MIME(), Client: f.Client.Name, HTTPVersion: f.HTTPVersionLabel(), Error: f.ErrorText(),
 		Comment: f.Comment, Color: f.Highlight, WebSocket: f.IsWebSocket(), Encrypted: f.IsTunnel(),
 	}
+	if s.Redact() {
+		out.Error, _ = redactText(out.Error)
+	}
 	if f.Client.PID > 0 {
 		out.ClientPID = f.Client.PID
 	}
@@ -153,6 +156,9 @@ func (s *Server) detail(f *flow.Flow, limit int, binary bool) FlowDetail {
 	}
 	if m, ok := f.ToolMetadata.(map[string]any); ok {
 		d.Metadata = m
+		if s.Redact() {
+			d.Metadata = redactStrings(m)
+		}
 	}
 	if f.ConnectionRecord != nil && f.ConnectionRecord.Exchange.Truncated {
 		d.Extra = map[string]string{"truncated": "ProxyGo kept only the start of a body larger than 64 MB"}
@@ -379,7 +385,12 @@ func (s *Server) addTools() {
 			}
 			filter.Conditions = append(filter.Conditions, c)
 		}
-		flows := store.Apply(s.host.Store().Snapshot(), filter)
+		flows := s.host.Store().Snapshot()
+		if s.Redact() {
+			flows = filterRedacted(flows, filter)
+		} else {
+			flows = store.Apply(flows, filter)
+		}
 		var out []FlowSummary
 		for i := len(flows) - 1; i >= 0 && len(out) < clamp(in.Limit, 50, 500); i-- {
 			out = append(out, s.summary(flows[i]))
@@ -524,7 +535,7 @@ func (s *Server) addTools() {
 			if err != nil {
 				return nil, nil, err
 			}
-			out[name] = l
+			out[name] = s.redactRule(l)
 		}
 		if len(out) == 0 {
 			return nil, nil, fmt.Errorf("unknown rule type %q", in.RuleType)
@@ -627,7 +638,7 @@ func (s *Server) addTools() {
 		if err != nil {
 			return nil, nil, err
 		}
-		return jsonText(r)
+		return jsonText(s.redactRule(r))
 	})
 	mcp.AddTool(srv, change("delete_rule", "Delete Rule", "Delete one rule. It cannot be undone.", true), func(_ context.Context, _ *mcp.CallToolRequest, in ruleInput) (*mcp.CallToolResult, any, error) {
 		tool, ok := ruleTypes[in.RuleType]
@@ -779,7 +790,7 @@ func (s *Server) addRule(m rules.Matcher, add func(*rules.Data), r any) (*mcp.Ca
 		return nil, nil, errors.New(msg)
 	}
 	s.host.Rules().Update(add)
-	return jsonText(r)
+	return jsonText(s.redactRule(r))
 }
 
 func (s *Server) flowsOrSelected(ids []string) ([]*flow.Flow, error) {
