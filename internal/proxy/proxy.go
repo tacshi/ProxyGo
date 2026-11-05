@@ -310,11 +310,11 @@ func (s *Server) forward(w http.ResponseWriter, r *http.Request, info *tunnelInf
 
 func (s *Server) allowed(remoteAddr string) bool {
 	ac := s.rules().Access
-	ip := net.ParseIP(remoteHost(remoteAddr))
+	ip := remoteIP(remoteAddr)
 	if ac.Allowed(ip) {
 		return true
 	}
-	if ac.Mode != rules.AccessAsk || s.opts.AskDevice == nil {
+	if ip == nil || ac.Mode != rules.AccessAsk || s.opts.AskDevice == nil {
 		return false
 	}
 	return s.ask(ip.String())
@@ -367,7 +367,7 @@ func (s *Server) isSelf(hostport string) bool {
 }
 
 func (s *Server) clientFor(remoteAddr string) flow.Client {
-	ip := net.ParseIP(remoteHost(remoteAddr))
+	ip := remoteIP(remoteAddr)
 	if ip != nil && !ip.IsLoopback() && !isLocalIP(ip) {
 		return flow.Client{Name: ip.String(), PID: -1}
 	}
@@ -498,6 +498,11 @@ func remoteHost(addr string) string {
 		return addr
 	}
 	return h
+}
+
+func remoteIP(addr string) net.IP {
+	host, _, _ := strings.Cut(remoteHost(addr), "%")
+	return net.ParseIP(host)
 }
 
 func remotePort(addr string) int {
