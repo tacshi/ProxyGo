@@ -16,6 +16,7 @@ import (
 	"proxygo/internal/control"
 	"proxygo/internal/control/hosttest"
 	"proxygo/internal/flow"
+	"proxygo/internal/rules"
 )
 
 func connect(t *testing.T, s *Server) *mcp.ClientSession {
@@ -265,4 +266,62 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.Header.Set("Authorization", "Bearer "+b.token)
 	return http.DefaultTransport.RoundTrip(r)
+}
+
+func TestAssistantsCannotSwitchOnScriptsOrFileRules(t *testing.T) {
+	h, err := hosttest.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.R.Update(func(d *rules.Data) {
+		d.DisabledTools = map[string]bool{rules.ToolScripting: true, rules.ToolMapLocal: true}
+	})
+	c := connect(t, New(h, t.TempDir()))
+	note := "only the user can turn them on"
+
+	got := callTool(t, c, "create_scripting_rule", map[string]any{"url": "*", "script_content": "function onRequest(ctx, req) { return req }"}, false)
+	if !strings.Contains(got, note) {
+		t.Errorf("a new script does not say it waits for the user: %s", got)
+	}
+	file := callTool(t, c, "create_map_local", map[string]any{"url": "https://api.dev/keys", "file_path": "/Users/me/.ssh/id_rsa"}, false)
+	if !strings.Contains(file, note) {
+		t.Errorf("a new file rule does not say it waits for the user: %s", file)
+	}
+	written := callTool(t, c, "create_map_local", map[string]any{"url": "https://api.dev/users", "body": "[]"}, false)
+	if strings.Contains(written, note) {
+		t.Errorf("a written response waits for the user: %s", written)
+	}
+
+	d := h.R.Current()
+	script, fileRule, writtenRule := d.Scripts[0], d.MapLocal[0], d.MapLocal[1]
+	if script.Enabled || fileRule.Enabled || !writtenRule.Enabled {
+		t.Fatalf("script %v, file rule %v, written rule %v", script.Enabled, fileRule.Enabled, writtenRule.Enabled)
+	}
+	if d.ToolOn(rules.ToolScripting) {
+		t.Error("a script the user has not seen switched Scripting on")
+	}
+	if !d.ToolOn(rules.ToolMapLocal) {
+		t.Error("a written response leaves Map Local off")
+	}
+	if d.ScriptsFor("GET", "https://api.dev/", "") != nil || d.MapLocalFor("GET", "https://api.dev/keys", "") != nil {
+		t.Error("a rule waiting for the user applies")
+	}
+
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "scripting", "id": script.ID, "enabled": true}, true)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "map_local", "id": fileRule.ID, "enabled": true}, true)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "map_local", "id": writtenRule.ID, "enabled": false}, false)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "map_local", "id": writtenRule.ID, "enabled": true}, false)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "scripting", "id": "nope", "enabled": true}, true)
+	d = h.R.Current()
+	if d.Scripts[0].Enabled || d.MapLocal[0].Enabled || !d.MapLocal[1].Enabled {
+		t.Fatalf("after toggling: script %v, file rule %v, written rule %v", d.Scripts[0].Enabled, d.MapLocal[0].Enabled, d.MapLocal[1].Enabled)
+	}
+
+	h.R.Update(func(d *rules.Data) { d.Scripts[0].Enabled = true })
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "scripting", "id": script.ID, "enabled": true}, false)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "scripting", "id": script.ID, "enabled": false}, false)
+	callTool(t, c, "toggle_rule", map[string]any{"rule_type": "scripting", "id": script.ID, "enabled": true}, true)
+	if h.R.Current().Scripts[0].Enabled {
+		t.Error("an assistant switched back on a script it had switched off")
+	}
 }
