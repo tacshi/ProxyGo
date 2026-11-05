@@ -131,7 +131,7 @@ func paneHeader(c *ui.Context, p palette, title string, tab *int, tabs []string,
 				more := plainIconButton(c, "chevronDown", locales.AllPaneTabs(title), 10, p.muted, p.hover)
 				more.Menu(func(m *ui.Menu) {
 					for i, name := range tabs {
-						if m.Item(inspectorTabLabel(name)).Checked(i == *tab).Chosen() {
+						if m.Item(inspectorTabLabel(name)).Radio(i == *tab).Chosen() {
 							*tab = i
 							x := scroll.MaxX * float32(i) / float32(max(len(tabs)-1, 1))
 							if i == len(tabs)-1 {

@@ -436,7 +436,6 @@ func (a *App) setLanguage(tag string) {
 func (a *App) watchLocale() {
 	mygo.App.OnLocaleChanged(func(string) {
 		a.installMenu()
-		a.setMenuDots()
 		if a.tray != nil {
 			a.tray.SetMenu(a.trayMenu())
 		}

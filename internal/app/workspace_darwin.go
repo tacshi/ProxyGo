@@ -34,3 +34,7 @@ func openPath(path string) {
 func workspace() objc.ID {
 	return objc.ID(objc.GetClass("NSWorkspace")).Send(objc.RegisterName("sharedWorkspace"))
 }
+
+func nsString(s string) objc.ID {
+	return objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), s)
+}
