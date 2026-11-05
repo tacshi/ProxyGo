@@ -2,6 +2,9 @@ package privileged
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
@@ -112,43 +115,210 @@ func TestPeerIsThisProcess(t *testing.T) {
 	}
 }
 
-func TestWatchRestoresProxyWhenAppDies(t *testing.T) {
-	var mu sync.Mutex
-	alive, restored := true, make(chan systemproxy.State, 1)
-	cfg := systemproxy.Config{Host: "127.0.0.1", Port: 9090}
-	before := systemproxy.State{HTTP: true, Host: "corp.example", Port: 3128}
-	s := &server{
-		every:   5 * time.Millisecond,
-		alive:   func(int) bool { mu.Lock(); defer mu.Unlock(); return alive },
-		status:  func() systemproxy.State { return systemproxy.State{HTTP: true, Host: "127.0.0.1", Port: 9090} },
-		restore: func(st systemproxy.State) error { restored <- st; return nil },
+type fakeSystem struct {
+	mu       sync.Mutex
+	alive    bool
+	services systemproxy.Snapshot
+	reads    int
+	readErr  error
+	restored chan systemproxy.Snapshot
+}
+
+func newFakeSystem(services systemproxy.Snapshot) *fakeSystem {
+	return &fakeSystem{alive: true, services: services, restored: make(chan systemproxy.Snapshot, 4)}
+}
+
+func (f *fakeSystem) status() systemproxy.State {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	w := f.services["Wi-Fi"]
+	return systemproxy.State{HTTP: w.Web.On, HTTPS: w.Secure.On, Host: w.Web.Host, Port: w.Web.Port}
+}
+
+func (f *fakeSystem) server(t *testing.T) *server {
+	return &server{
+		label: "test",
+		path:  filepath.Join(t.TempDir(), "proxy.json"),
+		every: 5 * time.Millisecond,
+		sys: system{
+			alive:  func(int) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.alive },
+			status: f.status,
+			read: func() (systemproxy.Snapshot, error) {
+				f.mu.Lock()
+				defer f.mu.Unlock()
+				f.reads++
+				return maps.Clone(f.services), f.readErr
+			},
+			enable: func(cfg systemproxy.Config) error {
+				f.mu.Lock()
+				defer f.mu.Unlock()
+				proxy := systemproxy.Endpoint{On: true, Host: cfg.Host, Port: cfg.Port}
+				for name := range f.services {
+					f.services[name] = systemproxy.Service{Web: proxy, Secure: proxy, Bypass: cfg.Bypass}
+				}
+				return nil
+			},
+			disable: func() error { return nil },
+			restore: func(b systemproxy.Snapshot) error {
+				f.mu.Lock()
+				f.services = maps.Clone(b)
+				f.mu.Unlock()
+				f.restored <- b
+				return nil
+			},
+		},
 	}
+}
+
+func corpServices() systemproxy.Snapshot {
+	corp := systemproxy.Endpoint{On: true, Host: "corp.example", Port: 3128}
+	local := systemproxy.Endpoint{On: true, Host: "127.0.0.1", Port: 7890}
+	return systemproxy.Snapshot{
+		"Wi-Fi": {Web: corp, Secure: corp},
+		"Surge": {Web: local, Secure: local, SOCKS: local, Bypass: []string{"*.local", "127.*"}},
+		"LAN":   {Web: systemproxy.Endpoint{Host: "127.0.0.1", Port: 7890}},
+	}
+}
+
+func sameServices(t *testing.T, got, want systemproxy.Snapshot) {
+	t.Helper()
+	g, _ := json.Marshal(got)
+	w, _ := json.Marshal(want)
+	if !bytes.Equal(g, w) {
+		t.Fatalf("restored\n %s\nwant\n %s", g, w)
+	}
+}
+
+func TestWatchRestoresProxyWhenAppDies(t *testing.T) {
+	f := newFakeSystem(corpServices())
+	s := f.server(t)
 	s.mu.Lock()
-	s.watch(42, cfg, before)
+	err := s.handle(Request{Op: "enable", Config: systemproxy.Config{Host: "127.0.0.1", Port: 9090}}, peer{pid: 42})
 	s.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(30 * time.Millisecond)
-	if len(restored) != 0 {
+	if len(f.restored) != 0 {
 		t.Fatal("restored while the app runs")
 	}
-	mu.Lock()
-	alive = false
-	mu.Unlock()
+	f.mu.Lock()
+	f.alive = false
+	f.mu.Unlock()
 	select {
-	case st := <-restored:
-		if st.Host != before.Host || st.Port != before.Port {
-			t.Fatalf("restored %+v", st)
-		}
+	case b := <-f.restored:
+		sameServices(t, b, corpServices())
 	case <-time.After(time.Second):
 		t.Fatal("not restored after the app died")
 	}
 
+	f.mu.Lock()
+	f.alive = true
+	f.mu.Unlock()
 	s.mu.Lock()
-	s.watch(43, cfg, before)
-	s.watched = nil
+	err = s.handle(Request{Op: "enable", Config: systemproxy.Config{Host: "127.0.0.1", Port: 9090}}, peer{pid: 43})
+	if err == nil {
+		err = s.handle(Request{Op: "restore"}, peer{pid: 43})
+	}
 	s.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-f.restored
+	f.mu.Lock()
+	f.alive = false
+	f.mu.Unlock()
 	time.Sleep(30 * time.Millisecond)
-	if len(restored) != 0 {
-		t.Fatal("restored after the app gave the proxy back itself")
+	if len(f.restored) != 0 {
+		t.Fatal("restored again after the app gave the proxy back itself")
+	}
+}
+
+func TestHelperRestoresEachServiceItSaw(t *testing.T) {
+	f := newFakeSystem(corpServices())
+	s := f.server(t)
+	cfg := systemproxy.Config{Host: "127.0.0.1", Port: 9090, Bypass: []string{"localhost"}}
+	if err := s.handle(Request{Op: "enable", Config: cfg}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.handle(Request{Op: "enable", Config: cfg}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	moved := cfg
+	moved.Port = 9091
+	if err := s.handle(Request{Op: "enable", Config: moved}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	if f.reads != 1 {
+		t.Errorf("read the settings %d times: ProxyGo's own would replace them", f.reads)
+	}
+	saved, ok := systemproxy.Load(s.path)
+	if !ok || saved.Port != 9091 {
+		t.Fatalf("saved %+v %v", saved, ok)
+	}
+	sameServices(t, saved.Before, corpServices())
+
+	restarted := f.server(t)
+	restarted.path = s.path
+	if saved, ok := systemproxy.Load(restarted.path); ok {
+		restarted.saved = &saved
+	}
+	if err := restarted.handle(Request{Op: "restore"}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	sameServices(t, <-f.restored, corpServices())
+	if _, ok := systemproxy.Load(s.path); ok {
+		t.Error("the saved settings outlive the restore")
+	}
+	if err := restarted.handle(Request{Op: "restore"}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	if b := <-f.restored; len(b) != 0 {
+		t.Errorf("a restore with nothing saved restores %+v", b)
+	}
+}
+
+func TestHelperDoesNotRememberItsOwnProxy(t *testing.T) {
+	ours := systemproxy.Endpoint{On: true, Host: "127.0.0.1", Port: 9090}
+	surge := systemproxy.Endpoint{On: true, Host: "127.0.0.1", Port: 7890}
+	f := newFakeSystem(systemproxy.Snapshot{"Wi-Fi": {Web: ours, Secure: ours}, "Surge": {Web: surge, Secure: ours}})
+	s := f.server(t)
+	if err := s.handle(Request{Op: "enable", Config: systemproxy.Config{Host: "127.0.0.1", Port: 9090}}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.handle(Request{Op: "restore"}, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	off := ours
+	off.On = false
+	sameServices(t, <-f.restored, systemproxy.Snapshot{"Wi-Fi": {Web: off, Secure: off}, "Surge": {Web: surge, Secure: off}})
+}
+
+func TestHelperRefusesWhatItCannotRestore(t *testing.T) {
+	f := newFakeSystem(corpServices())
+	f.readErr = errors.New("networksetup failed")
+	s := f.server(t)
+	if err := s.handle(Request{Op: "enable", Config: systemproxy.Config{Host: "127.0.0.1", Port: 9090}}, peer{}); err == nil {
+		t.Fatal("enable without a snapshot: want an error")
+	}
+	sameServices(t, f.services, corpServices())
+	if _, ok := systemproxy.Load(s.path); ok {
+		t.Error("saved settings it could not read")
+	}
+}
+
+func TestRequestCarriesNoProxyState(t *testing.T) {
+	var req Request
+	if err := json.Unmarshal([]byte(`{"op":"restore","state":{"http":true,"host":"evil.example","port":8080},"before":{"Wi-Fi":{"web":{"on":true,"host":"evil.example","port":8080}}},"services":{"Wi-Fi":{"web":{"on":true,"host":"evil.example","port":8080}}}}`), &req); err != nil {
+		t.Fatal(err)
+	}
+	f := newFakeSystem(systemproxy.Snapshot{})
+	s := f.server(t)
+	if err := s.handle(req, peer{}); err != nil {
+		t.Fatal(err)
+	}
+	if b := <-f.restored; len(b) != 0 {
+		t.Errorf("restored a state the client sent: %+v", b)
 	}
 }
 

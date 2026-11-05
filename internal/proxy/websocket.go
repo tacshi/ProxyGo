@@ -90,7 +90,7 @@ func (x *exchange) webSocket(r *http.Request, body []byte) {
 	}
 	_ = upstream.SetDeadline(time.Time{})
 	f.Timing.ResponseStartedAt = new(now())
-	order := wire.ResponseHeaders(upstream, out.Method, out.URL.RequestURI(), resp.StatusCode)
+	order := wire.ResponseHeaders(upstream, out.Method, out.URL.RequestURI(), resp.StatusCode, resp.Header)
 	f.Response = &flow.Response{
 		Status:      &flow.Status{Code: resp.StatusCode, Phrase: phrase(resp)},
 		Header:      flow.NewHeaderOrdered(resp.Header, order),

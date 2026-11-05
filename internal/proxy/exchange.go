@@ -114,7 +114,7 @@ func newFlow(r *http.Request, body []byte, truncated bool, client flow.Client, i
 }
 
 func requestHeader(r *http.Request) (http.Header, []flow.SentHeader) {
-	sent := wire.RequestHeaders(wire.ConnOf(r.Context()), r.Method, r.RequestURI)
+	sent := wire.RequestHeaders(wire.ConnOf(r.Context()), r.Method, r.RequestURI, r.Host, r.Header)
 	h := r.Header
 	if r.Host != "" && h.Get("Host") == "" && slices.ContainsFunc(sent, func(f flow.SentHeader) bool { return strings.EqualFold(f.Name, "Host") }) {
 		h = h.Clone()
@@ -140,7 +140,7 @@ func (x *exchange) responseHeaders(out *http.Request, resp *http.Response) []flo
 	if c == nil || out == nil {
 		return nil
 	}
-	return wire.ResponseHeaders(c, out.Method, out.URL.RequestURI(), resp.StatusCode)
+	return wire.ResponseHeaders(c, out.Method, out.URL.RequestURI(), resp.StatusCode, resp.Header)
 }
 
 func (x *exchange) serverTLS(cs *tls.ConnectionState) {

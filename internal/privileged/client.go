@@ -25,12 +25,10 @@ const installPrompt = "ProxyGo installs a helper so it can change the macOS prox
 
 var installMu sync.Mutex
 
-func EnableProxy(cfg systemproxy.Config, before systemproxy.State) error {
-	return do(Request{Op: "enable", Config: cfg, Before: before})
-}
-func DisableProxy() error                       { return do(Request{Op: "disable"}) }
-func RestoreProxy(prev systemproxy.State) error { return do(Request{Op: "restore", State: prev}) }
-func LinkCLI() error                            { return do(Request{Op: "link-cli"}) }
+func EnableProxy(cfg systemproxy.Config) error { return do(Request{Op: "enable", Config: cfg}) }
+func DisableProxy() error                      { return do(Request{Op: "disable"}) }
+func RestoreProxy() error                      { return do(Request{Op: "restore"}) }
+func LinkCLI() error                           { return do(Request{Op: "link-cli"}) }
 
 func Installed() bool {
 	_, err := os.Stat(plistPath(Label()))
@@ -155,7 +153,7 @@ func formerCommands(label string) []string {
 func removeCommands(label string) []string {
 	return []string{
 		"{ /bin/launchctl bootout " + quote("system/"+label) + " 2>/dev/null || true; }",
-		"/bin/rm -f " + quote(plistPath(label)) + " " + quote(toolPath(label)) + " " + quote(socketPath(label)),
+		"/bin/rm -f " + quote(plistPath(label)) + " " + quote(toolPath(label)) + " " + quote(socketPath(label)) + " " + quote(statePath(label)),
 		"/bin/rm -rf " + quote(bundlePath(label)),
 	}
 }

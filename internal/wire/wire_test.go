@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"net"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -55,7 +56,7 @@ func TestHTTP1Requests(t *testing.T) {
 		{"PUT", "/c", []string{"Content-Length", "Host", "X-B", "X-A", "X-B"}},
 		{"CONNECT", "h:443", []string{"Host"}},
 	} {
-		if got := names(RequestHeaders(c, tc.method, tc.target)); !slices.Equal(got, tc.want) {
+		if got := names(RequestHeaders(c, tc.method, tc.target, "", nil)); !slices.Equal(got, tc.want) {
 			t.Errorf("%s %s: %q, want %q", tc.method, tc.target, got, tc.want)
 		}
 	}
@@ -68,10 +69,10 @@ func TestHTTP1Responses(t *testing.T) {
 	c := Client(&fakeConn{in: bytes.NewReader([]byte(raw))})
 	_, _ = c.Write([]byte("HEAD / HTTP/1.1\r\nHost: x\r\n\r\nGET /x HTTP/1.1\r\nHost: x\r\n\r\n"))
 	readAll(c)
-	if got := names(ResponseHeaders(c, "HEAD", "/", 200)); !slices.Equal(got, []string{"Content-Length", "Server", "Date"}) {
+	if got := names(ResponseHeaders(c, "HEAD", "/", 200, nil)); !slices.Equal(got, []string{"Content-Length", "Server", "Date"}) {
 		t.Errorf("HEAD: %q", got)
 	}
-	if got := names(ResponseHeaders(c, "GET", "/x", 404)); !slices.Equal(got, []string{"Z", "content-length", "A"}) {
+	if got := names(ResponseHeaders(c, "GET", "/x", 404, nil)); !slices.Equal(got, []string{"Z", "content-length", "A"}) {
 		t.Errorf("GET: %q", got)
 	}
 }
@@ -122,10 +123,10 @@ func TestHTTP2Requests(t *testing.T) {
 	)
 	c := Server(h2Conn{&fakeConn{in: bytes.NewReader(raw)}})
 	readAll(c)
-	if got := names(RequestHeaders(c, "POST", "/b")); !slices.Equal(got, []string{":method", ":path", ":authority", "accept", "user-agent", "x-z"}) {
+	if got := names(RequestHeaders(c, "POST", "/b", "x", http.Header{"Accept": {"*/*"}, "User-Agent": {"u"}, "X-Z": {"1"}})); !slices.Equal(got, []string{":method", ":path", ":authority", "accept", "user-agent", "x-z"}) {
 		t.Errorf("POST: %q", got)
 	}
-	if got := names(RequestHeaders(c, "GET", "/a")); !slices.Equal(got, []string{":method", ":path", ":authority", "user-agent", "accept"}) {
+	if got := names(RequestHeaders(c, "GET", "/a", "x", http.Header{"User-Agent": {"u"}, "Accept": {"*/*"}})); !slices.Equal(got, []string{":method", ":path", ":authority", "user-agent", "accept"}) {
 		t.Errorf("GET: %q", got)
 	}
 }
@@ -142,16 +143,48 @@ func TestHTTP2Responses(t *testing.T) {
 	c := Client(h2Conn{&fakeConn{in: bytes.NewReader(raw)}})
 	_, _ = c.Write(sent)
 	readAll(c)
-	if got := names(ResponseHeaders(c, "GET", "/b", 200)); !slices.Equal(got, []string{":status", "content-type", "server"}) {
+	if got := names(ResponseHeaders(c, "GET", "/b", 200, http.Header{"Server": {"s"}, "Content-Type": {"b"}})); !slices.Equal(got, []string{":status", "content-type", "server"}) {
 		t.Errorf("/b: %q", got)
 	}
-	if got := names(ResponseHeaders(c, "GET", "/a", 200)); !slices.Equal(got, []string{":status", "server", "content-type"}) {
+	if got := names(ResponseHeaders(c, "GET", "/a", 200, http.Header{"Server": {"s"}, "Content-Type": {"a"}})); !slices.Equal(got, []string{":status", "server", "content-type"}) {
 		t.Errorf("/a: %q", got)
 	}
 }
 
+func TestHTTP2StreamsKeepTheirOwnHeaders(t *testing.T) {
+	raw := frames(t, true,
+		fields(":method", "POST", ":path", "/graphql", ":authority", "x", "x-only-a", "secret-of-a", "if-none-match", "a"),
+		fields(":method", "POST", ":path", "/graphql", ":authority", "x", "accept", "*/*"),
+		fields(":method", "POST", ":path", "/graphql", ":authority", "y", "accept", "*/*"),
+		fields(":method", "GET", ":path", "/c", ":authority", "x", "cookie", "a=1", "cookie", "b=2", "content-length", "0", "content-length", "0", "expect", "100-continue"),
+	)
+	c := Server(h2Conn{&fakeConn{in: bytes.NewReader(raw)}})
+	readAll(c)
+	b := RequestHeaders(c, "POST", "/graphql", "x", http.Header{"Accept": {"*/*"}})
+	if got := names(b); !slices.Equal(got, []string{":method", ":path", ":authority", "accept"}) {
+		t.Errorf("B took another stream's headers: %q", got)
+	}
+	if got := RequestHeaders(c, "POST", "/graphql", "z", http.Header{"Accept": {"*/*"}}); got != nil {
+		t.Errorf("a stream for another authority took %q", names(got))
+	}
+	if got := names(RequestHeaders(c, "POST", "/graphql", "y", http.Header{"Accept": {"*/*"}})); !slices.Equal(got, []string{":method", ":path", ":authority", "accept"}) {
+		t.Errorf("y: %q", got)
+	}
+	if got := RequestHeaders(c, "POST", "/graphql", "x", http.Header{"Accept": {"*/*"}}); got != nil {
+		t.Errorf("a stream without x-only-a took %q", names(got))
+	}
+	a := RequestHeaders(c, "POST", "/graphql", "x", http.Header{"X-Only-A": {"secret-of-a"}, "If-None-Match": {"a"}})
+	if len(a) != 5 {
+		t.Errorf("A: %q", names(a))
+	}
+	joined := http.Header{"Cookie": {"a=1; b=2"}, "Content-Length": {"0"}}
+	if got := names(RequestHeaders(c, "GET", "/c", "x", joined)); len(got) != 8 {
+		t.Errorf("Go's joined cookies and dropped Expect: %q", got)
+	}
+}
+
 func TestUnwrappedConn(t *testing.T) {
-	if RequestHeaders(&fakeConn{}, "GET", "/") != nil || ResponseHeaders(nil, "GET", "/", 200) != nil {
+	if RequestHeaders(&fakeConn{}, "GET", "/", "", nil) != nil || ResponseHeaders(nil, "GET", "/", 200, nil) != nil {
 		t.Fatal("an unrecorded connection has an order")
 	}
 }
@@ -167,7 +200,7 @@ func names(fields []Field) []string {
 func TestValuesKept(t *testing.T) {
 	c := Server(&fakeConn{in: bytes.NewReader([]byte("GET / HTTP/1.1\r\nHost: a.test\r\nConnection: keep-alive\r\nX-Pad:  spaced \r\n\r\n"))})
 	readAll(c)
-	got := RequestHeaders(c, "GET", "/")
+	got := RequestHeaders(c, "GET", "/", "", nil)
 	want := []Field{{Name: "Host", Value: "a.test"}, {Name: "Connection", Value: "keep-alive"}, {Name: "X-Pad", Value: "spaced"}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("%q, want %q", got, want)

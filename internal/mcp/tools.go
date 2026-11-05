@@ -57,6 +57,9 @@ func (s *Server) summary(f *flow.Flow) FlowSummary {
 		ContentType: f.MIME(), Client: f.Client.Name, HTTPVersion: f.HTTPVersionLabel(), Error: f.ErrorText(),
 		Comment: f.Comment, Color: f.Highlight, WebSocket: f.IsWebSocket(), Encrypted: f.IsTunnel(),
 	}
+	if s.Redact() {
+		out.Error, _ = redactText(out.Error)
+	}
 	if f.Client.PID > 0 {
 		out.ClientPID = f.Client.PID
 	}
@@ -153,6 +156,9 @@ func (s *Server) detail(f *flow.Flow, limit int, binary bool) FlowDetail {
 	}
 	if m, ok := f.ToolMetadata.(map[string]any); ok {
 		d.Metadata = m
+		if s.Redact() {
+			d.Metadata = redactStrings(m)
+		}
 	}
 	if f.ConnectionRecord != nil && f.ConnectionRecord.Exchange.Truncated {
 		d.Extra = map[string]string{"truncated": "ProxyGo kept only the start of a body larger than 64 MB"}
@@ -277,7 +283,7 @@ type (
 		Body        string            `json:"body,omitempty" jsonschema:"the response's body"`
 		Headers     map[string]string `json:"headers,omitempty" jsonschema:"the response's headers"`
 		ContentType string            `json:"content_type,omitempty" jsonschema:"the response's content type, found from the body when left out"`
-		FilePath    string            `json:"file_path,omitempty" jsonschema:"an absolute path of a file or folder to answer with, instead of body"`
+		FilePath    string            `json:"file_path,omitempty" jsonschema:"an absolute path of a file or folder to answer with, instead of body; the rule then starts switched off, for the user to turn on in ProxyGo"`
 		DelayMS     int               `json:"delay_ms,omitempty" jsonschema:"milliseconds to wait before answering"`
 	}
 	mapRemoteInput struct {
@@ -379,7 +385,12 @@ func (s *Server) addTools() {
 			}
 			filter.Conditions = append(filter.Conditions, c)
 		}
-		flows := store.Apply(s.host.Store().Snapshot(), filter)
+		flows := s.host.Store().Snapshot()
+		if s.Redact() {
+			flows = filterRedacted(flows, filter)
+		} else {
+			flows = store.Apply(flows, filter)
+		}
 		var out []FlowSummary
 		for i := len(flows) - 1; i >= 0 && len(out) < clamp(in.Limit, 50, 500); i-- {
 			out = append(out, s.summary(flows[i]))
@@ -524,7 +535,7 @@ func (s *Server) addTools() {
 			if err != nil {
 				return nil, nil, err
 			}
-			out[name] = l
+			out[name] = s.redactRule(l)
 		}
 		if len(out) == 0 {
 			return nil, nil, fmt.Errorf("unknown rule type %q", in.RuleType)
@@ -617,17 +628,26 @@ func (s *Server) addTools() {
 		}
 		return text("SSL Proxying no longer decrypts %s", host)
 	})
-	mcp.AddTool(srv, change("toggle_rule", "Toggle Rule", "Switch one rule on or off.", false), func(_ context.Context, _ *mcp.CallToolRequest, in toggleRuleInput) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(srv, change("toggle_rule", "Toggle Rule", "Switch one rule on or off. Scripts and Map Local rules that serve a local file switch on only in ProxyGo, by the user.", false), func(_ context.Context, _ *mcp.CallToolRequest, in toggleRuleInput) (*mcp.CallToolResult, any, error) {
 		tool, ok := ruleTypes[in.RuleType]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown rule type %q", in.RuleType)
+		}
+		if in.Enabled {
+			r, err := control.RuleCall(s.host.Rules(), "get", tool, in.ID, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			if waitsForUser(r) {
+				return nil, nil, errors.New("only the user can switch this rule on, in ProxyGo: ask them to review it and turn it on")
+			}
 		}
 		op := map[bool]string{true: "enable", false: "disable"}[in.Enabled]
 		r, err := control.RuleCall(s.host.Rules(), op, tool, in.ID, nil)
 		if err != nil {
 			return nil, nil, err
 		}
-		return jsonText(r)
+		return jsonText(s.redactRule(r))
 	})
 	mcp.AddTool(srv, change("delete_rule", "Delete Rule", "Delete one rule. It cannot be undone.", true), func(_ context.Context, _ *mcp.CallToolRequest, in ruleInput) (*mcp.CallToolResult, any, error) {
 		tool, ok := ruleTypes[in.RuleType]
@@ -639,13 +659,18 @@ func (s *Server) addTools() {
 		}
 		return text("Deleted %s %s", in.RuleType, in.ID)
 	})
-	mcp.AddTool(srv, change("create_map_local", "Create Map Local", "Answer matching requests with a response written here, or a local file, without the server.", false), func(_ context.Context, _ *mcp.CallToolRequest, in mapLocalInput) (*mcp.CallToolResult, any, error) {
-		r := &rules.MapLocalRule{ID: rules.NewID(), Enabled: true, Name: cmp.Or(in.Name, "MCP Map Local"), Matcher: in.matcher(), StatusCode: cmp.Or(in.StatusCode, 200),
+	mcp.AddTool(srv, change("create_map_local", "Create Map Local", "Answer matching requests with a response written here, or a local file, without the server. A rule that serves a local file starts switched off: the user reviews it and turns it on in ProxyGo.", false), func(_ context.Context, _ *mcp.CallToolRequest, in mapLocalInput) (*mcp.CallToolResult, any, error) {
+		r := &rules.MapLocalRule{ID: rules.NewID(), Enabled: in.FilePath == "", Name: cmp.Or(in.Name, "MCP Map Local"), Matcher: in.matcher(), StatusCode: cmp.Or(in.StatusCode, 200),
 			ContentType: in.ContentType, Body: in.Body, Path: in.FilePath, DelayMS: in.DelayMS}
 		for k, v := range in.Headers {
 			r.Headers = append(r.Headers, rules.Pair{Name: k, Value: v})
 		}
-		return s.addRule(r.Matcher, func(d *rules.Data) { d.MapLocal = append(d.MapLocal, r); delete(d.DisabledTools, rules.ToolMapLocal) }, r)
+		return s.addRule(r.Matcher, func(d *rules.Data) {
+			d.MapLocal = append(d.MapLocal, r)
+			if r.Enabled {
+				delete(d.DisabledTools, rules.ToolMapLocal)
+			}
+		}, r)
 	})
 	mcp.AddTool(srv, change("create_map_local_from_flow", "Map Local from Flow", "Answer requests like a flow's with its captured response, headers and body, from now on.", false), func(_ context.Context, _ *mcp.CallToolRequest, in flowInput) (*mcp.CallToolResult, any, error) {
 		f, err := s.flow(in.FlowID)
@@ -706,13 +731,13 @@ func (s *Server) addTools() {
 		r := &rules.URLRule{ID: rules.NewID(), Enabled: true, Name: cmp.Or(in.Name, "MCP Allow"), Matcher: in.matcher()}
 		return s.addRule(r.Matcher, func(d *rules.Data) { d.Allow = append(d.Allow, r); delete(d.DisabledTools, rules.ToolAllow) }, r)
 	})
-	mcp.AddTool(srv, change("create_scripting_rule", "Create Script", "A JavaScript rule that changes matching requests and responses. Read proxygo://docs/scripting first.", false), func(_ context.Context, _ *mcp.CallToolRequest, in scriptInput) (*mcp.CallToolResult, any, error) {
-		r := &rules.ScriptRule{ID: rules.NewID(), Enabled: true, Name: cmp.Or(in.Name, "MCP Script"), Matcher: in.matcher(), Script: in.ScriptContent,
+	mcp.AddTool(srv, change("create_scripting_rule", "Create Script", "A JavaScript rule that changes matching requests and responses. It starts switched off: the user reviews it and turns it on in ProxyGo. Read proxygo://docs/scripting first.", false), func(_ context.Context, _ *mcp.CallToolRequest, in scriptInput) (*mcp.CallToolResult, any, error) {
+		r := &rules.ScriptRule{ID: rules.NewID(), Name: cmp.Or(in.Name, "MCP Script"), Matcher: in.matcher(), Script: in.ScriptContent,
 			OnRequest: in.EnableRequest == nil || *in.EnableRequest, OnResponse: in.EnableResponse == nil || *in.EnableResponse, MockResponse: in.MockResponse}
 		if err := scriptCheck(r.Name, r.Script); err != nil {
 			return nil, nil, fmt.Errorf("the script does not compile: %w", err)
 		}
-		return s.addRule(r.Matcher, func(d *rules.Data) { d.Scripts = append(d.Scripts, r); delete(d.DisabledTools, rules.ToolScripting) }, r)
+		return s.addRule(r.Matcher, func(d *rules.Data) { d.Scripts = append(d.Scripts, r) }, r)
 	})
 	mcp.AddTool(srv, change("create_dns_spoofing", "Create DNS Spoofing", "Resolve a host to another address when ProxyGo connects to it.", false), func(_ context.Context, _ *mcp.CallToolRequest, in dnsInput) (*mcp.CallToolResult, any, error) {
 		r := &rules.DNSRule{ID: rules.NewID(), Enabled: true, Host: in.Host, IP: in.IP, Port: in.Port}
@@ -779,7 +804,22 @@ func (s *Server) addRule(m rules.Matcher, add func(*rules.Data), r any) (*mcp.Ca
 		return nil, nil, errors.New(msg)
 	}
 	s.host.Rules().Update(add)
-	return jsonText(r)
+	if waitsForUser(r) {
+		return jsonText(map[string]any{"rule": s.redactRule(r), "note": waitingNote})
+	}
+	return jsonText(s.redactRule(r))
+}
+
+const waitingNote = "This rule is switched off. Scripts and rules that serve local files can reach this Mac's files, so only the user can turn them on, in ProxyGo: tell them it is waiting for their review."
+
+func waitsForUser(rule any) bool {
+	switch r := rule.(type) {
+	case *rules.ScriptRule:
+		return !r.Enabled
+	case *rules.MapLocalRule:
+		return !r.Enabled && r.Path != ""
+	}
+	return false
 }
 
 func (s *Server) flowsOrSelected(ids []string) ([]*flow.Flow, error) {

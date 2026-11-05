@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -239,48 +240,98 @@ func ConnOf(ctx context.Context) net.Conn {
 	return c
 }
 
-func RequestHeaders(c net.Conn, method, target string) []Field {
+func RequestHeaders(c net.Conn, method, target, authority string, h http.Header) []Field {
 	rec := recorderOf(c)
 	if rec == nil {
 		return nil
 	}
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
-	for i, h := range rec.reqs {
-		if h.method != method || h.target != target {
+	for i, rh := range rec.reqs {
+		if rh.method != method || rh.target != target {
 			continue
 		}
-		if rec.h2 {
-			rec.reqs = slices.Delete(rec.reqs, i, i+1)
-		} else {
+		if !rec.h2 {
 			rec.reqs = rec.reqs[i+1:]
+			return rh.fields
 		}
-		return h.fields
+		if !sameHeader(rh.fields, h, authority, requestOnlyOnWire) {
+			continue
+		}
+		rec.reqs = slices.Delete(rec.reqs, i, i+1)
+		return rh.fields
 	}
 	return nil
 }
 
-func ResponseHeaders(c net.Conn, method, target string, status int) []Field {
+func ResponseHeaders(c net.Conn, method, target string, status int, h http.Header) []Field {
 	rec := recorderOf(c)
 	if rec == nil {
 		return nil
 	}
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
-	for i, h := range rec.resps {
-		if h.status != status {
+	for i, rh := range rec.resps {
+		if rh.status != status {
 			continue
 		}
 		if !rec.h2 {
 			rec.resps = rec.resps[i+1:]
-			return h.fields
+			return rh.fields
 		}
-		if req, ok := rec.sent[h.stream]; ok && (req.method != method || req.target != target) {
+		if req, ok := rec.sent[rh.stream]; ok && (req.method != method || req.target != target) {
+			continue
+		}
+		if !sameHeader(rh.fields, h, "", responseOnlyOnWire) {
 			continue
 		}
 		rec.resps = slices.Delete(rec.resps, i, i+1)
-		delete(rec.sent, h.stream)
-		return h.fields
+		delete(rec.sent, rh.stream)
+		return rh.fields
 	}
 	return nil
+}
+
+var (
+	requestOnlyOnWire  = []string{"host", "expect", "trailer"}
+	responseOnlyOnWire = []string{"trailer", "content-length", "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade"}
+)
+
+func sameHeader(fields []Field, h http.Header, authority string, onlyOnWire []string) bool {
+	sent := map[string][]string{}
+	for _, f := range fields {
+		name := strings.ToLower(f.Name)
+		if name == ":authority" && authority != "" && f.Value != authority {
+			return false
+		}
+		if strings.HasPrefix(name, ":") {
+			continue
+		}
+		sent[name] = append(sent[name], f.Value)
+	}
+	for key, values := range h {
+		name := strings.ToLower(key)
+		if strings.HasPrefix(name, ":") {
+			continue
+		}
+		got := sent[name]
+		delete(sent, name)
+		switch name {
+		case "cookie":
+			if len(got) > 1 && len(values) == 1 {
+				got = []string{strings.Join(got, "; ")}
+			}
+		case "content-length":
+			got = slices.Compact(got)
+		}
+		if !slices.Equal(got, values) {
+			return false
+		}
+	}
+	for name := range sent {
+		if !slices.Contains(onlyOnWire, name) {
+			return false
+		}
+	}
+	return true
 }

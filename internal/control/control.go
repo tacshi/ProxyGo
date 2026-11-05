@@ -135,8 +135,10 @@ func (s *Server) serve(c net.Conn) {
 }
 
 func Dial(ctx context.Context, path, method string, params any) (json.RawMessage, error) {
-	var d net.Dialer
-	c, err := d.DialContext(ctx, "unix", path)
+	c, err := DialSocket(ctx, path)
+	if errors.Is(err, ErrForeignSocket) {
+		return nil, err
+	}
 	if err != nil {
 		return nil, ErrNotRunning
 	}

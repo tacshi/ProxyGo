@@ -392,8 +392,11 @@ type AccessControl struct {
 }
 
 func (a AccessControl) Allowed(ip net.IP) bool {
-	if a.Mode == AccessAll || ip == nil {
+	if a.Mode == AccessAll {
 		return true
+	}
+	if ip == nil {
+		return false
 	}
 	if ip.IsLoopback() || isOwnAddress(ip) {
 		return true

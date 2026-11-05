@@ -214,6 +214,9 @@ func TestUpstreamAndAccess(t *testing.T) {
 	if !(AccessControl{}).Allowed(net.ParseIP("10.9.9.9")) {
 		t.Fatal("default access denied a client")
 	}
+	if !(AccessControl{}).Allowed(nil) || ac.Allowed(nil) || (AccessControl{Mode: AccessLocal}).Allowed(nil) {
+		t.Fatal("a client without an address gets in only when every device may")
+	}
 }
 
 func TestDNSAndClientCert(t *testing.T) {

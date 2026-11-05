@@ -146,6 +146,10 @@ claude mcp add proxygo -- proxygo-cli mcp-server
 Credentials in headers and bodies are redacted from what assistants see
 unless you choose otherwise in Settings.
 
+Scripts and Map Local rules that serve a local file can reach your Mac's files,
+so when an assistant creates one it starts switched off. Review it in ProxyGo
+and turn it on yourself; assistants cannot.
+
 ## Building from source
 
 ```sh

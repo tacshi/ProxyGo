@@ -116,7 +116,6 @@ type App struct {
 	sys                       systemproxy.State
 	sysKnown, routeHintClosed bool
 	overrode                  bool
-	sysBefore                 systemproxy.State
 	upRate                    int64
 	memory                    int64
 	downRate                  int64
@@ -332,7 +331,7 @@ func (a *App) start() {
 
 func (a *App) shutdown() {
 	if a.overrode && systemproxy.Status().PointsAt("127.0.0.1", a.proxy.Port()) {
-		if privileged.RestoreProxy(a.sysBefore) == nil {
+		if privileged.RestoreProxy() == nil {
 			systemproxy.Forget(a.proxyStatePath())
 		}
 	}

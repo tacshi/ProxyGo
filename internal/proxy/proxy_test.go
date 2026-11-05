@@ -313,11 +313,22 @@ func TestAccessControl(t *testing.T) {
 	if !e.proxy.allowed("127.0.0.1:5000") || e.proxy.allowed("203.0.113.9:5000") {
 		t.Fatal("local-only access")
 	}
+	for _, addr := range []string{"[fe80::1234:5678%en0]:5000", "[fe80::1234:5678%25en0]:5000", "pipe", ""} {
+		if e.proxy.allowed(addr) {
+			t.Errorf("local-only access let %q in", addr)
+		}
+	}
 	e.update(func(d *rules.Data) {
-		d.Access = rules.AccessControl{Mode: rules.AccessList, IPs: []string{"203.0.113.0/24"}}
+		d.Access = rules.AccessControl{Mode: rules.AccessList, IPs: []string{"203.0.113.0/24", "fe80::1234:5678"}}
 	})
 	if !e.proxy.allowed("203.0.113.9:5000") {
 		t.Fatal("listed range denied")
+	}
+	if !e.proxy.allowed("[fe80::1234:5678%en0]:5000") || e.proxy.allowed("[fe80::9%en0]:5000") {
+		t.Fatal("a link-local address is not matched without its zone")
+	}
+	if c := e.proxy.clientFor("[fe80::1234:5678%en0]:5000"); c.Name != "fe80::1234:5678" || c.PID != -1 {
+		t.Errorf("a link-local device is taken for an app on this Mac: %+v", c)
 	}
 }
 

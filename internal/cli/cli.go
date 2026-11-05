@@ -367,7 +367,7 @@ func (t *tool) mcp(args []string) error {
 	if len(args) == 1 && args[0] == "status" {
 		on := settings.Open(filepath.Join(t.dir, "settings.json")).Get().MCP
 		running := false
-		if c, err := net.Dial("unix", control.MCPSocketPath(t.dir)); err == nil {
+		if c, err := control.DialSocket(context.Background(), control.MCPSocketPath(t.dir)); err == nil {
 			_ = c.Close()
 			running = true
 		}
@@ -434,13 +434,18 @@ func shellQuote(s string) string {
 
 func (t *tool) bridge() error {
 	path := control.MCPSocketPath(t.dir)
-	conn, err := net.Dial("unix", path)
+	dial := func(path string) (net.Conn, error) { return control.DialSocket(context.Background(), path) }
+	conn, err := dial(path)
+	if errors.Is(err, control.ErrForeignSocket) {
+		return err
+	}
 	if err != nil {
 		on := settings.Open(filepath.Join(t.dir, "settings.json")).Get().MCP
 		if !on {
 			return errors.New("ProxyGo's MCP server is off: turn it on in ProxyGo's Settings › Automation, or run proxygo-cli mcp on")
 		}
-		if _, err := net.Dial("unix", t.sock()); err == nil {
+		if c, err := dial(t.sock()); err == nil {
+			_ = c.Close()
 			return errors.New("ProxyGo is running, but its MCP server is not: turn it on in Settings › Automation")
 		}
 		if err := launch(); err != nil {
@@ -449,7 +454,7 @@ func (t *tool) bridge() error {
 		deadline := time.Now().Add(20 * time.Second)
 		for conn == nil && time.Now().Before(deadline) {
 			time.Sleep(200 * time.Millisecond)
-			conn, _ = net.Dial("unix", path)
+			conn, _ = dial(path)
 		}
 		if conn == nil {
 			return errors.New("ProxyGo did not start its MCP server: open ProxyGo and check Settings › Automation")
