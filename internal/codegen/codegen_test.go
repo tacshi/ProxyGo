@@ -212,3 +212,40 @@ func TestGeneratedCodeEscapes(t *testing.T) {
 		}
 	}
 }
+
+func TestMethodIsQuoted(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash")
+	}
+	dir := t.TempDir()
+	method := "X`touch$IFS'pwned'`$(touch${IFS}also)"
+	req := Request{Method: method, URL: "https://api.dev/"}
+	for name, cmd := range map[string]string{
+		"curl":    strings.Replace(Curl(req), "curl", "printf '%s\\n'", 1),
+		"httpie":  strings.Replace(HTTPie(req), "http ", "printf '%s\\n' ", 1),
+		"default": strings.Replace(Curl(Request{Method: "delete", URL: "https://api.dev/"}), "curl", "printf '%s\\n'", 1),
+	} {
+		c := exec.Command("bash", "-c", cmd) // #nosec G204 -- bash runs the generated command with printf in place of the client.
+		c.Dir = dir
+		out, err := c.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", name, err, out)
+		}
+		want := strings.ToUpper(method)
+		if name == "default" {
+			want = "-X\nDELETE\n"
+		}
+		if !strings.Contains(string(out), want) {
+			t.Errorf("%s: shell saw %q, want the method %q", name, out, want)
+		}
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) > 0 {
+		t.Errorf("the method ran a command: %v", entries)
+	}
+	if k := Kotlin(Request{Method: "GET$x", URL: "https://api.dev/"}); !strings.Contains(k, `"GET\$X"`) {
+		t.Errorf("Kotlin leaves a $ in the method to its templates:\n%s", k)
+	}
+	if r := Ruby(Request{Method: "GET#{x}", URL: "https://api.dev/"}); !strings.Contains(r, `"GET\#{X}"`) {
+		t.Errorf("Ruby leaves #{ in the method to its interpolation:\n%s", r)
+	}
+}

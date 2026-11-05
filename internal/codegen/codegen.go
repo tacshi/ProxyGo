@@ -132,6 +132,16 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+func shellWord(s string) string {
+	special := func(r rune) bool {
+		return (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' && r != '.'
+	}
+	if s != "" && !strings.ContainsFunc(s, special) {
+		return s
+	}
+	return shellQuote(s)
+}
+
 func quoted(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
@@ -167,7 +177,7 @@ func Curl(r Request) string {
 	var b strings.Builder
 	b.WriteString("curl")
 	if m := r.method(); m != "GET" || len(r.Body) > 0 && m != "POST" {
-		b.WriteString(" -X " + m)
+		b.WriteString(" -X " + shellWord(m))
 	}
 	b.WriteString(" " + shellQuote(r.URL))
 	for _, h := range r.headers() {
@@ -190,7 +200,7 @@ func HTTPie(r Request) string {
 	if ok && body != "" {
 		b.WriteString("printf %s " + shellQuote(body) + " | ")
 	}
-	b.WriteString("http " + r.method() + " " + shellQuote(r.URL))
+	b.WriteString("http " + shellWord(r.method()) + " " + shellQuote(r.URL))
 	for _, h := range r.headers() {
 		b.WriteString(" \\\n  " + shellQuote(h[0]+":"+h[1]))
 	}
@@ -308,7 +318,7 @@ func Kotlin(r Request) string {
 		}
 		bodyExpr = fmt.Sprintf("%s.toRequestBody(%s.toMediaType())", kotlinQuoted(body), kotlinQuoted(ct))
 	}
-	fmt.Fprintf(&b, "val request = Request.Builder()\n  .url(%s)\n  .method(%s, %s)\n", kotlinQuoted(r.URL), quoted(r.method()), bodyExpr)
+	fmt.Fprintf(&b, "val request = Request.Builder()\n  .url(%s)\n  .method(%s, %s)\n", kotlinQuoted(r.URL), kotlinQuoted(r.method()), bodyExpr)
 	for _, h := range r.headers() {
 		fmt.Fprintf(&b, "  .addHeader(%s, %s)\n", kotlinQuoted(h[0]), kotlinQuoted(h[1]))
 	}
@@ -320,7 +330,7 @@ func Ruby(r Request) string {
 	var b strings.Builder
 	b.WriteString("require \"net/http\"\nrequire \"uri\"\n\n")
 	fmt.Fprintf(&b, "uri = URI(%s)\n", rubyQuoted(r.URL))
-	fmt.Fprintf(&b, "request = Net::HTTPGenericRequest.new(%s, %v, true, uri)\n", quoted(r.method()), len(r.Body) > 0)
+	fmt.Fprintf(&b, "request = Net::HTTPGenericRequest.new(%s, %v, true, uri)\n", rubyQuoted(r.method()), len(r.Body) > 0)
 	for _, h := range r.headers() {
 		fmt.Fprintf(&b, "request[%s] = %s\n", rubyQuoted(h[0]), rubyQuoted(h[1]))
 	}
