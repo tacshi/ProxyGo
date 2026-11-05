@@ -8,6 +8,7 @@
     "source": "en"
   },
   "resources": [
+    "LICENSE",
     "third_party/NOTICE",
     "third_party/MyGo-LICENSE"
   ],
