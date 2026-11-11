@@ -1,11 +1,11 @@
 module proxygo
 
-go 1.27.3
+go 1.27.4
 
 tool github.com/egoist/mygo/cmd/mygo
 
 require (
-	github.com/andybalholm/brotli v1.2.6
+	github.com/andybalholm/brotli v1.2.7
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/dop251/goja v0.0.0-20261020172427-7b1a02208696
 	github.com/ebitengine/purego v0.11.1
