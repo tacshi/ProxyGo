@@ -6079,16 +6079,6 @@ func (msgs Messages) HostTargets() string {
 	return Catalog.Format(msgs.locale, "hostTargets", nil)
 }
 
-// HoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language the app shows.
-func HoursAgo(count int) string { return In(i18n.Locale()).HoursAgo(count) }
-
-// HoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language of msgs.
-func (msgs Messages) HoursAgo(count int) string {
-	return Catalog.Format(msgs.locale, "hoursAgo", map[string]any{"count": count})
-}
-
 // HTTPLocalhost3000OrSetThe says "http://localhost:3000 — or set the parts below"
 // in the language the app shows.
 func HTTPLocalhost3000OrSetThe() string { return In(i18n.Locale()).HTTPLocalhost3000OrSetThe() }
@@ -7791,16 +7781,6 @@ func Minify() string { return In(i18n.Locale()).Minify() }
 // in the language of msgs.
 func (msgs Messages) Minify() string {
 	return Catalog.Format(msgs.locale, "minify", nil)
-}
-
-// MinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language the app shows.
-func MinutesAgo(count int) string { return In(i18n.Locale()).MinutesAgo(count) }
-
-// MinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language of msgs.
-func (msgs Messages) MinutesAgo(count int) string {
-	return Catalog.Format(msgs.locale, "minutesAgo", map[string]any{"count": count})
 }
 
 // MockAPI says "Mock API"
@@ -12505,14 +12485,14 @@ func (msgs Messages) Started() string {
 	return Catalog.Format(msgs.locale, "started", nil)
 }
 
-// StartedAgo says "Started {duration} ago"
+// StartedAgo says "Started {when}"
 // in the language the app shows.
-func StartedAgo(duration string) string { return In(i18n.Locale()).StartedAgo(duration) }
+func StartedAgo(when string) string { return In(i18n.Locale()).StartedAgo(when) }
 
-// StartedAgo says "Started {duration} ago"
+// StartedAgo says "Started {when}"
 // in the language of msgs.
-func (msgs Messages) StartedAgo(duration string) string {
-	return Catalog.Format(msgs.locale, "startedAgo", map[string]any{"duration": duration})
+func (msgs Messages) StartedAgo(when string) string {
+	return Catalog.Format(msgs.locale, "startedAgo", map[string]any{"when": when})
 }
 
 // StartTheEmulatorWithProxyGoAs says "Start the emulator with ProxyGo as its proxy:"
@@ -14159,14 +14139,4 @@ func WriteTLSSecretsToAKey() string { return In(i18n.Locale()).WriteTLSSecretsTo
 // in the language of msgs.
 func (msgs Messages) WriteTLSSecretsToAKey() string {
 	return Catalog.Format(msgs.locale, "writeTLSSecretsToAKey", nil)
-}
-
-// Yesterday says "yesterday"
-// in the language the app shows.
-func Yesterday() string { return In(i18n.Locale()).Yesterday() }
-
-// Yesterday says "yesterday"
-// in the language of msgs.
-func (msgs Messages) Yesterday() string {
-	return Catalog.Format(msgs.locale, "yesterday", nil)
 }

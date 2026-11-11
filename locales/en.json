@@ -761,7 +761,6 @@
   "hostPreserved": "Preserved",
   "hosts": "Hosts",
   "hostTargets": "Target's",
-  "hoursAgo": "{count, plural, one {# hour ago} other {# hours ago}}",
   "HTTPLocalhost3000OrSetThe": "http://localhost:3000 — or set the parts below",
   "HTTPProxy": "HTTP Proxy",
   "HTTPS": "HTTPS",
@@ -956,7 +955,6 @@
   "messageTypeOfThisURLsRequests": "Message type of this URL's requests",
   "messageTypeOfThisURLsResponses": "Message type of this URL's responses",
   "minify": "Minify",
-  "minutesAgo": "{count, plural, one {# minute ago} other {# minutes ago}}",
   "mockAPI": "Mock API",
   "modeEvents": "Events",
   "modeImage": "Image",
@@ -1529,7 +1527,7 @@
   "SSLProxyingNowCoversEveryEncrypted": "SSL Proxying now covers every encrypted domain: their next requests are decrypted.",
   "start": "Start",
   "started": "Started",
-  "startedAgo": "Started {duration} ago",
+  "startedAgo": "Started {when}",
   "startTheEmulatorWithProxyGoAs": "Start the emulator with ProxyGo as its proxy:",
   "startWithRecordingPaused": "Start with recording paused",
   "status": "Status",
@@ -1700,6 +1698,5 @@
   "wiresharkReadsItToDecryptCaptured": "Wireshark reads it to decrypt captured packets (SSLKEYLOGFILE format).",
   "withOneTheAppIsBlocked": "With one, the app is blocked whatever its process is called; without, by its name.",
   "writeANoteAboutThisFlow": "Write a note about this flow",
-  "writeTLSSecretsToAKey": "Write TLS secrets to a key log",
-  "yesterday": "yesterday"
+  "writeTLSSecretsToAKey": "Write TLS secrets to a key log"
 }

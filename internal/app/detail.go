@@ -13,6 +13,7 @@ import (
 
 	"proxygo/internal/flow"
 	"proxygo/internal/preview"
+	"proxygo/internal/settings"
 	"proxygo/locales"
 )
 
@@ -59,9 +60,9 @@ func (a *App) inspector(c *ui.Context, f *flow.Flow, scope string) {
 		req := func() { a.requestPane(c, f) }
 		resp := func() { a.responsePane(c, f) }
 		if a.set.StackedDetail || a.set.DetailRight {
-			ui.SplitVerticalPercent(c, &a.set.DetailPercent, req, resp).Grow(1)
+			ui.SplitVerticalPercent(c, &a.set.DetailPercent, req, resp).SplitReset(settings.Defaults().DetailPercent).Grow(1)
 		} else {
-			ui.SplitPercent(c, &a.set.DetailPercent, req, resp).Grow(1)
+			ui.SplitPercent(c, &a.set.DetailPercent, req, resp).SplitReset(settings.Defaults().DetailPercent).Grow(1)
 		}
 	})
 }
@@ -214,7 +215,7 @@ func (a *App) responsePane(c *ui.Context, f *flow.Flow) {
 			centered(c, 8, func() {
 				ui.Spinner(c)
 				ui.Text(c, locales.WaitingForTheResponse()).TextColor(p.muted)
-				ui.Text(c, locales.StartedAgo(time.Since(f.RequestTime()).Round(time.Second).String())).FontSize(11).TextColor(p.faint)
+				ui.Text(c, locales.StartedAgo(sinceSeconds(time.Since(f.RequestTime())))).FontSize(11).TextColor(p.faint)
 			})
 			c.After(time.Second)
 			return
@@ -753,7 +754,7 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 			}
 		}
 		a.bodyContent(c, fmt.Sprintf("%s:ws:%d:%v", f.UniqueID, a.wsRow, m.Time), body, ct, "ws", bodySource{f: f, response: m.From == "server", ws: &m})
-	}).Grow(1)
+	}).SplitReset(65).Grow(1)
 }
 
 func (a *App) wsComposer(c *ui.Context, f *flow.Flow) {

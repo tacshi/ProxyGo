@@ -164,7 +164,7 @@ Scripts for macOS builds:
 
 | Script | Builds |
 | --- | --- |
-| `scripts/build-mac-debug.sh [--open]` | `build/mac-debug/ProxyGo-debug.app`, an ad hoc signed debug build with its own name, bundle identifier, data folder and icon, so it runs beside a release copy |
+| `scripts/build-mac-debug.sh [--open]` | `build/mac-debug/ProxyGo-debug.app`, an ad hoc signed debug build with its own name, bundle identifier, data folder and icon, so it runs beside a release copy. It includes MyGo's automation plugin: start it with `MYGO_AUTOMATION` set to a socket's path to drive it with `mygo-automation` |
 | `scripts/build-mac-release.sh [<version>]` | Signed and notarized disk images for Apple silicon, Intel and universal, with signed update archives |
 | `scripts/publish.sh <version> [--dry-run]` | A release on GitHub: checks, release notes from `CHANGELOG.md`, the build, the tag and the published release |
 

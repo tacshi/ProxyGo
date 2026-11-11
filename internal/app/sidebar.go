@@ -272,7 +272,7 @@ func (a *App) sourceMenu(m *ui.Menu, s source) {
 	if s.app != "" {
 		where = locales.PathInApp(where, s.app)
 	}
-	if m.Item(locales.DeleteAllFrom(where)).Chosen() {
+	if m.Item(locales.DeleteAllFrom(where)).Danger().Chosen() {
 		a.deleteMatching(s.match)
 	}
 }
@@ -305,7 +305,7 @@ func (a *App) appMenu(m *ui.Menu, name string) {
 		a.blockApp(some, false)
 	}
 	m.Separator()
-	if m.Item(locales.DeleteAllFrom(name)).Chosen() {
+	if m.Item(locales.DeleteAllFrom(name)).Danger().Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return clientName(f) == name })
 	}
 }
@@ -340,7 +340,7 @@ func (a *App) domainMenu(m *ui.Menu, host string) {
 		}
 	})
 	m.Separator()
-	if m.Item(locales.DeleteAllFrom(host)).Chosen() {
+	if m.Item(locales.DeleteAllFrom(host)).Danger().Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return strings.EqualFold(f.Host(), host) })
 	}
 }
@@ -388,7 +388,7 @@ func (a *App) folderItem(c *ui.Context, f saved.Folder) {
 		if m.Item(locales.RenameEllipsis()).Chosen() {
 			a.folderSave = folderSheet{open: true, path: f.Path, rename: f.Path}
 		}
-		if m.Item(locales.DeleteNameEllipsis(f.Name())).Chosen() {
+		if m.Item(locales.DeleteNameEllipsis(f.Name())).Danger().Chosen() {
 			a.deleteFolder(f)
 		}
 	})

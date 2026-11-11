@@ -435,7 +435,7 @@ func (a *App) composeWindow(c *ui.Context) {
 				a.textViewer(c, f.UniqueID+":composeRaw", rawResponse(f), "", locales.RawResponse())
 			}
 		})
-	}).Grow(1)
+	}).SplitReset(50).Grow(1)
 }
 
 func (a *App) queryEditor(c *ui.Context, e *messageEditor) {
@@ -580,7 +580,7 @@ func (a *App) breakpointEditor(c *ui.Context) {
 		})
 	}, func() {
 		a.pausedEditor(c, chosen)
-	}).Grow(1)
+	}).SplitReset(300).Grow(1)
 	c.After(time.Second)
 }
 

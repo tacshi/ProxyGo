@@ -61,7 +61,7 @@ func (a *App) presetsButton(c *ui.Context) {
 		if len(presets) > 0 {
 			m.Submenu(locales.Delete(), func(m *ui.Menu) {
 				for _, pr := range presets {
-					if m.Item(pr.Name).Chosen() {
+					if m.Item(pr.Name).Danger().Chosen() {
 						id := pr.ID
 						a.updateSettings(func(s *settings.Settings) {
 							s.FilterPresets = slices.DeleteFunc(s.FilterPresets, func(x store.Preset) bool { return x.ID == id })

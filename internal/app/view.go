@@ -22,7 +22,7 @@ func (a *App) view(c *ui.Context) {
 	a.syncMenu()
 
 	if a.set.ShowSidebar {
-		ui.Split(c, &a.set.SidebarWidth, func() { a.sidebar(c) }, func() { a.main(c) }).Fill()
+		ui.Split(c, &a.set.SidebarWidth, func() { a.sidebar(c) }, func() { a.main(c) }).SplitReset(settings.Defaults().SidebarWidth).Fill()
 	} else {
 		a.main(c)
 	}
@@ -63,14 +63,14 @@ func (a *App) main(c *ui.Context) {
 		case a.set.DetailRight:
 			adoptShare(&a.set.TableWidthShare, a.set.TableWidth, roomW)
 			w := keepRoom(shareOf(a.set.TableWidthShare, a.set.TableWidth, roomW), roomW, 380)
-			sp = ui.Split(c.Key("right"), &w, func() { a.table(c) }, func() { a.detail(c) }).Grow(1)
+			sp = ui.Split(c.Key("right"), &w, func() { a.table(c) }, func() { a.detail(c) }).SplitReset(keepRoom(settings.Defaults().TableWidth, roomW, 380)).Grow(1)
 			if sp.Changed() && roomW > 0 {
 				a.set.TableWidth, a.set.TableWidthShare = w, min(max(w/roomW, 0.1), 0.9)
 			}
 		default:
 			adoptShare(&a.set.TableShare, a.set.TableHeight, roomH)
 			h := keepRoom(shareOf(a.set.TableShare, a.set.TableHeight, roomH), roomH, 280)
-			sp = ui.SplitVertical(c.Key("below"), &h, func() { a.table(c) }, func() { a.detail(c) }).Grow(1)
+			sp = ui.SplitVertical(c.Key("below"), &h, func() { a.table(c) }, func() { a.detail(c) }).SplitReset(keepRoom(settings.Defaults().TableHeight, roomH, 280)).Grow(1)
 			if sp.Changed() && roomH > 0 {
 				a.set.TableHeight, a.set.TableShare = h, min(max(h/roomH, 0.1), 0.9)
 			}

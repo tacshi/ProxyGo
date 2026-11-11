@@ -301,7 +301,7 @@ func (a *App) sseView(c *ui.Context, key string, body []byte, live bool) {
 		})
 		ui.Divider(c)
 		a.textViewer(c, fmt.Sprintf("%s:sse:%d:%d", key, a.sseRow, len(e.Data)), prettyText([]byte(e.Data), ct), languageName(ct), locales.EventData())
-	}).Grow(1)
+	}).SplitReset(65).Grow(1)
 }
 
 func (a *App) tlsView(c *ui.Context, f *flow.Flow) {

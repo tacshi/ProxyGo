@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 	ui "github.com/egoist/mygo/proxygoui"
@@ -41,6 +42,10 @@ func (a *App) scriptDraft(r *rules.ScriptRule) *scriptDraft {
 		buf := editor.NewBuffer(r.Script)
 		buf.SetLanguage(editor.LanguageNamed("JavaScript"))
 		d = &scriptDraft{rule: clone(r), code: &editor.State{Buffer: buf, Label: locales.Script(), TabSize: 2}}
+		code := d.code
+		code.OnCompletion = func(req editor.CompletionRequest) {
+			code.ShowCompletions(req.Offset-len(req.Prefix), scriptCompletions())
+		}
 		s.drafts[r.ID] = d
 	}
 	return d
@@ -148,7 +153,7 @@ func (a *App) scriptWindow(c *ui.Context) {
 								cp.ID, cp.Name = rules.NewID(), locales.CopyName(r.Name)
 								a.rules.Update(func(data *rules.Data) { data.Scripts = append(data.Scripts, &cp) })
 							}
-							if m.Item(locales.Delete()).Chosen() {
+							if m.Item(locales.Delete()).Danger().Chosen() {
 								a.rules.Update(func(data *rules.Data) { data.Scripts = dropByID(data.Scripts, id, sid) })
 								delete(s.drafts, id)
 							}
@@ -176,7 +181,7 @@ func (a *App) scriptWindow(c *ui.Context) {
 			return
 		}
 		a.scriptEditor(c, a.scriptDraft(saved), saved)
-	}).Grow(1)
+	}).SplitReset(270).Grow(1)
 }
 
 func (a *App) scriptEditor(c *ui.Context, dr *scriptDraft, saved *rules.ScriptRule) {
@@ -237,7 +242,7 @@ func (a *App) scriptEditor(c *ui.Context, dr *scriptDraft, saved *rules.ScriptRu
 			editor.View(c.Key("code"), dr.code).Fill()
 		}, func() {
 			a.console(c)
-		}).Grow(1)
+		}).SplitReset(50).Grow(1)
 	})
 }
 
@@ -357,3 +362,23 @@ func (a *App) referenceSheet(c *ui.Context) {
 		})
 	})
 }
+
+var scriptCompletions = sync.OnceValue(func() []editor.Completion {
+	var out []editor.Completion
+	for _, t := range [][3]string{
+		{"onRequest", "(context, url, request)", "async function onRequest(context, url, request) {\n  $0\n  return request;\n}"},
+		{"onResponse", "(context, url, request, response)", "async function onResponse(context, url, request, response) {\n  $0\n  return response;\n}"},
+		{"onWebsocket", "(context, url, request, response, message)", "function onWebsocket(context, url, request, response, message) {\n  $0\n}"},
+		{"console.log", "(value)", "console.log(${1:value});$0"},
+		{"sleep", "(ms)", "sleep(${1:1000});$0"},
+		{"$http.get", "(url)", "const ${1:res} = \\$http.get(${2:url});$0"},
+		{"$http.post", "(url, body)", "const ${1:res} = \\$http.post(${2:url}, ${3:body});$0"},
+	} {
+		sn, err := editor.ParseSnippet(t[2])
+		if err != nil {
+			continue
+		}
+		out = append(out, editor.Completion{Label: t[0], Detail: t[1], Kind: editor.CompletionSnippet, Snippet: sn})
+	}
+	return out
+})

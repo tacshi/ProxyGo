@@ -968,3 +968,15 @@ func TestSmallHelpers(t *testing.T) {
 		t.Errorf("answeredBy %q", answeredBy(f))
 	}
 }
+
+func TestDoubleClickOnDividerResetsSidebar(t *testing.T) {
+	a, tt, _ := loaded(t)
+	a.set.SidebarWidth = 400
+	tt.Frame()
+	tt.ClickAt(401, 450)
+	tt.ClickAt(401, 450)
+	tt.Frame()
+	if want := settings.Defaults().SidebarWidth; a.set.SidebarWidth != want {
+		t.Fatalf("the sidebar is %v wide after a double click on its divider, want %v", a.set.SidebarWidth, want)
+	}
+}
