@@ -1,6 +1,6 @@
 # MyGo native UI
 
-Based on `github.com/egoist/mygo/ui` at v0.8.3, under the included MIT license, as module `github.com/egoist/mygo/proxygoui` (a path under MyGo's, so that it may import MyGo's internal packages). The framework and CLI are pinned to MyGo v0.8.3 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart`, `ui/richtext` and `ui/shader` packages, and the tests, are not copied.
+Based on `github.com/egoist/mygo/ui` at v0.9.0, under the included MIT license, as module `github.com/egoist/mygo/proxygoui` (a path under MyGo's, so that it may import MyGo's internal packages). The framework and CLI are pinned to MyGo v0.9.0 too. Upstream's `ui/editor` and `ui/markdown` (with its `parser`) are copied unchanged as `editor` and `markdown`, except that they import this package and its packages in place of `ui`'s. Upstream's `ui/chart`, `ui/richtext`, `ui/shader` and `ui/video` packages, and the tests, are not copied.
 
 As upstream does, the public API (`api_gen.go`) is generated from the private renderer API (`core*` functions and exported methods of `node` and `context`): run `go generate .` here after changing it. `internal/uigen` is upstream's generator, changed only to run from this directory.
 

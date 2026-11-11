@@ -79,10 +79,10 @@ func (e *node) PopoverMenu(build func(m *Menu)) *node {
 // such a menu, as MenuButton is one with a menu of the system's, and
 // MenuBase a menu button without a look.
 //
-// Its options place the menu elsewhere along the button, and let the app
-// open and close it (PopoverMenuButtonOptions): the menu of a toolbar's
-// button at the window's end lines up with the button's end, and closes
-// from an event of the app's:
+// Its options place the menu elsewhere along the button, let the app open
+// and close it, and style its panel (PopoverMenuButtonOptions): the menu
+// of a toolbar's button at the window's end lines up with the button's
+// end, and closes from an event of the app's:
 //
 //	more.PopoverMenuButton(build, ui.PopoverMenuButtonOptions{
 //		At: ui.AnchorBottomEnd, Self: ui.AnchorTopEnd, Open: &app.moreOpen,
@@ -99,6 +99,7 @@ func (e *node) PopoverMenuButton(build func(m *Menu), options ...PopoverMenuButt
 	if e.role == RoleAuto || e.role == RoleButton {
 		e.role = RoleMenuButton
 	}
+	e.opensMenu()
 	rt := e.c.rt
 	var synced *bool
 	if o.Open != nil && e.hasState() {
@@ -122,6 +123,7 @@ func (e *node) PopoverMenuButton(build func(m *Menu), options ...PopoverMenuButt
 		if o.At != 0 || o.Self != 0 {
 			d.menu.attach = attachment(1 + min(o.At, AnchorBottomEnd)*15 + min(o.Self, AnchorBottomEnd))
 		}
+		d.panel = o.Panel
 	}
 	rt.drawMenu(e, build)
 	if synced != nil {
@@ -158,6 +160,19 @@ type PopoverMenuButtonOptions struct {
 	// closes it, which sets *Open to false, as a disabled button, which
 	// opens none, does.
 	Open *bool
+	// Panel, when set, styles the panel of the menu and of each submenu
+	// that opens, after the theme's look and with the same calls, so the
+	// app's background, border, radius or padding take its place, and its
+	// shadow too after NoShadow, as Shadow adds one:
+	//
+	//	ui.PopoverMenuButtonOptions{Panel: func(panel ui.Element) {
+	//		panel.Background(app.menuColor).Radius(12).
+	//			NoShadow().Shadow(0, 18, 50, 0, ui.RGBA(0, 0, 0, 0.45))
+	//	}}
+	//
+	// The menu keeps its place, its gap from the button and its items'
+	// look: Panel sets no margin and adds no children.
+	Panel func(panel Element)
 }
 
 type menuOpenKey struct{}
@@ -305,6 +320,7 @@ func coreMenuBase(c *context, open *bool) *menuParts {
 	b := coreButtonBase(c)
 	b.widget, b.role = "MenuBase", RoleMenuButton
 	b.flags |= flagMenuButton
+	b.opensMenu()
 	m := newMenu(c, b, open, true)
 	b.expanded = *open
 	return m
@@ -375,6 +391,7 @@ func (m *menuParts) Popup(fn func(panel *node)) *node {
 		return nil
 	}
 	c, rt := m.c, m.c.rt
+	m.Trigger.popupShows()
 	m.moved = [2]float32{rt.pointerX, rt.pointerY} != s.pointer
 	m.built = m.built[:0]
 	var root *node
@@ -853,6 +870,9 @@ type drawnMenu struct {
 	// icons are the bitmaps of its items' icons, by image and tint, as the
 	// menu builds in every frame it shows.
 	icons map[drawnIcon]*Bitmap
+	// panel styles its panels after the theme's look, as the menu button
+	// asked in this build (PopoverMenuButtonOptions.Panel).
+	panel func(panel Element)
 }
 
 // drawnIcon is an icon of a drawn menu in a color: the color of the text
@@ -922,21 +942,49 @@ func (rt *engine) openDrawnMenu(e *node) {
 // ContextMenuBase with the theme's look: a panel for the menu and each
 // submenu open, holding the items build adds.
 func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
+	drawMenuWith(rt, e, build, (*engine).beginDrawnMenu, (*engine).drawnMenuBuilt)
+}
+
+// drawMenuWith is drawMenu, through begin, which starts the menu drawn
+// for e, and built, which draws it once build filled it. It hands build
+// to neither, so that the function given to ContextMenu or Menu does not
+// escape to the heap in every frame where they reach the drawn menus
+// through menusInWindow.
+func drawMenuWith(rt *engine, e *node, build func(m *Menu), begin func(rt *engine, e *node) (*drawnMenu, *Menu), built func(rt *engine, e *node, d *drawnMenu, m *Menu) *platform.MenuItem) {
+	d, m := begin(rt, e)
+	if m == nil {
+		return
+	}
+	build(m)
+	if it := built(rt, e, d, m); it != nil {
+		rt.drawnChoice(d, m.run, build, it)
+	}
+}
+
+// beginDrawnMenu starts building the menu drawn for e while it shows: it
+// returns the menu, and what its build fills, nil while none shows.
+func (rt *engine) beginDrawnMenu(e *node) (*drawnMenu, *Menu) {
 	d := rt.menu.drawn
 	if d == nil || d.id != e.id || !e.hasState() || e.c.inert {
-		return
+		return nil, nil
 	}
 	d.built, d.pass = rt.frame, rt.pass
 	if e.disabled() {
 		rt.menu.drawn = nil
-		return
+		return nil, nil
 	}
 	run := &menuRun{collect: true, highlighted: d.highlighted}
-	pm := &platform.Menu{}
-	build(&Menu{run: run, menu: pm, rt: rt, text: rt.states[d.text]})
+	return d, &Menu{run: run, menu: &platform.Menu{}, rt: rt, text: rt.states[d.text]}
+}
+
+// drawnMenuBuilt draws the menu d drawn for e, which its build filled as
+// m: a panel for the menu and each submenu open, holding m's items. It
+// returns the item chosen from it, nil if none.
+func (rt *engine) drawnMenuBuilt(e *node, d *drawnMenu, m *Menu) *platform.MenuItem {
+	run, pm := m.run, m.menu
 	if !slices.ContainsFunc(pm.Items, func(it *platform.MenuItem) bool { return it.Visible && it.Type != platform.MenuItemSeparator }) {
 		rt.menu.drawn = nil
-		return
+		return nil
 	}
 	keys := d.keys
 	d.items, d.keys = pm, run.keys
@@ -946,15 +994,12 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 			// The item with the ID of the one chosen, wherever it is now.
 			id = slices.Index(run.keys, keys[id-1]) + 1
 		}
-		if it := menuItemByID(pm.Items, id); it != nil {
-			rt.drawnChoice(d, run, build, it)
-		}
-		return
+		return menuItemByID(pm.Items, id)
 	}
 	c := e.c
 	t := c.theme
 	open := true
-	m := &menuParts{Trigger: e, c: c, open: &open, s: &d.menu, level: -1}
+	parts := &menuParts{Trigger: e, c: c, open: &open, s: &d.menu, level: -1}
 	var chosen *platform.MenuItem
 	// The item of each row, by the row's element, for the highlight.
 	refs := map[uint64]menuRef{}
@@ -964,6 +1009,9 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 		panel.Shadow(0, 6, 20, 0, RGBA(0, 0, 0, 0.18))
 		if width > 0 {
 			panel.MaxWidth(max(width, t.Space(45)))
+		}
+		if d.panel != nil {
+			d.panel(wrapElement(panel))
 		}
 	}
 	var items func(menu *platform.Menu, width float32)
@@ -982,10 +1030,10 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 				continue
 			}
 			mi := run.items[it.ID-1]
-			row := m.drawnItem(d, it, mi, marks, icons)
+			row := parts.drawnItem(d, it, mi, marks, icons)
 			refs[row.id] = menuRef{seq: it.ID, label: it.Label, key: mi.key}
 			if sub := it.Submenu; it.Type == platform.MenuItemSubmenu && sub != nil {
-				m.Submenu(row, func(panel *node) {
+				parts.Submenu(row, func(panel *node) {
 					w, ok := run.widths[sub]
 					if !ok {
 						w = width
@@ -999,7 +1047,7 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 			}
 		}
 	}
-	m.Popup(func(panel *node) {
+	parts.Popup(func(panel *node) {
 		width := run.widths[pm]
 		style(panel, width)
 		if d.menu.below {
@@ -1028,9 +1076,7 @@ func (rt *engine) drawMenu(e *node, build func(m *Menu)) {
 			rt.consumed = true
 		}
 	}
-	if chosen != nil {
-		rt.drawnChoice(d, run, build, chosen)
-	}
+	return chosen
 }
 
 // buttonAnchors returns the points of a menu button's box and of its menu

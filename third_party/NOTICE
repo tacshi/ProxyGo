@@ -1,4 +1,4 @@
 ProxyGo is a debugging proxy built with MyGo.
 Framework: https://github.com/egoist/mygo (MIT). See MyGo-LICENSE.
 
-MyGo's native UI package is extended locally in third_party/mygo-ui, based on MyGo v0.8.3: see mygo-ui/UPSTREAM.md.
+MyGo's native UI package is extended locally in third_party/mygo-ui, based on MyGo v0.9.0: see mygo-ui/UPSTREAM.md.
