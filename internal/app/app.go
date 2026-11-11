@@ -20,6 +20,7 @@ import (
 
 	"github.com/egoist/mygo"
 	ui "github.com/egoist/mygo/proxygoui"
+	"github.com/egoist/mygo/transfer"
 
 	"proxygo/internal/certs"
 	"proxygo/internal/clientinfo"
@@ -51,11 +52,16 @@ type App struct {
 	set     settings.Settings
 	pal     palette
 
-	win       *mygo.Window
-	windows   map[string]*mygo.Window
-	menu      menuItems
-	clipboard func(string)
-	toasts    map[string][]string
+	win               *mygo.Window
+	windows           map[string]*mygo.Window
+	menu              menuItems
+	clipboard         func(string)
+	clipboardSecret   func(string)
+	keepRunning       func()
+	preview           func(path string) error
+	clearWindowStates func() error
+	previewDir        string
+	toasts            map[string][]string
 
 	flows     []*flow.Flow
 	version   uint64
@@ -178,12 +184,17 @@ func New(dir string) (*App, error) {
 		return nil, err
 	}
 	a := &App{
-		dir:          dir,
-		prefs:        settings.Open(filepath.Join(dir, "settings.json")),
-		rules:        rules.Open(filepath.Join(dir, "rules.json")),
-		scripts:      script.New(),
-		windows:      map[string]*mygo.Window{},
-		clipboard:    func(s string) { mygo.Clipboard.WriteText(s) },
+		dir:               dir,
+		prefs:             settings.Open(filepath.Join(dir, "settings.json")),
+		rules:             rules.Open(filepath.Join(dir, "rules.json")),
+		scripts:           script.New(),
+		windows:           map[string]*mygo.Window{},
+		clipboard:         func(s string) { mygo.Clipboard.WriteText(s) },
+		preview:           func(path string) error { return mygo.Shell.PreviewItem(path) },
+		clearWindowStates: func() error { return mygo.App.ClearWindowStates() },
+		clipboardSecret: func(s string) {
+			_ = mygo.Clipboard.Write(transfer.TextData(s), mygo.ClipboardOptions{Concealed: true})
+		},
 		section:      "all",
 		row:          -1,
 		kinds:        map[string]bool{},
@@ -280,6 +291,7 @@ func (a *App) start() {
 			a.proxyErr = locales.TheProxyCouldNotListen(strconv.Itoa(a.set.Port), err.Error())
 		}
 	}
+	a.keepRunning = mygo.Power.KeepRunning("ProxyGo is proxying traffic")
 
 	a.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:                "ProxyGo",
@@ -342,6 +354,10 @@ func (a *App) shutdown() {
 		a.clients.Close()
 	}
 	a.proxy.Stop()
+	if a.keepRunning != nil {
+		a.keepRunning()
+	}
+	a.dropPreview()
 	for _, w := range a.windows {
 		w.Close()
 	}
@@ -440,6 +456,31 @@ func (a *App) showToasts(c *ui.Context, key string) {
 	delete(a.toasts, key)
 }
 
+func (a *App) copySecret(text, what string) {
+	write := a.clipboard
+	a.clipboard = a.clipboardSecret
+	a.copy(text, what)
+	a.clipboard = write
+}
+
+var secretHeaders = []string{"authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-auth-token", "x-csrf-token"}
+
+func secretHeader(name string) bool {
+	return slices.Contains(secretHeaders, strings.ToLower(name))
+}
+
+func carriesSecrets(h flow.Header) bool {
+	return slices.ContainsFunc(h.Entries, func(e flow.HeaderEntry) bool { return e.Enabled && secretHeader(e.Key.Name) })
+}
+
+func (a *App) copyMaybeSecret(secret bool, text, what string) {
+	if secret {
+		a.copySecret(text, what)
+		return
+	}
+	a.copy(text, what)
+}
+
 func (a *App) copy(text, what string) {
 	a.clipboard(text)
 	if what != "" {
@@ -515,6 +556,7 @@ func (a *App) applyFilter() {
 	for i, f := range a.visible {
 		if f.UniqueID == a.selected {
 			a.row = i
+			a.list.Choose(i)
 			break
 		}
 	}
@@ -581,6 +623,7 @@ func (a *App) selectFlow(id string) {
 	for i, f := range a.visible {
 		if f.UniqueID == id {
 			a.row = i
+			a.list.Choose(i)
 			a.list.ScrollIntoView(i)
 			break
 		}

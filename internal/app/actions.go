@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"mime"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -169,10 +170,12 @@ func (a *App) copyCode(fs []*flow.Flow, language string) {
 	}
 	gen := codegen.Named(language)
 	parts := make([]string, len(fs))
+	secret := false
 	for i, f := range fs {
 		parts[i] = gen(codegen.Of(f))
+		secret = secret || carriesSecrets(f.Request.Header)
 	}
-	a.copy(strings.Join(parts, "\n\n"), locales.CopiedAs(cmp.Or(language, "cURL")))
+	a.copyMaybeSecret(secret, strings.Join(parts, "\n\n"), locales.CopiedAs(cmp.Or(language, "cURL")))
 	if language != "" && language != a.set.CodeLanguage {
 		a.updateSettings(func(s *settings.Settings) { s.CodeLanguage = language })
 	}
@@ -183,9 +186,9 @@ func (a *App) copyRaw(f *flow.Flow, response bool) {
 		return
 	}
 	if response {
-		a.copy(rawResponse(f), "response")
+		a.copyMaybeSecret(f.Response != nil && carriesSecrets(f.Response.Header), rawResponse(f), "response")
 	} else {
-		a.copy(rawRequest(f), "request")
+		a.copyMaybeSecret(carriesSecrets(f.Request.Header), rawRequest(f), "request")
 	}
 }
 
@@ -583,6 +586,62 @@ func (a *App) blockApp(f *flow.Flow, hide bool) {
 		delete(d.DisabledTools, rules.ToolBlock)
 	})
 	a.toast(locales.BlockedAppsTraffic(cmp.Or(a.clientLabel(f), r.BundleID)))
+}
+
+func bodyFileName(f *flow.Flow, contentType string) string {
+	name := cmp.Or(filepath.Base(strings.SplitN(f.URLPath(), "?", 2)[0]), "body")
+	if name == "/" || name == "." {
+		name = "body"
+	}
+	if filepath.Ext(name) == "" {
+		if mt, _, err := mime.ParseMediaType(contentType); err == nil {
+			if exts, _ := mime.ExtensionsByType(mt); len(exts) > 0 {
+				name += preferredExt(mt, exts)
+			}
+		}
+	}
+	return name
+}
+
+func preferredExt(mediaType string, exts []string) string {
+	for _, want := range []string{".json", ".html", ".txt", ".jpg", ".png", ".xml", ".js", ".css", ".pdf", ".mp4", ".svg", ".gif", ".webp"} {
+		if slices.Contains(exts, want) {
+			return want
+		}
+	}
+	return exts[0]
+}
+
+func (a *App) quickLook(f *flow.Flow, response bool) {
+	if f == nil {
+		return
+	}
+	body, ct := f.DecodedRequestBody(), f.Request.Header.Get("Content-Type")
+	if response {
+		if f.Response == nil {
+			return
+		}
+		body, ct = f.DecodedResponseBody(), f.Response.Header.Get("Content-Type")
+	}
+	a.dropPreview()
+	dir, err := os.MkdirTemp("", "proxygo-preview-")
+	if err == nil {
+		a.previewDir = dir
+		path := filepath.Join(dir, bodyFileName(f, ct))
+		if err = os.WriteFile(path, body, 0o600); err == nil {
+			err = a.preview(path)
+		}
+	}
+	if err != nil {
+		a.toast(locales.CannotPreview(err.Error()))
+	}
+}
+
+func (a *App) dropPreview() {
+	if a.previewDir != "" {
+		_ = os.RemoveAll(a.previewDir)
+		a.previewDir = ""
+	}
 }
 
 func (a *App) exportBody(f *flow.Flow, response bool) {

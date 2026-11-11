@@ -1568,5 +1568,10 @@
   "mygo.clipboardRead": "프로그램이 클립보드를 읽으려고 합니다",
   "mygo.clipboardReadAllow": "허용",
   "mygo.clipboardReadDeny": "거부",
-  "mygo.clipboardReadEmpty": "클립보드가 비어 있습니다."
+  "mygo.clipboardReadEmpty": "클립보드가 비어 있습니다.",
+  "quickLook": "훑어보기",
+  "cannotPreview": "미리 볼 수 없음: {error}",
+  "resetWindowPositions": "윈도우 위치 재설정",
+  "windowsOpenWhereTheyDoAtFirst": "다음 실행부터 윈도우가 기본 크기와 위치로 열립니다.",
+  "windowPositionsReset": "윈도우 위치를 재설정함"
 }

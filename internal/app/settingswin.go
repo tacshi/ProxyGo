@@ -120,6 +120,15 @@ func (a *App) generalSettings(c *ui.Context, p palette) {
 		})
 		a.languageSetting(c)
 		a.settingSwitch(c, locales.KeepTheWindowOnTop(), "", a.set.StayOnTop, a.setStayOnTop)
+		a.settingRow(c, locales.ResetWindowPositions(), locales.WindowsOpenWhereTheyDoAtFirst(), func() {
+			if ui.Button(c, locales.Reset()).Label(locales.ResetWindowPositions()).Clicked() {
+				if err := a.clearWindowStates(); err != nil {
+					a.toast(locales.CannotSave(err.Error()))
+				} else {
+					a.toast(locales.WindowPositionsReset())
+				}
+			}
+		})
 		a.menuBarSettings(c)
 	})
 	group(c, p, locales.AppIcon(), func() {

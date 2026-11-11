@@ -1385,5 +1385,10 @@
   "wiresharkReadsItToDecryptCaptured": "Wireshark 读取它来解密捕获的数据包（SSLKEYLOGFILE 格式）。",
   "withOneTheAppIsBlocked": "填写后，无论进程名是什么都会阻止该应用；不填写则按名称阻止。",
   "writeANoteAboutThisFlow": "为此请求写备注",
-  "writeTLSSecretsToAKey": "将 TLS 密钥写入密钥日志"
+  "writeTLSSecretsToAKey": "将 TLS 密钥写入密钥日志",
+  "quickLook": "快速查看",
+  "cannotPreview": "无法预览：{error}",
+  "resetWindowPositions": "重置窗口位置",
+  "windowsOpenWhereTheyDoAtFirst": "下次启动起，窗口以默认大小和位置打开。",
+  "windowPositionsReset": "已重置窗口位置"
 }

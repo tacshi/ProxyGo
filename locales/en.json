@@ -1698,5 +1698,10 @@
   "wiresharkReadsItToDecryptCaptured": "Wireshark reads it to decrypt captured packets (SSLKEYLOGFILE format).",
   "withOneTheAppIsBlocked": "With one, the app is blocked whatever its process is called; without, by its name.",
   "writeANoteAboutThisFlow": "Write a note about this flow",
-  "writeTLSSecretsToAKey": "Write TLS secrets to a key log"
+  "writeTLSSecretsToAKey": "Write TLS secrets to a key log",
+  "quickLook": "Quick Look",
+  "cannotPreview": "Cannot preview: {error}",
+  "resetWindowPositions": "Reset Window Positions",
+  "windowsOpenWhereTheyDoAtFirst": "Windows open at their default size and place from the next launch.",
+  "windowPositionsReset": "Window positions reset"
 }

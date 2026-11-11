@@ -14140,3 +14140,53 @@ func WriteTLSSecretsToAKey() string { return In(i18n.Locale()).WriteTLSSecretsTo
 func (msgs Messages) WriteTLSSecretsToAKey() string {
 	return Catalog.Format(msgs.locale, "writeTLSSecretsToAKey", nil)
 }
+
+// QuickLook says "Quick Look"
+// in the language the app shows.
+func QuickLook() string { return In(i18n.Locale()).QuickLook() }
+
+// QuickLook says "Quick Look"
+// in the language of msgs.
+func (msgs Messages) QuickLook() string {
+	return Catalog.Format(msgs.locale, "quickLook", nil)
+}
+
+// CannotPreview says "Cannot preview: {error}"
+// in the language the app shows.
+func CannotPreview(error string) string { return In(i18n.Locale()).CannotPreview(error) }
+
+// CannotPreview says "Cannot preview: {error}"
+// in the language of msgs.
+func (msgs Messages) CannotPreview(error string) string {
+	return Catalog.Format(msgs.locale, "cannotPreview", map[string]any{"error": error})
+}
+
+// ResetWindowPositions says "Reset Window Positions"
+// in the language the app shows.
+func ResetWindowPositions() string { return In(i18n.Locale()).ResetWindowPositions() }
+
+// ResetWindowPositions says "Reset Window Positions"
+// in the language of msgs.
+func (msgs Messages) ResetWindowPositions() string {
+	return Catalog.Format(msgs.locale, "resetWindowPositions", nil)
+}
+
+// WindowsOpenWhereTheyDoAtFirst says "Windows open at their default size and place from the next launch."
+// in the language the app shows.
+func WindowsOpenWhereTheyDoAtFirst() string { return In(i18n.Locale()).WindowsOpenWhereTheyDoAtFirst() }
+
+// WindowsOpenWhereTheyDoAtFirst says "Windows open at their default size and place from the next launch."
+// in the language of msgs.
+func (msgs Messages) WindowsOpenWhereTheyDoAtFirst() string {
+	return Catalog.Format(msgs.locale, "windowsOpenWhereTheyDoAtFirst", nil)
+}
+
+// WindowPositionsReset says "Window positions reset"
+// in the language the app shows.
+func WindowPositionsReset() string { return In(i18n.Locale()).WindowPositionsReset() }
+
+// WindowPositionsReset says "Window positions reset"
+// in the language of msgs.
+func (msgs Messages) WindowPositionsReset() string {
+	return Catalog.Format(msgs.locale, "windowPositionsReset", nil)
+}

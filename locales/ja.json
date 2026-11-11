@@ -1568,5 +1568,10 @@
   "mygo.clipboardRead": "プログラムがクリップボードを読み取ろうとしています",
   "mygo.clipboardReadAllow": "許可",
   "mygo.clipboardReadDeny": "拒否",
-  "mygo.clipboardReadEmpty": "クリップボードは空です。"
+  "mygo.clipboardReadEmpty": "クリップボードは空です。",
+  "quickLook": "クイックルック",
+  "cannotPreview": "プレビューできません: {error}",
+  "resetWindowPositions": "ウインドウの位置をリセット",
+  "windowsOpenWhereTheyDoAtFirst": "次回の起動から、ウインドウはデフォルトのサイズと位置で開きます。",
+  "windowPositionsReset": "ウインドウの位置をリセットしました"
 }
