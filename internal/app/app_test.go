@@ -32,6 +32,8 @@ func testApp(t *testing.T) (*App, *[]string) {
 	}
 	var copied []string
 	a.clipboard = func(s string) { copied = append(copied, s) }
+	a.clipboardSecret = a.clipboard
+	a.keepRunning = nil
 	t.Cleanup(a.proxy.Stop)
 	return a, &copied
 }
@@ -966,5 +968,52 @@ func TestSmallHelpers(t *testing.T) {
 	f.ToolMetadata = map[string]any{"mapLocal": map[string]any{"name": "x"}}
 	if answeredBy(f) != "Map Local" {
 		t.Errorf("answeredBy %q", answeredBy(f))
+	}
+}
+
+func TestDoubleClickOnDividerResetsSidebar(t *testing.T) {
+	a, tt, _ := loaded(t)
+	a.set.SidebarWidth = 400
+	tt.Frame()
+	tt.ClickAt(401, 450)
+	tt.ClickAt(401, 450)
+	tt.Frame()
+	if want := settings.Defaults().SidebarWidth; a.set.SidebarWidth != want {
+		t.Fatalf("the sidebar is %v wide after a double click on its divider, want %v", a.set.SidebarWidth, want)
+	}
+}
+
+func TestSecretsAreCopiedConcealed(t *testing.T) {
+	a, _ := testApp(t)
+	var plain, concealed []string
+	a.clipboard = func(s string) { plain = append(plain, s) }
+	a.clipboardSecret = func(s string) { concealed = append(concealed, s) }
+	a.copyMaybeSecret(secretHeader("Authorization"), "Bearer abc", "")
+	a.copyMaybeSecret(secretHeader("Accept"), "*/*", "")
+	a.copy("after", "")
+	if !slices.Equal(concealed, []string{"Bearer abc"}) || !slices.Equal(plain, []string{"*/*", "after"}) {
+		t.Fatalf("concealed %v, plain %v", concealed, plain)
+	}
+	for _, f := range fixtures() {
+		plain, concealed = nil, nil
+		a.copyCode([]*flow.Flow{f}, "")
+		if secret := carriesSecrets(f.Request.Header); len(concealed) == 1 != secret || len(plain) == 1 == secret {
+			t.Errorf("%s: carries secrets %v, concealed %d, plain %d", f.URL(), secret, len(concealed), len(plain))
+		}
+	}
+}
+
+func TestBodyFileName(t *testing.T) {
+	for _, tc := range []struct{ url, ct, want string }{
+		{"https://a.example/v1/users?page=2", "application/json; charset=utf-8", "users.json"},
+		{"https://a.example/img/cat.png", "image/png", "cat.png"},
+		{"https://a.example/", "text/html", "body.html"},
+		{"https://a.example/data", "", "data"},
+	} {
+		f := fixtures()[0]
+		f.Request.FullPath = tc.url
+		if got := bodyFileName(f, tc.ct); got != tc.want {
+			t.Errorf("%s as %q is %q, want %q", tc.url, tc.ct, got, tc.want)
+		}
 	}
 }

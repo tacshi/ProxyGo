@@ -114,9 +114,10 @@ func (e *node) layoutInput(cw, ch float32) {
 	}
 	// Text narrower than the box goes where TextAlign puts it: Start is
 	// the right of an input laid out right to left, whatever its text, as
-	// that of Text.
+	// that of Text. Its last column stays for the caret, as where the text
+	// scrolls: a caret on the box's right edge would be clipped away.
 	rtl := e.rtl()
-	if room := cw - l.Width; room > 0 {
+	if room := cw - l.Width - 1; room > 0 {
 		switch align := e.resolvedText().align; {
 		case align == Center:
 			ed.originX += room / 2
@@ -206,7 +207,8 @@ func (e *node) paintInput(p *Painter) {
 		const blink = 530 * time.Millisecond
 		if (phase/blink)%2 == 0 && ed.caretWidth > 0 {
 			x, y, h := l.CaretAt(text.CaretPosition{Index: ed.displayIndex(ed.caret) + ed.composeCaret, Affinity: ed.caretAffinity})
-			p.add(scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, oy + y, 0, h}), Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{}), Opacity: p.opacity})
+			caret := ts.caretColor(t)
+			p.add(scene.Op{Kind: scene.OpFill, Rect: p.snap(Rect{ox + x, oy + y, 0, h}), Color: caret.scene(), Wide: p.wide(caret, Color{}, Color{}), Opacity: p.opacity})
 			op := &p.s.Ops[len(p.s.Ops)-1]
 			op.Rect.W = max(round(ed.caretWidth*p.scale), 1)
 		}

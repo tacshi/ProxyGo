@@ -554,7 +554,7 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 	}
 	m.Submenu(locales.Highlight(), func(m *ui.Menu) {
 		for _, color := range highlightColors {
-			if m.Item(colorName(color)).Radio(f.Highlight == color).Icon(a.dots.png[color]).Chosen() {
+			if m.Item(colorName(color)).Radio(f.Highlight == color).Icon(a.dots.icons[color]).Chosen() {
 				a.setHighlight(fs, color)
 			}
 		}
@@ -617,7 +617,7 @@ func (a *App) flowMenu(m *ui.Menu, fs []*flow.Flow) {
 		a.addToDiffPool(fs)
 	}
 	m.Separator()
-	if m.Item(locales.DeleteFlowsMenu(len(fs))).Shortcut(0, ui.KeyBackspace).Chosen() {
+	if m.Item(locales.DeleteFlowsMenu(len(fs))).Danger().Shortcut(0, ui.KeyBackspace).Chosen() {
 		a.deleteFlows(fs)
 	}
 }

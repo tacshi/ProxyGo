@@ -594,7 +594,6 @@
   "hostPreserved": "保留",
   "hosts": "主机",
   "hostTargets": "目标的",
-  "hoursAgo": "{count, plural, other {# 小时前}}",
   "HTTPLocalhost3000OrSetThe": "http://localhost:3000，或设置下面的各部分",
   "HTTPProxy": "HTTP 代理",
   "HTTPS": "HTTPS",
@@ -762,7 +761,6 @@
   "messageTypeOfThisURLsRequests": "此 URL 请求的消息类型",
   "messageTypeOfThisURLsResponses": "此 URL 响应的消息类型",
   "minify": "压缩",
-  "minutesAgo": "{count, plural, other {# 分钟前}}",
   "mockAPI": "模拟 API",
   "modeEvents": "事件",
   "modeImage": "图片",
@@ -1226,7 +1224,7 @@
   "SSLProxyingNowCoversEveryEncrypted": "SSL 代理现已覆盖所有加密域名：之后的请求会被解密。",
   "start": "开始",
   "started": "开始时间",
-  "startedAgo": "{duration}前开始",
+  "startedAgo": "{when}开始",
   "startTheEmulatorWithProxyGoAs": "以 ProxyGo 作为代理启动模拟器：",
   "startWithRecordingPaused": "启动时暂停录制",
   "status": "状态",
@@ -1388,5 +1386,9 @@
   "withOneTheAppIsBlocked": "填写后，无论进程名是什么都会阻止该应用；不填写则按名称阻止。",
   "writeANoteAboutThisFlow": "为此请求写备注",
   "writeTLSSecretsToAKey": "将 TLS 密钥写入密钥日志",
-  "yesterday": "昨天"
+  "quickLook": "快速查看",
+  "cannotPreview": "无法预览：{error}",
+  "resetWindowPositions": "重置窗口位置",
+  "windowsOpenWhereTheyDoAtFirst": "下次启动起，窗口以默认大小和位置打开。",
+  "windowPositionsReset": "已重置窗口位置"
 }

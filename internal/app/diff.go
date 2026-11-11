@@ -24,6 +24,7 @@ type diffState struct {
 	normalize   bool
 	pool        []string
 	state       *editor.DiffState
+	split       float32
 	key         string
 }
 
@@ -183,7 +184,7 @@ func (a *App) diffWindow(c *ui.Context) {
 	key := fmt.Sprint(l.UniqueID, r.UniqueID, d.part, d.unified, d.normalize, len(side(l)), len(side(r)))
 	if d.key != key || d.state == nil {
 		d.key = key
-		d.state = &editor.DiffState{Old: editor.NewBuffer(side(l)), New: editor.NewBuffer(side(r)), Wrap: true}
+		d.state = &editor.DiffState{Old: editor.NewBuffer(side(l)), New: editor.NewBuffer(side(r)), Wrap: true, SplitPercent: d.split}
 		if d.unified {
 			d.state.Layout = editor.DiffUnified
 		}
@@ -215,6 +216,7 @@ func (a *App) diffWindow(c *ui.Context) {
 	})
 	ui.Column(c).Grow(1).Margin(0, windowInset, windowInset, windowInset).Radius(8).Border(1, p.border).Clip().Children(func() {
 		editor.DiffView(c.Key(d.key), d.state).Fill()
+		d.split = d.state.SplitPercent
 	})
 }
 

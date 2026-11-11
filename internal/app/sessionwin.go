@@ -126,7 +126,7 @@ func (a *App) sessionWindow(c *ui.Context, key string) {
 				}
 			}
 			a.inspector(c, f, "session")
-		}).Grow(1)
+		}).SplitReset(300).Grow(1)
 	})
 }
 

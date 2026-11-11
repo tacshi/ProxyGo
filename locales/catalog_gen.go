@@ -6079,16 +6079,6 @@ func (msgs Messages) HostTargets() string {
 	return Catalog.Format(msgs.locale, "hostTargets", nil)
 }
 
-// HoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language the app shows.
-func HoursAgo(count int) string { return In(i18n.Locale()).HoursAgo(count) }
-
-// HoursAgo says "{count, plural, one {# hour ago} other {# hours ago}}"
-// in the language of msgs.
-func (msgs Messages) HoursAgo(count int) string {
-	return Catalog.Format(msgs.locale, "hoursAgo", map[string]any{"count": count})
-}
-
 // HTTPLocalhost3000OrSetThe says "http://localhost:3000 — or set the parts below"
 // in the language the app shows.
 func HTTPLocalhost3000OrSetThe() string { return In(i18n.Locale()).HTTPLocalhost3000OrSetThe() }
@@ -7791,16 +7781,6 @@ func Minify() string { return In(i18n.Locale()).Minify() }
 // in the language of msgs.
 func (msgs Messages) Minify() string {
 	return Catalog.Format(msgs.locale, "minify", nil)
-}
-
-// MinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language the app shows.
-func MinutesAgo(count int) string { return In(i18n.Locale()).MinutesAgo(count) }
-
-// MinutesAgo says "{count, plural, one {# minute ago} other {# minutes ago}}"
-// in the language of msgs.
-func (msgs Messages) MinutesAgo(count int) string {
-	return Catalog.Format(msgs.locale, "minutesAgo", map[string]any{"count": count})
 }
 
 // MockAPI says "Mock API"
@@ -12505,14 +12485,14 @@ func (msgs Messages) Started() string {
 	return Catalog.Format(msgs.locale, "started", nil)
 }
 
-// StartedAgo says "Started {duration} ago"
+// StartedAgo says "Started {when}"
 // in the language the app shows.
-func StartedAgo(duration string) string { return In(i18n.Locale()).StartedAgo(duration) }
+func StartedAgo(when string) string { return In(i18n.Locale()).StartedAgo(when) }
 
-// StartedAgo says "Started {duration} ago"
+// StartedAgo says "Started {when}"
 // in the language of msgs.
-func (msgs Messages) StartedAgo(duration string) string {
-	return Catalog.Format(msgs.locale, "startedAgo", map[string]any{"duration": duration})
+func (msgs Messages) StartedAgo(when string) string {
+	return Catalog.Format(msgs.locale, "startedAgo", map[string]any{"when": when})
 }
 
 // StartTheEmulatorWithProxyGoAs says "Start the emulator with ProxyGo as its proxy:"
@@ -14161,12 +14141,52 @@ func (msgs Messages) WriteTLSSecretsToAKey() string {
 	return Catalog.Format(msgs.locale, "writeTLSSecretsToAKey", nil)
 }
 
-// Yesterday says "yesterday"
+// QuickLook says "Quick Look"
 // in the language the app shows.
-func Yesterday() string { return In(i18n.Locale()).Yesterday() }
+func QuickLook() string { return In(i18n.Locale()).QuickLook() }
 
-// Yesterday says "yesterday"
+// QuickLook says "Quick Look"
 // in the language of msgs.
-func (msgs Messages) Yesterday() string {
-	return Catalog.Format(msgs.locale, "yesterday", nil)
+func (msgs Messages) QuickLook() string {
+	return Catalog.Format(msgs.locale, "quickLook", nil)
+}
+
+// CannotPreview says "Cannot preview: {error}"
+// in the language the app shows.
+func CannotPreview(error string) string { return In(i18n.Locale()).CannotPreview(error) }
+
+// CannotPreview says "Cannot preview: {error}"
+// in the language of msgs.
+func (msgs Messages) CannotPreview(error string) string {
+	return Catalog.Format(msgs.locale, "cannotPreview", map[string]any{"error": error})
+}
+
+// ResetWindowPositions says "Reset Window Positions"
+// in the language the app shows.
+func ResetWindowPositions() string { return In(i18n.Locale()).ResetWindowPositions() }
+
+// ResetWindowPositions says "Reset Window Positions"
+// in the language of msgs.
+func (msgs Messages) ResetWindowPositions() string {
+	return Catalog.Format(msgs.locale, "resetWindowPositions", nil)
+}
+
+// WindowsOpenWhereTheyDoAtFirst says "Windows open at their default size and place from the next launch."
+// in the language the app shows.
+func WindowsOpenWhereTheyDoAtFirst() string { return In(i18n.Locale()).WindowsOpenWhereTheyDoAtFirst() }
+
+// WindowsOpenWhereTheyDoAtFirst says "Windows open at their default size and place from the next launch."
+// in the language of msgs.
+func (msgs Messages) WindowsOpenWhereTheyDoAtFirst() string {
+	return Catalog.Format(msgs.locale, "windowsOpenWhereTheyDoAtFirst", nil)
+}
+
+// WindowPositionsReset says "Window positions reset"
+// in the language the app shows.
+func WindowPositionsReset() string { return In(i18n.Locale()).WindowPositionsReset() }
+
+// WindowPositionsReset says "Window positions reset"
+// in the language of msgs.
+func (msgs Messages) WindowPositionsReset() string {
+	return Catalog.Format(msgs.locale, "windowPositionsReset", nil)
 }

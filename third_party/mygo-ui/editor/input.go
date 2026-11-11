@@ -20,7 +20,8 @@ const scrollbarWidth = 10
 func (ed *editor) input(ev ui.InputEvent) bool {
 	// The key after the first of a chord is the chord's, as VS Code's
 	// keybindings resolve chords before an extension's type command.
-	chord := ed.chord != nil && ev.Kind == ui.InputKeyDown
+	// A key of no name, as the modifier the second key is held with, is not it.
+	chord := ed.chord != nil && ev.Kind == ui.InputKeyDown && ev.Key != ui.KeyUnknown
 	if !chord && ed.offer(ev) {
 		return true
 	}
@@ -55,7 +56,7 @@ func (ed *editor) dispatch(ev ui.InputEvent) bool {
 	ed.frameNow = ev.Time
 	switch ev.Kind {
 	case ui.InputKeyDown:
-		return ed.key(ev)
+		return ev.Key != ui.KeyUnknown && ed.key(ev)
 	case ui.InputCommand:
 		cmd := map[string]Command{"copy": Copy, "cut": Cut, "paste": Paste, "pasteAndMatchStyle": Paste, "selectAll": SelectAll,
 			"undo": Undo, "redo": Redo, "delete": Backspace}[ev.Text]
@@ -152,10 +153,10 @@ const (
 
 func (ed *editor) regionAt(x, y float32) region {
 	vertical, horizontal := ed.scrollbars()
-	if vertical && x >= ed.r.W-scrollbarWidth {
+	if vertical && x >= ed.r.W-ed.barWidth() {
 		return regionVScroll
 	}
-	if horizontal && y >= ed.hbarY && y < ed.hbarY+scrollbarWidth {
+	if horizontal && y >= ed.hbarY && y < ed.hbarY+ed.barWidth() {
 		return regionHScroll
 	}
 	if x < ed.gutterW {
@@ -365,8 +366,11 @@ func (ed *editor) pointerMove(ev ui.InputEvent) bool {
 		cx, cy := ed.toContent(ev.X, ev.Y)
 		off = ed.offsetAt(cx, cy)
 		// Past the end of a line, or below the last, is over no text.
-		if cr, ok := ed.caretRect(off); !ok || float64(cy) > float64(cr.Y+cr.H) ||
-			off == ed.view.text.LineEnd(ed.view.text.LineOf(off)) && cx > cr.X+ed.view.charWidth/2 {
+		// Trailing inlays are the exception: their caret deliberately stays
+		// before them, but their rendered text is still a hover target.
+		if cr, ok := ed.caretRect(off); (!ok || float64(cy) > float64(cr.Y+cr.H) ||
+			off == ed.view.text.LineEnd(ed.view.text.LineOf(off)) && cx > cr.X+ed.view.charWidth/2) &&
+			!ed.overTrailingInlay(cx, float64(cy)) {
 			off = -1
 		}
 	}
@@ -384,7 +388,7 @@ func (ed *editor) pointerMove(ev ui.InputEvent) bool {
 			changed = true
 		}
 	}
-	if off >= 0 && (ed.o.onHover != nil || len(ed.diags) > 0) && off != h.restOff {
+	if off >= 0 && !ed.o.noPointerHover && (ed.o.onHover != nil || len(ed.diags) > 0) && off != h.restOff {
 		h.restOff, h.restAt, h.pending = off, ed.frameNow, true
 		changed = true
 	}
@@ -415,23 +419,30 @@ func (ed *editor) wheel(ev ui.InputEvent) bool {
 }
 
 // trackWidth is the room the scroll bar's track takes at the right edge:
-// none when the editor fits its content, as it then never scrolls. The
-// old side of a split diff, which draws no scroll bar of its own
-// (noScrollbar), keeps the room all the same, so that both sides wrap
-// their lines at the same width.
+// none when the editor fits its content, as it then never scrolls, or
+// hides its scroll bars (NoScrollbars). The old side of a split diff,
+// which draws no scroll bar of its own (noScrollbar), keeps the room all
+// the same, so that both sides wrap their lines at the same width.
 func (ed *editor) trackWidth() float32 {
-	if ed.o.fitContent {
+	if ed.o.fitContent || ed.o.hideScrollbars {
 		return 0
 	}
-	return scrollbarWidth
+	return ed.barWidth()
 }
+
+// barWidth is how wide the editor's scroll bars are, as State.Scrollbar
+// says and its theme fills in: 10 DIPs unless it says otherwise.
+func (ed *editor) barWidth() float32 { return ed.barStyle.TrackWidth }
 
 // scrollbars reports which scroll bars the editor shows, and takes
 // presses on: the vertical one while it scrolls, as it does past the end
 // of a short text, and never for an editor as high as its content or the
 // old side of a split diff; the horizontal one while a line runs under
-// the vertical one's track or beyond.
+// the vertical one's track or beyond; neither with NoScrollbars.
 func (ed *editor) scrollbars() (vertical, horizontal bool) {
+	if ed.o.hideScrollbars {
+		return false, false
+	}
 	vertical = !ed.o.noScrollbar && !ed.o.fitContent && ed.scrollMax() > 0
 	return vertical, !ed.view.wrap && ed.view.maxLine > ed.hTrack()
 }
@@ -489,16 +500,19 @@ func (ed *editor) setScrollShared(y float64) {
 // one along its right edge, the horizontal one under the text, at the
 // bottom of what shows (hbarY), short of the vertical one's track.
 func (ed *editor) bar(horizontal bool) ui.Scrollbar {
+	style := ed.barStyle
 	if horizontal {
 		return ui.Scrollbar{
-			Box:        ui.Rect{X: ed.textX, W: ed.hTrack(), H: ed.hbarY + scrollbarWidth},
+			Box:        ui.Rect{X: ed.textX, W: ed.hTrack(), H: ed.hbarY + style.TrackWidth},
 			Horizontal: true,
 			View:       ed.r.W - ed.textX, Content: ed.view.maxLine + ed.view.charWidth*4, Offset: ed.scrollX,
+			Style: style,
 		}
 	}
 	return ui.Scrollbar{
 		Box:  ui.Rect{W: ed.r.W, H: ed.viewH},
 		View: ed.viewH, Content: float32(ed.scrollMax()) + ed.viewH, Offset: float32(ed.scrollY),
+		Style: style,
 	}
 }
 

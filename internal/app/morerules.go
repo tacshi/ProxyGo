@@ -238,7 +238,7 @@ func protobufSchemasMenu(a *App, c *ui.Context) {
 				m.Item(s.Source).Disabled(true)
 				m.Item(locales.ImportedAt(s.Imported)).Disabled(true)
 				m.Separator()
-				if m.Item(locales.Remove()).Chosen() {
+				if m.Item(locales.Remove()).Danger().Chosen() {
 					if err := a.schemas.Remove(s.ID); err != nil {
 						a.toast(locales.CannotRemove(s.Name, err.Error()))
 					}

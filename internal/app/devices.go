@@ -100,7 +100,7 @@ func (a *App) deviceMenu(m *ui.Menu, ip string) {
 		a.copy(ip, locales.CopiedTheAddress())
 	}
 	m.Separator()
-	if m.Item(locales.DeleteAllFrom(a.deviceName(ip))).Chosen() {
+	if m.Item(locales.DeleteAllFrom(a.deviceName(ip))).Danger().Chosen() {
 		a.deleteMatching(func(f *flow.Flow) bool { return remoteIP(f) == ip })
 	}
 }

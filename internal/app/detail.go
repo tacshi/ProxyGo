@@ -13,6 +13,7 @@ import (
 
 	"proxygo/internal/flow"
 	"proxygo/internal/preview"
+	"proxygo/internal/settings"
 	"proxygo/locales"
 )
 
@@ -59,9 +60,9 @@ func (a *App) inspector(c *ui.Context, f *flow.Flow, scope string) {
 		req := func() { a.requestPane(c, f) }
 		resp := func() { a.responsePane(c, f) }
 		if a.set.StackedDetail || a.set.DetailRight {
-			ui.SplitVerticalPercent(c, &a.set.DetailPercent, req, resp).Grow(1)
+			ui.SplitVerticalPercent(c, &a.set.DetailPercent, req, resp).SplitReset(settings.Defaults().DetailPercent).Grow(1)
 		} else {
-			ui.SplitPercent(c, &a.set.DetailPercent, req, resp).Grow(1)
+			ui.SplitPercent(c, &a.set.DetailPercent, req, resp).SplitReset(settings.Defaults().DetailPercent).Grow(1)
 		}
 	})
 }
@@ -88,7 +89,17 @@ func (a *App) summaryBar(c *ui.Context, f *flow.Flow) {
 			})
 		}
 		if !f.IsTunnel() && !f.IsWebSocket() {
-			if iconButton(c, "repeat", locales.RepeatShortcut(), p.text2).Clicked() {
+			repeat := ui.SplitButton(c, "")
+			repeat.Button.Label(locales.RepeatShortcut()).Tooltip(locales.RepeatShortcut()).Children(func() { glyph(c, "repeat", 14, p.text2) })
+			repeat.Arrow.Label(locales.AdvancedRepeat()).Menu(func(m *ui.Menu) {
+				if m.Item(locales.EditAndRepeatEllipsis()).Shortcut(ui.Cmd, ui.KeyE).Chosen() {
+					a.composeFrom(f)
+				}
+				if m.Item(locales.AdvancedRepeatEllipsis()).Chosen() {
+					a.advancedRepeat([]*flow.Flow{f})
+				}
+			})
+			if repeat.Button.Clicked() {
 				a.repeatFlows([]*flow.Flow{f})
 			}
 			if iconButton(c, "compose", locales.EditAndRepeatShortcut(), p.text2).Clicked() {
@@ -164,7 +175,7 @@ func (a *App) requestPane(c *ui.Context, f *flow.Flow) {
 		case "Header":
 			a.headerTable(c, f.Request.Header, "request")
 		case "Query":
-			a.pairsTable(c, f.QueryItems(), locales.Parameter(), locales.Value(), locales.NoQueryParameters(), "")
+			a.pairsTable(c, f.QueryItems(), locales.Parameter(), locales.Value(), locales.NoQueryParameters(), "", nil)
 		case "Body":
 			a.bodyView(c, f, false, "")
 		case "Raw":
@@ -174,7 +185,7 @@ func (a *App) requestPane(c *ui.Context, f *flow.Flow) {
 			for _, ck := range f.Cookies() {
 				rows = append(rows, [2]string{ck.Name, ck.Value})
 			}
-			a.pairsTable(c, rows, locales.ColumnName(), locales.Value(), locales.NoCookies(), "")
+			a.pairsTable(c, rows, locales.ColumnName(), locales.Value(), locales.NoCookies(), "", func(string) bool { return true })
 		case "Summary":
 			a.summary(c, f)
 		case "Comment":
@@ -214,7 +225,7 @@ func (a *App) responsePane(c *ui.Context, f *flow.Flow) {
 			centered(c, 8, func() {
 				ui.Spinner(c)
 				ui.Text(c, locales.WaitingForTheResponse()).TextColor(p.muted)
-				ui.Text(c, locales.StartedAgo(time.Since(f.RequestTime()).Round(time.Second).String())).FontSize(11).TextColor(p.faint)
+				ui.Text(c, locales.StartedAgo(sinceSeconds(time.Since(f.RequestTime())))).FontSize(11).TextColor(p.faint)
 			})
 			c.After(time.Second)
 			return
@@ -243,10 +254,10 @@ func (a *App) headerTable(c *ui.Context, h flow.Header, side string) {
 			rows = append(rows, [2]string{e.Key.Name, e.Value})
 		}
 	}
-	a.pairsTable(c, rows, locales.ColumnKey(), locales.Value(), locales.NoHeaders(), side)
+	a.pairsTable(c, rows, locales.ColumnKey(), locales.Value(), locales.NoHeaders(), side, secretHeader)
 }
 
-func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, empty, side string) {
+func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, empty, side string, secret func(key string) bool) {
 	p := a.pal
 	if len(rows) == 0 {
 		emptyState(c, p, empty)
@@ -256,13 +267,13 @@ func (a *App) pairsTable(c *ui.Context, rows [][2]string, keyTitle, valueTitle, 
 		r := rows[row]
 		ui.Box(c).Absolute().Top(-6).Bottom(-6).Left(-8).Right(-8).ContextMenu(func(m *ui.Menu) {
 			if m.Item(locales.CopyValue()).Chosen() {
-				a.copy(r[1], locales.CopiedTheValue())
+				a.copyMaybeSecret(secret != nil && secret(r[0]), r[1], locales.CopiedTheValue())
 			}
 			if m.Item(locales.CopyKey()).Chosen() {
 				a.copy(r[0], locales.CopiedTheKey())
 			}
 			if m.Item(locales.CopyAsKeyValue()).Chosen() {
-				a.copy(r[0]+": "+r[1], locales.CopiedTheLine())
+				a.copyMaybeSecret(secret != nil && secret(r[0]), r[0]+": "+r[1], locales.CopiedTheLine())
 			}
 			if side != "" {
 				m.Separator()
@@ -753,7 +764,7 @@ func (a *App) messages(c *ui.Context, f *flow.Flow) {
 			}
 		}
 		a.bodyContent(c, fmt.Sprintf("%s:ws:%d:%v", f.UniqueID, a.wsRow, m.Time), body, ct, "ws", bodySource{f: f, response: m.From == "server", ws: &m})
-	}).Grow(1)
+	}).SplitReset(65).Grow(1)
 }
 
 func (a *App) wsComposer(c *ui.Context, f *flow.Flow) {

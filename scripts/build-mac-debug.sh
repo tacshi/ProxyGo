@@ -4,7 +4,9 @@
 # web inspector), has its own name, bundle identifier and data directory, and
 # wears the debug icon (the ProxyGo mark in pink on black). Its settings start
 # from the defaults, so give it another proxy port than 9090 to run both at
-# once.
+# once. It is built with MyGo's automation plugin (the automation build tag),
+# which release builds leave out: started with MYGO_AUTOMATION set to the path
+# of a socket, it can be driven from outside with mygo-automation.
 #
 #   scripts/build-mac-debug.sh          # build build/mac-debug/ProxyGo-debug.app
 #   scripts/build-mac-debug.sh --open   # build, then launch it
@@ -26,7 +28,7 @@ for arg in "$@"; do
 	case "$arg" in
 	--open) open_app=true ;;
 	-h | --help)
-		sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -62,7 +64,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 echo "==> Building debug app for darwin/$arch"
-go tool mygo build -debug -skip-dmg -platform "darwin/$arch" -o "$out"
+GOFLAGS="${GOFLAGS:-} -tags=automation" go tool mygo build -debug -skip-dmg -platform "darwin/$arch" -o "$out"
 if [[ ! -d "$built" ]]; then
 	echo "Expected $built after the build." >&2
 	exit 1

@@ -550,7 +550,7 @@ func (a *App) ruleWindow(c *ui.Context, kind string) {
 					}
 				}
 				m.Separator()
-				if m.Item(locales.Delete()).Chosen() {
+				if m.Item(locales.Delete()).Danger().Chosen() {
 					a.rules.Update(func(d *rules.Data) { k.remove(d, id) })
 				}
 			})
@@ -1226,7 +1226,7 @@ func (a *App) sslWindow(c *ui.Context) {
 							}
 						})
 					}
-					if m.Item(locales.Delete()).Chosen() {
+					if m.Item(locales.Delete()).Danger().Chosen() {
 						a.rules.Update(func(d *rules.Data) {
 							d.SSL.Rules = dropByID(d.SSL.Rules, id, func(r *rules.SSLRule) string { return r.ID })
 						})

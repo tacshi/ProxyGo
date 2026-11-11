@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/png"
 	"testing"
+	"time"
 
 	ui "github.com/egoist/mygo/proxygoui"
 )
@@ -45,3 +46,46 @@ func TestMenuDotsFollowTheme(t *testing.T) {
 		t.Error("the menu's items keep their old dots")
 	}
 }
+
+func TestFlowContextMenuShowsDots(t *testing.T) {
+	a, _ := testApp(t)
+	for _, f := range fixtures() {
+		a.store.Upsert(f)
+	}
+	a.setMenuDots()
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetMenuPresentation(ui.PopoverMenus)
+		a.view(c)
+	}, 1440, 900)
+	tt.Frame()
+	if err := tt.RightClick("https://api.example.com/v1/users?page=2&q=go"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	r, ok := tt.Find("Highlight")
+	if !ok {
+		t.Fatalf("the menu shows no Highlight item: %v", tt.Menu())
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Advance(time.Second)
+	tt.Frame()
+	img := tt.Image()
+	for _, name := range highlightColors {
+		item, ok := tt.Find(colorName(name))
+		if !ok {
+			t.Fatalf("the Highlight menu shows no %s: %v", colorName(name), tt.Texts())
+		}
+		want := a.pal.swatch(name)
+		found := false
+		y := int(item.Y + item.H/2)
+		for x := int(item.X); x < int(item.X+item.W) && !found; x++ {
+			got := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+			found = near(got.R, want.R) && near(got.G, want.G) && near(got.B, want.B)
+		}
+		if !found {
+			t.Errorf("no %s dot beside %q", name, colorName(name))
+		}
+	}
+}
+
+func near(a, b uint8) bool { return max(a, b)-min(a, b) <= 6 }

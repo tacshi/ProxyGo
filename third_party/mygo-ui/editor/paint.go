@@ -47,7 +47,7 @@ func (ed *editor) layout(w, h, scale float32) {
 	if ed.o.signs {
 		ed.textX += 2 * v.charWidth
 	}
-	ed.viewH = h
+	ed.viewH, ed.laidW = h, w
 	wrap := ed.o.wrap != ed.toggledWrap
 	ww := w - ed.textX - ed.trackWidth() - 4
 	if ed.o.wrapColumn > 0 {
@@ -59,15 +59,11 @@ func (ed *editor) layout(w, h, scale float32) {
 		ed.scrollX = 0
 	}
 	v.heights.setLines(v.text.LineCount())
-	hidden := ed.hiddenSpans()
 	var blocks []block
-	if ed.o.decor != nil {
-		if ds, ok := ed.o.decor.(*diffSide); ok {
-			hidden = mergeSpans(append(hidden, ds.hidden()...))
-			blocks = ds.blocks()
-		}
+	if ds, ok := ed.o.decor.(*diffSide); ok {
+		blocks = ds.blocks()
 	}
-	v.heights.setHidden(hidden)
+	v.heights.setHidden(ed.hiddenLines())
 	v.heights.setBlocks(blocks)
 }
 
@@ -90,6 +86,12 @@ func (ed *editor) paint(p *ui.Painter, r ui.Rect) {
 	ed.frameNow = p.Now()
 	ed.r = r
 	ed.layout(r.W, r.H, p.Scale())
+	if ed.viewH != ed.builtViewH && !ed.o.fitContent {
+		// Resized: what read ViewportHeight as the view was built reads
+		// it again.
+		ed.builtViewH = ed.viewH
+		ed.services.Invalidate()
+	}
 	more := false
 	if !v.measureWraps(ed.anchorLine, 4*time.Millisecond) {
 		more = true
@@ -109,10 +111,21 @@ func (ed *editor) paint(p *ui.Painter, r ui.Rect) {
 	y1 := ed.scrollY + float64(min(r.H, clip.Y+clip.H-r.Y))
 	// The horizontal scroll bar at the bottom of what shows, as an editor
 	// as high as its content may run far below the window's.
-	ed.hbarY = max(0, min(r.H, clip.Y+clip.H-r.Y)) - scrollbarWidth
+	ed.hbarY = max(0, min(r.H, clip.Y+clip.H-r.Y)) - ed.barWidth()
 	var f frame
 	f.first, f.last = ed.visibleLines(y0, y1)
 	ed.shown = [2]int{f.first, f.last}
+	ed.shownY = [2]float64{min(max(y0, 0), float64(r.H)), min(max(y1, 0), float64(r.H))}
+	if ed.shownY[1] < ed.shownY[0] {
+		ed.shownY[0], ed.shownY[1] = ed.shownY[1], ed.shownY[0]
+	}
+	ed.pad, ed.paintedBuild = float64(max(clip.H, 400)), ed.builds
+	// Scrolled past what the blocks were built for, by its container in
+	// one turn of the wheel or a drag of its scroll bar: build them again
+	// around what shows, which no other change asks for.
+	if ed.o.fitContent && (ed.shownY[0] < ed.builtY[0] || ed.shownY[1] > ed.builtY[1]) {
+		ed.services.Invalidate()
+	}
 	if !v.advanceSyntax(f.last+1, 4*time.Millisecond) {
 		more = true
 	}
@@ -132,6 +145,12 @@ func (ed *editor) paint(p *ui.Painter, r ui.Rect) {
 		// keyboard.
 		f.caretsOn = true
 	}
+	// Scrolled, or laid out anew, since the elements of replacements were
+	// placed, by a frame painting without building, as dragging past the
+	// edge scrolls: place them again.
+	if ed.replacementsMoved() {
+		ed.services.Invalidate()
+	}
 	ed.paintBlocks(p, r, &f)
 	text := ui.Rect{X: r.X + ed.gutterW, Y: r.Y, W: r.W - ed.gutterW, H: r.H}
 	p.Clip(text, 0, func() {
@@ -143,6 +162,11 @@ func (ed *editor) paint(p *ui.Painter, r ui.Rect) {
 		p.AnimationFrame()
 	}
 	v.endFrame()
+	// A unified diff's deleted lines are the old text's, which its view
+	// lays out and shapes as this one paints them.
+	if ds, ok := ed.o.decor.(*diffSide); ok && ds.unified {
+		ds.d.oldView.endFrame()
+	}
 }
 
 // prepare works out what highlights the lines in view.
@@ -293,11 +317,44 @@ func (ed *editor) blocksInView(fn func(b *block, top float64)) {
 	if len(h.blocks) == 0 || h.n == 0 {
 		return
 	}
-	y0, y1 := ed.scrollY, ed.scrollY+float64(ed.viewH)
-	if ed.o.fitContent {
-		y0, y1 = 0, h.total()
-	}
+	y0, y1 := ed.buildRange()
 	ed.eachBlock(h.lineAt(y0), min(h.lineAt(y1), h.n-1), fn)
+}
+
+// fitWidth is the width an editor as high as its content lays out at as
+// it builds: the one it was laid out at last, else its box's, else a
+// guess until it shows.
+func (ed *editor) fitWidth() float32 {
+	switch {
+	case ed.laidW > 0:
+		return ed.laidW
+	case ed.r.W > 0:
+		return ed.r.W
+	}
+	return 600
+}
+
+// buildRange is the part of the content whose blocks build elements: the
+// view's, or for an editor as high as its content the part its build
+// chose (fitRange).
+func (ed *editor) buildRange() (y0, y1 float64) {
+	if !ed.o.fitContent {
+		return ed.scrollY, ed.scrollY + float64(ed.viewH)
+	}
+	return ed.builtY[0], ed.builtY[1]
+}
+
+// fitRange is the part of the content an editor as high as its content
+// builds the blocks of: what it showed as it painted last, a view's
+// height to either side for a scroll since, or all of it where it has not
+// painted since its last build, as out of view: else each frame would
+// build the blocks of every line, of a long file too. It counts builds,
+// not time, so that the first frame after a pause builds no more.
+func (ed *editor) fitRange() (y0, y1 float64) {
+	if ed.paintedBuild == 0 || ed.paintedBuild != ed.builds {
+		return 0, ed.view.heights.total()
+	}
+	return ed.shownY[0] - ed.pad, ed.shownY[1] + ed.pad
 }
 
 func (ed *editor) paintBlock(p *ui.Painter, r ui.Rect, b *block, top float64) {
@@ -427,6 +484,7 @@ func (ed *editor) paintLine(p *ui.Painter, r ui.Rect, f *frame, line int, g line
 		}
 		v.paintRow(p, l, row, ox, y, &f.colors, nil)
 		ed.paintWhitespace(p, f, l, row, ox, y)
+		ed.paintMarked(p, f, l, row, ox, y)
 		// Diagnostics under the text.
 		for _, d := range ed.diags {
 			if d.End < l.start || d.Start > l.start+len(l.text) {
@@ -482,10 +540,11 @@ func (ed *editor) paintLine(p *ui.Painter, r ui.Rect, f *frame, line int, g line
 
 // caretWidth returns the width of a block or underline caret at offset
 // at, x in row: that of the character after it, with its combining marks,
-// or of a space at the end of the line or of the row.
+// or what a replacement shows there, or of a space at the end of the line
+// or of the row.
 func (ed *editor) caretWidth(l *lineLayout, row *rowLayout, at int, x float32) float32 {
 	v := &ed.view
-	end := min(graphemeRight(v.text, at), l.start+len(l.text))
+	end := min(ed.overReplacements(at, graphemeRight(v.text, at)), l.start+len(l.text))
 	if end <= at {
 		return v.charWidth
 	}
@@ -522,6 +581,29 @@ func (ed *editor) fillRange(p *ui.Painter, f *frame, l *lineLayout, row *rowLayo
 	f.rects = mergeRects(ed.view.rangeRects(l, row, a, b, f.rects[:0]))
 	for _, rc := range f.rects {
 		p.Fill(ui.Rect{X: ox + rc.X, Y: y, W: rc.W, H: ed.view.lineHeight}, c, radius)
+	}
+}
+
+// paintMarked rules a line under what an input method composes in a row, as
+// the app's text inputs underline theirs until they are committed.
+func (ed *editor) paintMarked(p *ui.Painter, f *frame, l *lineLayout, row *rowLayout, ox, y float32) {
+	if !ed.markedActive {
+		return
+	}
+	for _, m := range ed.marked {
+		if m.End <= l.start || m.Start >= l.start+len(l.text) {
+			continue
+		}
+		a, b := max(m.Start-l.start, 0), min(m.End-l.start, len(l.text))
+		ed.ruleRange(p, f, l, row, ox, y, l.toDisp(a, false), l.toDisp(b, true), ed.theme.Text)
+	}
+}
+
+// ruleRange rules a line under displayed bytes a to b of a row.
+func (ed *editor) ruleRange(p *ui.Painter, f *frame, l *lineLayout, row *rowLayout, ox, y float32, a, b int, c ui.Color) {
+	f.rects = mergeRects(ed.view.rangeRects(l, row, a, b, f.rects[:0]))
+	for _, rc := range f.rects {
+		p.Fill(ui.Rect{X: ox + rc.X, Y: y + ed.view.lineHeight - 2, W: rc.W, H: 1}, c, 0)
 	}
 }
 
@@ -571,7 +653,7 @@ func (ed *editor) paintWhitespace(p *ui.Painter, f *frame, l *lineLayout, row *r
 	}
 	for i := a; i < b; i++ {
 		c := s[i]
-		if c != ' ' && c != '\t' {
+		if c != ' ' && c != '\t' || l.replaced(i) {
 			continue
 		}
 		show := false
@@ -752,6 +834,13 @@ func (ed *editor) paintBar(p *ui.Painter, r ui.Rect, s lineLook) {
 		p.Fill(r, s.bar, 0)
 		return
 	}
+	// Only the stripes in view: a long line's bar runs thousands of rows.
+	vis := p.Visible()
+	y0, y1 := max(r.Y, vis.Y), min(r.Y+r.H, vis.Y+vis.H)
+	if y1 <= y0 {
+		return
+	}
+	r.Y, r.H = y0, y1-y0
 	barStripes(r, float64(r.Y-ed.r.Y)+ed.scrollY, func(sr ui.Rect) { p.Fill(sr, s.bar, 0) })
 }
 
@@ -786,11 +875,17 @@ func (ed *editor) paintScrollbars(p *ui.Painter, r ui.Rect, f *frame) {
 	ct := ed.theme
 	vertical, horizontal := ed.scrollbars()
 	// The thumbs and the carets' marks show while the pointer is over the
-	// editor, or drags a thumb, as a scroll container's do; the marks of
-	// changes, matches and diagnostics always.
-	shown := ed.pointerIn || ed.scrollbar.active
+	// editor, or drags a thumb, as a scroll container's do, or always
+	// when kept (KeepScrollbars), looking the same; the marks of changes,
+	// matches and diagnostics always.
+	shown := ed.pointerIn || ed.scrollbar.active || ed.o.keepScrollbars
 	if vertical {
-		x := r.X + r.W - scrollbarWidth
+		width := ed.barWidth()
+		x := r.X + r.W - width
+		bar := ed.barIn(r, false)
+		// The track goes under the marks of changes, matches and
+		// diagnostics, and the thumb over them.
+		p.ScrollbarTrack(bar)
 		span := float32(ed.scrollMax()) + ed.viewH
 		mark := func(y float64, h float32, x0, w float32, c ui.Color) {
 			yy := r.Y + float32(y/float64(span))*r.H
@@ -847,7 +942,7 @@ func (ed *editor) paintScrollbars(p *ui.Painter, r ui.Rect, f *frame) {
 			if i > 2000 {
 				break
 			}
-			mark(h.top(v.text.LineOf(d.Start)), v.lineHeight, 7, 3, ct.SeverityColor(d.Severity))
+			mark(h.top(v.text.LineOf(d.Start)), v.lineHeight, width-3, 3, ct.SeverityColor(d.Severity))
 		}
 		if !shown {
 			return
@@ -855,12 +950,18 @@ func (ed *editor) paintScrollbars(p *ui.Painter, r ui.Rect, f *frame) {
 		// Carets.
 		if len(ed.sels) <= 100 {
 			for _, s := range ed.sels {
-				mark(h.top(v.text.LineOf(s.head)), 2, 0, scrollbarWidth, ct.Text.Alpha(0.5))
+				mark(h.top(v.text.LineOf(s.head)), 2, 0, width, ct.Text.Alpha(0.5))
 			}
 		}
-		p.Scrollbar(ed.barIn(r, false), ui.ScrollbarState{Dragging: ed.scrollbar.active && !ed.scrollbar.horizontal})
+		p.ScrollbarThumb(bar, ui.ScrollbarState{
+			Hovered:  ed.pointerIn && ed.region == regionVScroll,
+			Dragging: ed.scrollbar.active && !ed.scrollbar.horizontal,
+		})
 	}
 	if horizontal && shown {
-		p.Scrollbar(ed.barIn(r, true), ui.ScrollbarState{Dragging: ed.scrollbar.active && ed.scrollbar.horizontal})
+		p.Scrollbar(ed.barIn(r, true), ui.ScrollbarState{
+			Hovered:  ed.pointerIn && ed.region == regionHScroll,
+			Dragging: ed.scrollbar.active && ed.scrollbar.horizontal,
+		})
 	}
 }

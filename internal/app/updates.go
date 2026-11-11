@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/netproxy"
 	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/plugins/updater/native"
@@ -106,15 +107,22 @@ func (a *App) updateStatus() string {
 
 func sinceText(t time.Time) string {
 	d := time.Since(t)
+	ago := func(n time.Duration, unit i18n.RelativeTimeUnit) string {
+		return i18n.FormatRelativeTime(i18n.Locale(), -float64(n), unit, i18n.RelativeTimeOptions{Auto: unit == i18n.RelativeDay})
+	}
 	switch {
 	case d < time.Minute:
 		return locales.JustNow()
 	case d < time.Hour:
-		return locales.MinutesAgo(int(d / time.Minute))
+		return ago(d/time.Minute, i18n.RelativeMinute)
 	case d < 24*time.Hour:
-		return locales.HoursAgo(int(d / time.Hour))
+		return ago(d/time.Hour, i18n.RelativeHour)
 	case d < 48*time.Hour:
-		return locales.Yesterday()
+		return ago(1, i18n.RelativeDay)
 	}
 	return locales.MonthDay(t)
+}
+
+func sinceSeconds(d time.Duration) string {
+	return i18n.FormatRelativeTime(i18n.Locale(), -float64(d/time.Second), i18n.RelativeSecond, i18n.RelativeTimeOptions{})
 }

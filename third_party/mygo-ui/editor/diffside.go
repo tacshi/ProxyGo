@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/proxygoui"
 )
@@ -37,6 +38,16 @@ func (s *diffSide) hunkOf(line int) int {
 		return i
 	}
 	return -1
+}
+
+// empty reports whether the side's text is empty, as of a file added or
+// deleted: the hunks count no lines of it, as git does, though its
+// editor keeps one, which is not numbered, selected or commented on.
+func (s *diffSide) empty() bool {
+	if s.old {
+		return s.d.eds[0].view.text.Len() == 0
+	}
+	return s.d.eds[1].view.text.Len() == 0
 }
 
 func (s *diffSide) colors(ed *editor) diffColors { return ed.theme.diff(isDark(ed.theme.Background)) }
@@ -102,6 +113,9 @@ func (s *diffSide) words(line int) []diffRange {
 }
 
 func (s *diffSide) number(line int) int {
+	if s.empty() {
+		return -1
+	}
 	if pt := s.d.partial; pt != nil {
 		return pt.fileLine(s.old || false, line) + 1
 	}
@@ -140,9 +154,12 @@ func (s *diffSide) paintBlock(p *ui.Painter, ed *editor, b *block, r ui.Rect, to
 // corner is at corner, from a at v's bottom to b at its top, v being what
 // shows of it: lines at -45°, up to the right, every 8 DIPs along its
 // bottom from the corner. They are those that cross v alone, and their
-// pieces from v's bottom to its top, all of a size so that they share
-// their masks: a filler across a whole file added is millions of DIPs
-// high.
+// pieces from v's bottom to its top, all of a size so that they share a
+// mask without a GPU: a filler across a whole file added is millions of
+// DIPs high. Stroke each alone: on a GPU, a translucent line of one
+// segment takes no mask. That one would be as wide and as high as v is
+// high, rasterized again as its height changes, and drawn that large for
+// each stripe.
 func fillerStripes(v ui.Rect, corner [2]float64, fn func(a, b [2]float32)) {
 	if v.W <= 0 || v.H <= 0 {
 		return
@@ -164,7 +181,6 @@ func (s *diffSide) paintDeleted(p *ui.Painter, ed *editor, b *block, r ui.Rect) 
 	d := s.d
 	ov := &d.oldView
 	ov.setTheme(ed.theme)
-	ov.advanceSyntax(b.to, 0)
 	dc := s.colors(ed)
 	lh := ed.view.lineHeight
 	ox := r.X + ed.textX - ed.scrollX
@@ -172,21 +188,32 @@ func (s *diffSide) paintDeleted(p *ui.Painter, ed *editor, b *block, r ui.Rect) 
 	var cc runColors
 	var rects []ui.Rect
 	words := d.model.wordsOf(b.hunk, d.Inline)
-	// Each line's top, and the lines in the clip.
+	// The lines in the clip, from the first whose rows or annotations
+	// reach into it, by the tops prepare kept: a run as long as a file
+	// deleted is not laid out from its first line.
 	type placed struct {
 		line int
 		y, h float32
 		l    *lineLayout
 	}
 	var lines []placed
-	y := r.Y
-	for line := b.from; line < b.to && y <= p.Visible().Y+p.Visible().H; line++ {
+	tops := d.deletedTops[b.hunk]
+	vis := p.Visible()
+	y0, y1 := float64(vis.Y-r.Y), float64(vis.Y+vis.H-r.Y)
+	first := b.from + max(0, sort.Search(len(tops), func(i int) bool { return tops[i] > y0 })-1)
+	last := first
+	for last < b.to && tops[last-b.from] <= y1 {
+		last++
+	}
+	ready := ov.advanceSyntax(last, 4*time.Millisecond)
+	ov.approx = false
+	for line := first; line < last; line++ {
 		l := ov.line(line)
+		y := r.Y + float32(tops[line-b.from])
 		h := float32(len(l.rows)) * lh
-		if y+h >= p.Visible().Y {
+		if y+h >= vis.Y {
 			lines = append(lines, placed{line, y, h, l})
 		}
-		y += h + d.annotationHeight(DiffOld, line)
 	}
 	for _, pl := range lines {
 		if !d.NoBackground {
@@ -219,6 +246,11 @@ func (s *diffSide) paintDeleted(p *ui.Painter, ed *editor, b *block, r ui.Rect) 
 			for ri := range l.rows {
 				row := &l.rows[ri]
 				ry := pl.y + float32(ri)*lh
+				// Only the rows in view: a long line wraps into
+				// thousands, each shaped and painted otherwise.
+				if ry > p.Visible().Y+p.Visible().H || ry+lh < p.Visible().Y {
+					continue
+				}
 				if d.Inline != DiffInlineNone {
 					for _, w := range words.oldWords[pl.line] {
 						rects = mergeRects(ov.rangeRects(l, row, l.toDisp(w.start, false), l.toDisp(w.end, false), rects[:0]))
@@ -231,6 +263,11 @@ func (s *diffSide) paintDeleted(p *ui.Painter, ed *editor, b *block, r ui.Rect) 
 			}
 		}
 	})
+	// Frames go on while the highlighter works, or the lines show its
+	// guesses, as the editor's own lines do.
+	if !ready || ov.approx {
+		p.AnimationFrame()
+	}
 }
 
 // paintSign paints a classic + or - before a line.
@@ -256,16 +293,10 @@ func (s *diffSide) blockInput(ed *editor, b *block, ev ui.InputEvent, r ui.Rect)
 		case blockDeleted:
 			// Lines of the old text: their numbers select them.
 			if ev.X < ed.gutterW && d.LineSelection && ev.Kind == ui.InputPointerDown {
-				// The line by the heights of its rows and annotations.
-				lh := ed.view.lineHeight
-				y, line := r.Y, b.to-1
-				for l := b.from; l < b.to; l++ {
-					y += float32(d.oldView.heights.wraps.rows(l))*lh + d.annotationHeight(DiffOld, l)
-					if ev.Y < y {
-						line = l
-						break
-					}
-				}
+				// The line by the tops of the lines, its annotations its own.
+				tops := d.deletedTops[b.hunk]
+				i := sort.Search(len(tops), func(i int) bool { return tops[i] > float64(ev.Y-r.Y) })
+				line := b.from + min(max(i-1, 0), b.to-b.from-1)
 				d.selectLine(DiffOld, line, ev.Mods&ui.Shift != 0)
 				return true
 			}
@@ -279,7 +310,7 @@ func (s *diffSide) blockInput(ed *editor, b *block, ev ui.InputEvent, r ui.Rect)
 	}
 	_, cy := ed.toContent(ev.X, ev.Y)
 	line := ed.view.heights.lineAt(cy)
-	if d.LineSelection {
+	if d.LineSelection && !s.empty() {
 		d.selectLine(side, line, ev.Mods&ui.Shift != 0)
 		return true
 	}
@@ -295,10 +326,7 @@ func (s *diffSide) buildBlocks(c *ui.Context, ed *editor) {
 	if ed.r.W <= 0 {
 		return
 	}
-	y0, y1 := ed.scrollY, ed.scrollY+float64(ed.viewH)
-	if ed.o.fitContent {
-		y0, y1 = 0, h.total()
-	}
+	y0, y1 := ed.buildRange()
 	first, last := h.lineAt(y0), h.lineAt(y1)
 	side := DiffNew
 	if s.old {
@@ -350,14 +378,9 @@ func (s *diffSide) buildBlocks(c *ui.Context, ed *editor) {
 						}
 						for _, b := range blks {
 							if b.kind == blockDeleted && a.Line >= b.from && a.Line < b.to {
-								off := bt
-								for l := b.from; l <= a.Line; l++ {
-									off += float64(float32(d.oldView.heights.wraps.rows(l)) * v.lineHeight)
-									if l < a.Line {
-										off += float64(d.annotationHeight(DiffOld, l))
-									}
-								}
-								top, found = off, true
+								// Under the line's rows.
+								rows := float64(float32(d.oldView.heights.wraps.rows(a.Line)) * v.lineHeight)
+								top, found = bt+d.deletedTops[b.hunk][a.Line-b.from]+rows, true
 								break
 							}
 							bt += float64(b.height)
@@ -426,7 +449,7 @@ func (s *diffSide) buildBlocks(c *ui.Context, ed *editor) {
 		}
 	}
 	// The gutter's button, on the line under the pointer.
-	if d.OnGutterButton != nil && ed.pointerIn && ed.hoverLine >= 0 && ed.hoverLine < v.text.LineCount() && ed.pointer.X < ed.gutterW+40 {
+	if d.OnGutterButton != nil && !s.empty() && ed.pointerIn && ed.hoverLine >= 0 && ed.hoverLine < v.text.LineCount() && ed.pointer.X < ed.gutterW+40 {
 		g := h.geometry(ed.hoverLine)
 		if !g.hidden {
 			line := DiffLineRange{Side: side, Start: ed.hoverLine, End: ed.hoverLine}

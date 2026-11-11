@@ -193,6 +193,9 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 			} else {
 				ui.Text(c, about).FontSize(11).TextColor(p.muted).SingleLine()
 			}
+			if src.f != nil && plainIconButton(c, "eye", locales.QuickLook(), 12, p.muted, p.hover).Clicked() {
+				a.quickLook(src.f, src.response)
+			}
 			if plainIconButton(c, "copy", copyLabel, 12, p.muted, p.hover).Clicked() {
 				a.copy(string(body), locales.CopiedTheBody())
 			}
@@ -227,7 +230,7 @@ func (a *App) bodyContent(c *ui.Context, key string, body []byte, ct, side strin
 				}
 			}
 			_ = values
-			a.pairsTable(c, rows, locales.Field(), locales.Value(), locales.NoFields(), "")
+			a.pairsTable(c, rows, locales.Field(), locales.Value(), locales.NoFields(), "", nil)
 		case modeParts:
 			a.multipartView(c, k, body, ct, side)
 		case modeProtobuf:
